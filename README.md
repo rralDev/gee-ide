@@ -115,3 +115,10 @@ A sidebar view (`gee-pro-tasks`) to monitor, cancel, and manage your Earth Engin
 This extension builds upon great work from the open-source community. Concepts and UI elements were inspired by the [earthengine-extension](https://github.com/12rambau/earthengine-extension) (Apache License 2.0). See `NOTICES.md` for full attribution.
 
 **License**: MIT License (for GEE IDE code).
+
+---
+
+## ⚠️ Beta Version & Feedback
+If you find a bug or have a feature request, please:
+- Report it via email to: [albert.physik@gmail.com](mailto:albert.physik@gmail.com)
+- Open an issue on our [GitHub Repository](https://github.com/rralDev/gee-ide/issues).
