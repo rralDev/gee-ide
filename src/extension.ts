@@ -342,7 +342,7 @@ export function activate(context: vscode.ExtensionContext) {
         });
 
         // 2. Open the demo script on the Top-Left (Column One)
-        const demoPath = vscode.Uri.file(context.asAbsolutePath('demos/welcome_to_gee_pro.gee'));
+        const demoPath = vscode.Uri.file(context.asAbsolutePath('demos/welcome_to_gee_ide.gee'));
         const doc = await vscode.workspace.openTextDocument(demoPath);
         await detectAndSetGeeLanguage(doc);
         await vscode.window.showTextDocument(doc, { preview: false, viewColumn: vscode.ViewColumn.One });

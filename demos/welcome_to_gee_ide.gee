@@ -9,7 +9,7 @@
 
 // 1. Zona de estudio: Amazonía Peruana (Madre de Dios)
 var roi = ee.Geometry.Point([-69.85, -12.85]).buffer(10000);
-
+print(roi)
 // 2. Centrar mapa en la zona de estudio (zoom 11)
 Map.centerObject(roi, 11);
 
