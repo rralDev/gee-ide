@@ -109,9 +109,10 @@ export class AIView {
             <body>
                 <div class="chat-container" id="chat">
                     <div class="msg ai">
-                        <strong>GEE IDE Assistant</strong><br>
-                        Hello! I am your GEE IDE geospatial assistant. I specialize in Google Earth Engine scripts and remote sensing analysis.<br><br>
-                        How can I help you optimize your algorithms today?
+                        <strong>GEE IDE Assistant (WIP)</strong><br>
+                        Hello! I am your geospatial AI assistant.<br><br>
+                        <em>Note: The AI engine is currently in active development. We are designing a smart system to cascade through free AI APIs and support local LLM execution!</em><br><br>
+                        How can I help you today?
                     </div>
                 </div>
                 <div class="input-container">

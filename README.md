@@ -27,7 +27,7 @@ GEE IDE implements a seamless, automatic OAuth 2.0 flow.
 - The credentials are automatically shared across **all three languages** (JS, Python, R) within the same session. No more running `earthengine authenticate` manually for every language!
 
 ### 5. AI Assistant
-Ask questions, generate Earth Engine scripts, or debug your algorithms with the built-in AI assistant panel, specifically fine-tuned for geospatial and GEE workflows.
+Ask questions, generate scripts, or debug your algorithms. **(Note: The AI engine is currently in active development. We are working on a cascading fallback system for free API tiers and local offline LLM support!)**
 
 ---
 
