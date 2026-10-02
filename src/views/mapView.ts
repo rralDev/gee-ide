@@ -3,6 +3,8 @@ import * as vscode from 'vscode';
 export class MapView {
     private panel: vscode.WebviewPanel | undefined;
     private messageCallback: ((message: any) => void) | undefined;
+    private isReady: boolean = false;
+    private messageQueue: any[] = [];
 
     constructor(private context: vscode.ExtensionContext) {}
 
@@ -10,42 +12,106 @@ export class MapView {
         this.messageCallback = callback;
     }
 
-    public show(column: vscode.ViewColumn) {
+    public show(column: vscode.ViewColumn, preserveFocus: boolean = true) {
         if (this.panel) {
-            this.panel.reveal(column);
+            this.panel.reveal(column, preserveFocus);
         } else {
             this.panel = vscode.window.createWebviewPanel(
                 'geeMap',
                 'GEE Map',
-                column,
+                { viewColumn: column, preserveFocus },
                 {
                     enableScripts: true,
                     retainContextWhenHidden: true
                 }
             );
 
+            this.isReady = false;
             this.panel.webview.html = this.getHtml();
             
             this.panel.webview.onDidReceiveMessage(message => {
+                if (message.command === 'ready') {
+                    this.isReady = true;
+                    this.flushQueue();
+                }
                 if (this.messageCallback) this.messageCallback(message);
             }, undefined, this.context.subscriptions);
 
             this.panel.onDidDispose(() => {
                 this.panel = undefined;
+                this.isReady = false;
             }, null, this.context.subscriptions);
         }
     }
 
-    public addLayer(mapId: any, name?: string) {
+    public focus() {
         if (this.panel) {
-            this.panel.webview.postMessage({ command: 'addLayer', mapId, name });
+            this.panel.reveal();
+            this.panel.webview.postMessage({ command: 'focus' });
+        } else {
+            this.show(vscode.ViewColumn.Three);
+            setTimeout(() => {
+                if (this.panel) {
+                    this.panel.webview.postMessage({ command: 'focus' });
+                }
+            }, 250);
         }
     }
 
-    public setCenter(lat: number, lng: number, zoom?: number) {
-        if (this.panel) {
-            this.panel.webview.postMessage({ command: 'setCenter', lat, lng, zoom });
+    public attachPanel(panel: vscode.WebviewPanel) {
+        this.panel = panel;
+        this.isReady = false;
+        this.panel.webview.options = {
+            enableScripts: true
+        };
+        
+        this.panel.webview.onDidReceiveMessage(message => {
+            if (message.command === 'ready') {
+                this.isReady = true;
+                this.flushQueue();
+            }
+            if (this.messageCallback) this.messageCallback(message);
+        }, undefined, this.context.subscriptions);
+
+        this.panel.onDidDispose(() => {
+            this.panel = undefined;
+            this.isReady = false;
+        }, null, this.context.subscriptions);
+
+        this.panel.webview.html = this.getHtml();
+    }
+
+    private flushQueue() {
+        if (this.panel && this.isReady) {
+            while (this.messageQueue.length > 0) {
+                const msg = this.messageQueue.shift();
+                this.panel.webview.postMessage(msg);
+            }
         }
+    }
+
+    private sendMessage(msg: any) {
+        if (!this.panel) {
+            this.show(vscode.ViewColumn.Three);
+        }
+        if (!this.isReady) {
+            this.messageQueue.push(msg);
+        } else if (this.panel) {
+            this.panel.webview.postMessage(msg);
+        }
+    }
+
+    public addLayer(mapIdOrUrl: any, name?: string, shown: boolean = true, opacity: number = 1.0) {
+        const urlFormat = typeof mapIdOrUrl === 'string' ? mapIdOrUrl : (mapIdOrUrl?.urlFormat || mapIdOrUrl?.url);
+        this.sendMessage({ command: 'addLayer', mapId: { urlFormat }, name, shown, opacity });
+    }
+
+    public setCenter(lat: number, lng: number, zoom?: number) {
+        this.sendMessage({ command: 'setCenter', lat, lng, zoom });
+    }
+
+    public clear() {
+        this.sendMessage({ command: 'clear' });
     }
 
     private getHtml() {
@@ -252,7 +318,7 @@ export class MapView {
                 </style>
             </head>
             <body>
-                <div id="map"></div>
+                <div id="map" tabindex="0" style="outline: none;"></div>
                 <div id="coords" class="coords-label">Lat: 0.0000, Lng: 0.0000</div>
                 
                 <div class="toolbar-container" style="left: 20px; bottom: 20px;">
@@ -267,13 +333,21 @@ export class MapView {
                     <h3>GEE Pro Shortcuts</h3>
                     <p><kbd>Cmd</kbd> + <kbd>Enter</kbd> : Run Selection / Smart Block</p>
                     <p><kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>Enter</kbd> : Run Entire Script</p>
+                    <p><kbd>Cmd</kbd> + <kbd>1..4</kbd> : Switch Focus (Editor/Console/Map/AI)</p>
+                    <p><kbd>↑ ↓ ← →</kbd> / <kbd>+</kbd> <kbd>-</kbd> : Pan & Zoom Map</p>
                     <hr style="border: 0; border-top: 1px solid #444;">
                     <p><small>Reset (🧹) clears environment variables to avoid redeclaration errors.</small></p>
                     <div class="close" onclick="showHelp()">Close</div>
                 </div>
 
                 <script>
-                    const vscode = acquireVsCodeApi();
+                    let vscode;
+                    try {
+                        vscode = acquireVsCodeApi();
+                    } catch (e) {
+                        vscode = window.__vscodeApi;
+                    }
+                    window.__vscodeApi = vscode;
                     
                     function showHelp() {
                         const hp = document.getElementById('helpPopup');
@@ -297,19 +371,29 @@ export class MapView {
                         attribution: '&copy; Google'
                     });
 
+                    window.onerror = function(message, source, lineno, colno, error) {
+                        try {
+                            vscode.postMessage({
+                                command: 'webviewError',
+                                message: String(message),
+                                stack: error ? error.stack : ''
+                            });
+                        } catch (e) {}
+                    };
+
                     const map = L.map('map', {
                         center: [-12.0464, -77.0428],
                         zoom: 5,
-                        layers: [osm]
+                        layers: [hybrid]
                     });
 
                     const baseMaps = {
-                        "Street Map": osm,
-                        "Satellite": satellite,
-                        "Hybrid View": hybrid
+                        "Hybrid View (Satellite + Labels)": hybrid,
+                        "Satellite Only": satellite,
+                        "Street Map": osm
                     };
 
-                    L.control.layers(baseMaps).addTo(map);
+                    const layerControl = L.control.layers(baseMaps).addTo(map);
 
                     // Drawing Implementation
                     const drawnItems = new L.FeatureGroup();
@@ -345,19 +429,92 @@ export class MapView {
                         coordsDiv.innerHTML = \`Lat: \${e.latlng.lat.toFixed(4)}, Lng: \${e.latlng.lng.toFixed(4)}\`;
                     });
 
+                    const geeLayers = [];
+
                     window.addEventListener('message', event => {
                         const message = event.data;
                         switch (message.command) {
-                            case 'addLayer':
-                                L.tileLayer(message.mapId.urlFormat, {
-                                    attribution: 'Google Earth Engine'
-                                }).addTo(map);
+                            case 'addLayer': {
+                                if (!message.mapId?.urlFormat) break;
+                                const layer = L.tileLayer(message.mapId.urlFormat, {
+                                    attribution: 'Google Earth Engine',
+                                    opacity: message.opacity !== undefined ? message.opacity : 1.0,
+                                    maxZoom: 24,
+                                    crossOrigin: 'anonymous'
+                                });
+                                layer.on('tileerror', function(error) {
+                                    console.warn('EE tile load issue:', error);
+                                });
+                                if (message.shown !== false) {
+                                    layer.addTo(map);
+                                }
+                                const layerName = message.name || 'EE Layer ' + (geeLayers.length + 1);
+                                layerControl.addOverlay(layer, layerName);
+                                geeLayers.push({ layer, name: layerName });
+                                map.invalidateSize();
                                 break;
+                            }
                             case 'setCenter':
-                                map.setView([message.lat, message.lng], message.zoom || 10);
+                                map.invalidateSize();
+                                map.setView([message.lat, message.lng], message.zoom || 10, { animate: false });
+                                setTimeout(() => { map.invalidateSize(); }, 200);
+                                break;
+                            case 'focus': {
+                                const mapEl = document.getElementById('map');
+                                if (mapEl) mapEl.focus();
+                                map.invalidateSize();
+                                break;
+                            }
+                            case 'clear':
+                                geeLayers.forEach(item => {
+                                    map.removeLayer(item.layer);
+                                    if (item.name) layerControl.removeLayer(item.layer);
+                                });
+                                geeLayers.length = 0;
                                 break;
                         }
                     });
+
+                    window.addEventListener('keydown', (e) => {
+                        const isCmdOrCtrl = e.metaKey || e.ctrlKey;
+                        if (isCmdOrCtrl && ['1', '2', '3', '4'].includes(e.key)) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            vscode.postMessage({
+                                command: 'focusQuadrant',
+                                quadrant: Number(e.key)
+                            });
+                            return;
+                        }
+
+                        // Map keyboard navigation: pan & zoom
+                        const panStep = 80;
+                        if (e.key === 'ArrowUp') {
+                            e.preventDefault();
+                            map.panBy([0, -panStep]);
+                        } else if (e.key === 'ArrowDown') {
+                            e.preventDefault();
+                            map.panBy([0, panStep]);
+                        } else if (e.key === 'ArrowLeft') {
+                            e.preventDefault();
+                            map.panBy([-panStep, 0]);
+                        } else if (e.key === 'ArrowRight') {
+                            e.preventDefault();
+                            map.panBy([panStep, 0]);
+                        } else if (e.key === '+' || e.key === '=') {
+                            e.preventDefault();
+                            map.zoomIn();
+                        } else if (e.key === '-' || e.key === '_') {
+                            e.preventDefault();
+                            map.zoomOut();
+                        }
+                    }, true);
+
+                    // Notify extension that webview Leaflet map is fully initialized and ready
+                    setTimeout(() => {
+                        map.invalidateSize();
+                        vscode.postMessage({ command: 'ready' });
+                    }, 100);
                 </script>
             </body>
             </html>

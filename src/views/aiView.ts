@@ -2,17 +2,22 @@ import * as vscode from 'vscode';
 
 export class AIView {
     private panel: vscode.WebviewPanel | undefined;
+    private messageCallback: ((message: any) => void) | undefined;
 
     constructor(private context: vscode.ExtensionContext) {}
 
-    public show(column: vscode.ViewColumn) {
+    public onMessage(callback: (message: any) => void) {
+        this.messageCallback = callback;
+    }
+
+    public show(column?: vscode.ViewColumn) {
         if (this.panel) {
             this.panel.reveal(column);
         } else {
             this.panel = vscode.window.createWebviewPanel(
                 'geeAI',
                 'GEE AI Assistant',
-                column,
+                column || vscode.ViewColumn.Two,
                 {
                     enableScripts: true,
                     retainContextWhenHidden: true
@@ -20,10 +25,42 @@ export class AIView {
             );
 
             this.panel.webview.html = this.getHtml();
+            this.panel.webview.onDidReceiveMessage(message => {
+                if (this.messageCallback) this.messageCallback(message);
+            }, undefined, this.context.subscriptions);
+
             this.panel.onDidDispose(() => {
                 this.panel = undefined;
             }, null, this.context.subscriptions);
         }
+    }
+
+    public focus() {
+        if (this.panel) {
+            this.panel.reveal();
+            this.panel.webview.postMessage({ command: 'focus' });
+        } else {
+            this.show();
+            setTimeout(() => {
+                if (this.panel) {
+                    this.panel.webview.postMessage({ command: 'focus' });
+                }
+            }, 250);
+        }
+    }
+
+    public attachPanel(panel: vscode.WebviewPanel) {
+        this.panel = panel;
+        this.panel.webview.options = {
+            enableScripts: true
+        };
+        this.panel.webview.onDidReceiveMessage(message => {
+            if (this.messageCallback) this.messageCallback(message);
+        }, undefined, this.context.subscriptions);
+        this.panel.onDidDispose(() => {
+            this.panel = undefined;
+        }, null, this.context.subscriptions);
+        this.panel.webview.html = this.getHtml();
     }
 
     private getHtml() {
@@ -82,12 +119,42 @@ export class AIView {
                     <button id="send">Send</button>
                 </div>
                 <script>
+                    let vscode;
+                    try {
+                        vscode = acquireVsCodeApi();
+                    } catch (e) {
+                        vscode = window.__vscodeApi;
+                    }
+                    window.__vscodeApi = vscode;
+
+                    window.addEventListener('keydown', (e) => {
+                        const isCmdOrCtrl = e.metaKey || e.ctrlKey;
+                        if (isCmdOrCtrl && ['1', '2', '3', '4'].includes(e.key)) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            vscode.postMessage({
+                                command: 'focusQuadrant',
+                                quadrant: Number(e.key)
+                            });
+                        }
+                    }, true);
+
+                    window.addEventListener('message', (event) => {
+                        if (event.data.command === 'focus') {
+                            const inp = document.getElementById('input');
+                            if (inp) {
+                                inp.focus();
+                                inp.select();
+                            }
+                        }
+                    });
+
                     const chat = document.getElementById('chat');
                     const input = document.getElementById('input');
                     const send = document.getElementById('send');
 
-                    send.addEventListener('click', () => {
-                        const text = input.value;
+                    function doSend() {
+                        const text = input.value.trim();
                         if (!text) return;
                         
                         const userMsg = document.createElement('div');
@@ -96,6 +163,7 @@ export class AIView {
                         chat.appendChild(userMsg);
                         
                         input.value = '';
+                        chat.scrollTop = chat.scrollHeight;
                         
                         // Mock Expert Response
                         setTimeout(() => {
@@ -105,6 +173,14 @@ export class AIView {
                             chat.appendChild(aiMsg);
                             chat.scrollTop = chat.scrollHeight;
                         }, 600);
+                    }
+
+                    send.addEventListener('click', doSend);
+                    input.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            doSend();
+                        }
                     });
                 </script>
             </body>

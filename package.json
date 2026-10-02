@@ -26,9 +26,48 @@
     "spatial analysis",
     "javascript api"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished",
+    "onLanguage:gee",
+    "onLanguage:javascript",
+    "onLanguage:python",
+    "onLanguage:r",
+    "onCommand:gee-pro.start",
+    "onCommand:gee-pro.login",
+    "onCommand:gee-pro.authenticate",
+    "onCommand:gee-pro.reset",
+    "onCommand:gee-pro.run",
+    "onCommand:gee-pro.runSelection",
+    "onCommand:gee-pro.getLink",
+    "onCommand:gee-pro.setProject",
+    "onWebviewPanel:geeMap",
+    "onWebviewPanel:geeConsole",
+    "onWebviewPanel:geeAI"
+  ],
   "main": "./out/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "GEE Pro IDE",
+      "properties": {
+        "gee-pro.projectId": {
+          "type": "string",
+          "default": "",
+          "description": "Google Cloud Project ID associated with Google Earth Engine (e.g. PeruREDD)"
+        }
+      }
+    },
+    "languages": [
+      {
+        "id": "gee",
+        "extensions": [
+          ".gee"
+        ],
+        "aliases": [
+          "Google Earth Engine",
+          "gee"
+        ]
+      }
+    ],
     "commands": [
       {
         "command": "gee-pro.start",
@@ -38,6 +77,11 @@
       {
         "command": "gee-pro.login",
         "title": "Login with Google (Easy)",
+        "category": "GEE Pro IDE"
+      },
+      {
+        "command": "gee-pro.setProject",
+        "title": "Set Active Cloud Project",
         "category": "GEE Pro IDE"
       },
       {
@@ -61,6 +105,26 @@
         "command": "gee-pro.getLink",
         "title": "Get Shareable Link",
         "category": "GEE Pro IDE"
+      },
+      {
+        "command": "gee-pro.focusEditor",
+        "title": "Focus Code Editor (Quadrant 1)",
+        "category": "GEE Pro IDE"
+      },
+      {
+        "command": "gee-pro.focusConsole",
+        "title": "Focus GEE Console (Quadrant 2)",
+        "category": "GEE Pro IDE"
+      },
+      {
+        "command": "gee-pro.focusMap",
+        "title": "Focus GEE Map (Quadrant 3)",
+        "category": "GEE Pro IDE"
+      },
+      {
+        "command": "gee-pro.focusAI",
+        "title": "Focus AI Assistant (Quadrant 4)",
+        "category": "GEE Pro IDE"
       }
     ],
     "keybindings": [
@@ -68,25 +132,57 @@
         "command": "gee-pro.runSelection",
         "key": "cmd+enter",
         "mac": "cmd+enter",
-        "when": "editorTextFocus && (editorLangId == javascript || editorLangId == gee)"
+        "when": "editorTextFocus && resourceExtname == .gee"
       },
       {
         "command": "gee-pro.run",
         "key": "cmd+shift+enter",
         "mac": "cmd+shift+enter",
-        "when": "editorTextFocus && (editorLangId == javascript || editorLangId == gee)"
+        "when": "editorTextFocus && resourceExtname == .gee"
+      },
+      {
+        "command": "gee-pro.runSelection",
+        "key": "cmd+enter",
+        "mac": "cmd+enter",
+        "when": "editorTextFocus && (editorLangId == javascript || editorLangId == python || editorLangId == r || editorLangId == gee || resourceExtname == .gee)"
+      },
+      {
+        "command": "gee-pro.run",
+        "key": "cmd+shift+enter",
+        "mac": "cmd+shift+enter",
+        "when": "editorTextFocus && (editorLangId == javascript || editorLangId == python || editorLangId == r || editorLangId == gee || resourceExtname == .gee)"
+      },
+      {
+        "command": "gee-pro.focusEditor",
+        "key": "ctrl+1",
+        "mac": "cmd+1"
+      },
+      {
+        "command": "gee-pro.focusConsole",
+        "key": "ctrl+2",
+        "mac": "cmd+2"
+      },
+      {
+        "command": "gee-pro.focusMap",
+        "key": "ctrl+3",
+        "mac": "cmd+3"
+      },
+      {
+        "command": "gee-pro.focusAI",
+        "key": "ctrl+4",
+        "mac": "cmd+4"
       }
     ],
     "menus": {
       "editor/title": [
         {
           "command": "gee-pro.run",
-          "when": "resourceExtname == .js || resourceExtname == .gee",
+          "when": "resourceExtname == .js || resourceExtname == .gee || resourceExtname == .py || resourceExtname == .r",
           "group": "navigation"
         },
         {
           "command": "gee-pro.runSelection",
-          "when": "resourceExtname == .js || resourceExtname == .gee",
+          "when": "resourceExtname == .js || resourceExtname == .gee || resourceExtname == .py || resourceExtname == .r",
           "group": "navigation"
         }
       ]
@@ -122,7 +218,7 @@
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "build": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --main-fields=main,module"
+    "build": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --external:@google/earthengine --external:xhr2 --format=cjs --platform=node --main-fields=main,module && mkdir -p out/shims && cp src/shims/gee_pro_shim.py src/shims/gee_pro_shim.R out/shims/"
   },
   "devDependencies": {
     "@types/node": "^16.18.126",

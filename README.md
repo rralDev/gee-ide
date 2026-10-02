@@ -1,71 +1,115 @@
-# GEE Pro IDE: Google Earth Engine Professional IDE for VS Code
+# GEE Pro IDE
 
-<p align="center">
-  <img src="media/logo.png" width="128" alt="GEE Pro IDE Logo">
-</p>
+Welcome to **GEE Pro IDE**, the ultimate Earth Engine development environment integrated directly into Visual Studio Code!
 
-**GEE Pro IDE** is a high-performance, local development environment for Google Earth Engine. Stop fighting with browser tabs and start coding like a pro with the full power of Visual Studio Code and an RStudio-inspired workflow.
-
-## 🚀 Key Features (Pro Edition)
-
-- **Smart Block Execution (RStudio Style)**: Execute code blocks intelligently. Use `Cmd + Enter` and the IDE will automatically detect parentheses and brackets to run full statements, then jump to the next line.
-- **Premium Map Experience**: Minimalist, glassmorphism-styled map interface with centered coordinates visor and integrated help menu.
-- **GEE Shell (Linux-style)**: Manage your cloud assets using familiar terminal commands like `ls`, `cd`, `pwd`, `mkdir`, `cp`, and `mv` directly in the GEE Console.
-- **Intelligent Session Management**: Built-in OAuth2 auto-refresh logic. Log in once and stay connected; the IDE handles token renewals silently in the background.
-- **AI-Powered Geospatial Assistant**: Integrated chat assistant designed to help you write complex geospatial algorithms and optimize your code.
-- **Professional Console**: Real-time script echoing with `>` prefix and a ready state `gee>` prompt for a true IDE feel.
-
-## 🛠️ Installation & Setup
-
-1. Search for **GEE Pro** in the VS Code Marketplace and click **Install**.
-2. Open the Command Palette (`Cmd+Shift+P`) and run **`GEE Pro: Start Environment`**.
-
-### 🔑 Authentication & Persistence
-
-GEE Pro IDE makes connecting to Earth Engine simple and secure:
-
-#### 1. Google OAuth (Standard Login)
-- Run the command **`GEE Pro IDE: Login with Google (Easy)`**.
-- Follow the browser flow and paste the authorization code.
-- **Done!** Your session is saved securely. Thanks to the new **Auto-Refresh** system, you won't need to log in again for weeks.
-
-#### 2. Service Account
-- Run the command **`GEE Pro IDE: Login with Service Account`** and select your JSON key.
+GEE Pro IDE transforms VS Code into a powerful, multi-language (JavaScript, Python, R) workspace tailored for geospatial analysis with Google Earth Engine (GEE). It features a unique 4-quadrant layout that brings together your code, console output, interactive maps, and an AI assistant—all without leaving your editor.
 
 ---
 
-## 📖 Quick Start & Shortcuts
+## 🌟 Key Features
 
-Create a `.js` file and start coding like an expert:
+### 1. Multi-Language Support (`.gee` files)
+GEE Pro IDE introduces the `.gee` file format. By using simple "shebangs" at the top of your file, the extension automatically routes the execution to the correct runtime engine.
 
-| Shortcut | Action |
-| :--- | :--- |
-| `Cmd + Enter` | **Run Selection / Smart Block** (Auto-detects multi-line code) |
-| `Cmd + Shift + Enter` | **Run Entire Script** |
-| `Cmd + Alt + R` | **Reset Environment** (Clears variables for a fresh start) |
+* **JavaScript (`# js`)**: Native execution using Node.js and the official `@google/earthengine` library.
+* **Python (`# py`)**: Full Python ecosystem support, integrating `earthengine-api` and mapping tools (geemap).
+* **R (`# r`)**: Leverages `rgee` and `reticulate` to bring Earth Engine to the R spatial community.
 
+### 2. Interactive Map Viewer (Leaflet Integration)
+See your results instantly. Using a custom bridge server, all `Map.addLayer` (JS), `Map.addLayer` (Python), and `Map$addLayer` (R) commands render immediately in a live Leaflet map panel right next to your code.
+
+### 3. Integrated GEE Console
+Print objects, view computed values (like `getInfo()`), and debug your geospatial algorithms in a dedicated output console that mirrors the classic GEE Code Editor experience.
+
+### 4. Zero-Friction Authentication
+GEE Pro IDE implements a seamless, automatic OAuth 2.0 flow. 
+- It captures credentials via a local loopback server.
+- The credentials are automatically shared across **all three languages** (JS, Python, R) within the same session. No more running `earthengine authenticate` manually for every language!
+
+### 5. AI Assistant
+Ask questions, generate Earth Engine scripts, or debug your algorithms with the built-in AI assistant panel, specifically fine-tuned for geospatial and GEE workflows.
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- **VS Code**: Version 1.80 or higher.
+- **Node.js**: Required for the core extension and JavaScript runtime.
+- **Python (Optional)**: If you want to run `# py` scripts (requires `earthengine-api` installed in your environment).
+- **R (Optional)**: If you want to run `# r` scripts (requires `rgee` and `reticulate`).
+
+### Installation
+1. Install **GEE Pro IDE** from the VS Code Extensions Marketplace (or via VSIX).
+2. Open a workspace and create a new file with the `.gee` extension (e.g., `script.gee`).
+3. The GEE Pro IDE sidebars and tools will activate automatically.
+
+---
+
+## 💻 How to Use
+
+### 1. Create a `.gee` Script
+Create a file like `analysis.gee`. The very first line determines the language:
+
+**For JavaScript:**
 ```javascript
-// 1. Set center and load data
-Map.setCenter(-77.0428, -12.0464, 10);
-const elevation = ee.Image('CGIAR/SRTM90_V4');
-
-// 2. Add to interactive map with professional palette
-Map.addLayer(elevation, {
-    min: 0, 
-    max: 4000, 
-    palette: ['blue', 'green', 'red']
-}, 'SRTM Elevation');
-
-print('GEE Pro IDE is Ready!');
+# js
+var image = ee.Image('CGIAR/SRTM90_V4');
+Map.addLayer(image, {min: 0, max: 3000}, 'SRTM DEM');
+print('Elevation computed.');
 ```
 
-## 🛡️ Privacy & Security
-GEE Pro handles your credentials securely using VS Code's encrypted **SecretStorage**. We never store your JSON files or tokens in plain text. Everything is managed through the official Google Earth Engine API.
+**For Python:**
+```python
+# py
+import ee
+image = ee.Image('CGIAR/SRTM90_V4')
+Map.addLayer(image, {'min': 0, 'max': 3000}, 'SRTM DEM (Py)')
+print('Elevation computed in Python.')
+```
+
+**For R:**
+```R
+# r
+library(rgee)
+image <- ee$Image('CGIAR/SRTM90_V4')
+Map$addLayer(image, list(min=0, max=3000), 'SRTM DEM (R)')
+print('Elevation computed in R.')
+```
+
+### 2. Execute Code
+- **Run Selected Code / Current Line**: Press `Cmd + Enter` (Mac) or `Ctrl + Enter` (Windows/Linux).
+- **Run Entire Script**: Press `Cmd + Shift + Enter` (Mac) or `Ctrl + Shift + Enter` (Windows/Linux).
+
+The IDE will intelligently:
+1. Identify the language.
+2. Send the code to the corresponding engine (`GEERuntimeJS`, `GEERuntimePy`, or `GEERuntimeR`).
+3. Display `print()` outputs in the **GEE Console**.
+4. Render `Map.addLayer()` calls in the **Map Viewer**.
+
+### 3. The 4-Quadrant UI
+We recommend arranging your VS Code workspace to maximize productivity:
+1. **Top-Left**: Your `.gee` Code Editor.
+2. **Top-Right**: The interactive Map Viewer (`GEE Pro: Map Viewer`).
+3. **Bottom-Left**: GEE Output Console (`GEE Pro: Console`).
+4. **Bottom-Right**: GEE AI Assistant / Assets Explorer (`GEE Pro: AI`).
+
+*(Tip: You can move panels around by dragging their tabs in VS Code!)*
 
 ---
-Developed with ❤️ for the Geospatial Community by **Luis Robles**.
 
-### ⚠️ Beta Version & Feedback
-If you find a bug or have a feature request, please:
-1. Report it via email to: **lroblesr@outlook.es**
-2. Open an issue on our [GitHub Repository](https://github.com/rralDev/gee-pro-ide/issues).
+## 🛠 Advanced Features
+
+### Shared Python/R Environment
+The extension dynamically builds a virtual environment (`.gee_env`) if needed. When R is launched, it automatically configures `reticulate` to use the exact same Python environment as the Python runtime. This ensures that Earth Engine API versions and authentication tokens stay perfectly synced.
+
+### Task Management (Coming Soon)
+A sidebar view (`gee-pro-tasks`) to monitor, cancel, and manage your Earth Engine exports directly from the IDE is currently in development!
+
+---
+
+## 📄 Attributions & License
+
+This extension builds upon great work from the open-source community. Concepts and UI elements were inspired by the [earthengine-extension](https://github.com/12rambau/earthengine-extension) (Apache License 2.0). See `NOTICES.md` for full attribution.
+
+**License**: MIT License (for GEE Pro IDE code).
