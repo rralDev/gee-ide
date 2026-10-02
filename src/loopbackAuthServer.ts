@@ -61,7 +61,7 @@ export class LoopbackAuthServer {
                     .box { text-align: center; padding: 40px; background: #2d2d2d; border-radius: 12px; }
                     h2 { color: #4ec9b0; } p { color: #888; }
                 </style></head><body><div class="box">
-                    <h2>✅ GEE Pro IDE — Autenticación exitosa</h2>
+                    <h2>✅ GEE IDE — Autenticación exitosa</h2>
                     <p>Puedes cerrar esta ventana y volver a VS Code.</p>
                 </div></body></html>`);
 

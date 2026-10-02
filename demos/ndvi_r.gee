@@ -1,6 +1,6 @@
 # R
 # Análisis de Vegetación (NDVI) — La Pampa, Madre de Dios (Perú)
-# GEE Pro IDE — R Runtime (rgee)
+# GEE IDE — R Runtime (rgee)
 
 library(rgee)
 

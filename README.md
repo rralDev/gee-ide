@@ -1,15 +1,15 @@
-# GEE Pro IDE
+# GEE IDE
 
-Welcome to **GEE Pro IDE**, the ultimate Earth Engine development environment integrated directly into Visual Studio Code!
+Welcome to **GEE IDE**, the ultimate Earth Engine development environment integrated directly into Visual Studio Code!
 
-GEE Pro IDE transforms VS Code into a powerful, multi-language (JavaScript, Python, R) workspace tailored for geospatial analysis with Google Earth Engine (GEE). It features a unique 4-quadrant layout that brings together your code, console output, interactive maps, and an AI assistant—all without leaving your editor.
+GEE IDE transforms VS Code into a powerful, multi-language (JavaScript, Python, R) workspace tailored for geospatial analysis with Google Earth Engine (GEE). It features a unique 4-quadrant layout that brings together your code, console output, interactive maps, and an AI assistant—all without leaving your editor.
 
 ---
 
 ## 🌟 Key Features
 
 ### 1. Multi-Language Support (`.gee` files)
-GEE Pro IDE introduces the `.gee` file format. By using simple "shebangs" at the top of your file, the extension automatically routes the execution to the correct runtime engine.
+GEE IDE introduces the `.gee` file format. By using simple "shebangs" at the top of your file, the extension automatically routes the execution to the correct runtime engine.
 
 * **JavaScript (`# js`)**: Native execution using Node.js and the official `@google/earthengine` library.
 * **Python (`# py`)**: Full Python ecosystem support, integrating `earthengine-api` and mapping tools (geemap).
@@ -22,7 +22,7 @@ See your results instantly. Using a custom bridge server, all `Map.addLayer` (JS
 Print objects, view computed values (like `getInfo()`), and debug your geospatial algorithms in a dedicated output console that mirrors the classic GEE Code Editor experience.
 
 ### 4. Zero-Friction Authentication
-GEE Pro IDE implements a seamless, automatic OAuth 2.0 flow. 
+GEE IDE implements a seamless, automatic OAuth 2.0 flow. 
 - It captures credentials via a local loopback server.
 - The credentials are automatically shared across **all three languages** (JS, Python, R) within the same session. No more running `earthengine authenticate` manually for every language!
 
@@ -39,12 +39,12 @@ Ask questions, generate Earth Engine scripts, or debug your algorithms with the 
 - **Python (Optional)**: If you want to run `# py` scripts (requires `earthengine-api` installed in your environment).
 - **R (Optional)**: If you want to run `# r` scripts (requires `rgee` and `reticulate`).
 
-> ⚠️ **Windows Users:** When installing Python or R, please ensure you check the **"Add to PATH"** (or "Add to environment variables") option in the installer. This allows GEE Pro IDE to automatically detect and run the languages in the background.
+> ⚠️ **Windows Users:** When installing Python or R, please ensure you check the **"Add to PATH"** (or "Add to environment variables") option in the installer. This allows GEE IDE to automatically detect and run the languages in the background.
 
 ### Installation
-1. Install **GEE Pro IDE** from the VS Code Extensions Marketplace (or via VSIX).
+1. Install **GEE IDE** from the VS Code Extensions Marketplace (or via VSIX).
 2. Open a workspace and create a new file with the `.gee` extension (e.g., `script.gee`).
-3. The GEE Pro IDE sidebars and tools will activate automatically.
+3. The GEE IDE sidebars and tools will activate automatically.
 
 ---
 
@@ -92,9 +92,9 @@ The IDE will intelligently:
 ### 3. The 4-Quadrant UI
 We recommend arranging your VS Code workspace to maximize productivity:
 1. **Top-Left**: Your `.gee` Code Editor.
-2. **Top-Right**: The interactive Map Viewer (`GEE Pro: Map Viewer`).
-3. **Bottom-Left**: GEE Output Console (`GEE Pro: Console`).
-4. **Bottom-Right**: GEE AI Assistant / Assets Explorer (`GEE Pro: AI`).
+2. **Top-Right**: The interactive Map Viewer (`GEE IDE: Map Viewer`).
+3. **Bottom-Left**: GEE Output Console (`GEE IDE: Console`).
+4. **Bottom-Right**: GEE AI Assistant / Assets Explorer (`GEE IDE: AI`).
 
 *(Tip: You can move panels around by dragging their tabs in VS Code!)*
 
@@ -114,4 +114,4 @@ A sidebar view (`gee-pro-tasks`) to monitor, cancel, and manage your Earth Engin
 
 This extension builds upon great work from the open-source community. Concepts and UI elements were inspired by the [earthengine-extension](https://github.com/12rambau/earthengine-extension) (Apache License 2.0). See `NOTICES.md` for full attribution.
 
-**License**: MIT License (for GEE Pro IDE code).
+**License**: MIT License (for GEE IDE code).

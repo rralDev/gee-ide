@@ -17,7 +17,7 @@ function logStep(msg: string) {
     try {
         const line = `[${new Date().toISOString()}] ${msg}\n`;
         fs.appendFileSync(LOG_FILE, line, 'utf8');
-        console.log(`[GEE Pro] ${msg}`);
+        console.log(`[GEE IDE] ${msg}`);
     } catch (e) {}
 }
 
@@ -46,7 +46,7 @@ async function displaySessionBanner(consoleView: any, creds: any, runtime: any) 
     if (activeProj) {
         consoleView.append(`🚀 Cloud Project: ${activeProj}`);
     } else {
-        consoleView.append(`🚀 Cloud Project: (No asignado — usa Cmd+Shift+P -> 'GEE Pro: Set Active Cloud Project')`);
+        consoleView.append(`🚀 Cloud Project: (No asignado — usa Cmd+Shift+P -> 'GEE IDE: Set Active Cloud Project')`);
     }
     
     if (runtime) {
@@ -312,7 +312,7 @@ export function activate(context: vscode.ExtensionContext) {
                     return true;
                 } else {
                     logStep('No credentials stored, prompt user to login');
-                    consoleView.append('Authentication required: Cmd+Shift+P -> GEE Pro: Login with Google');
+                    consoleView.append('Authentication required: Cmd+Shift+P -> GEE IDE: Login with Google');
                     return false;
                 }
             } catch (e: any) {
@@ -353,7 +353,7 @@ export function activate(context: vscode.ExtensionContext) {
         aiView.show(vscode.ViewColumn.Four);
 
         await ensureRuntimeInitialized();
-        vscode.window.showInformationMessage('GEE Pro: Workspace Ready');
+        vscode.window.showInformationMessage('GEE IDE: Workspace Ready');
     });
 
     let authCommand = vscode.commands.registerCommand('gee-pro.authenticate', async () => {
@@ -409,7 +409,7 @@ export function activate(context: vscode.ExtensionContext) {
                 if (runtime) {
                     await runtime.initialize(readyCreds);
                     runtimePy = new GEERuntimePy(consoleView, readyCreds.access_token || '', readyCreds.project_id || '', context.globalStorageUri.fsPath, bridgeServer ? bridgeServer.getPort() : 31415);
-                    vscode.window.showInformationMessage('✅ GEE Pro: Login Successful! (via earthengine CLI)');
+                    vscode.window.showInformationMessage('✅ GEE IDE: Login Successful! (via earthengine CLI)');
                     await displaySessionBanner(consoleView, readyCreds, runtime);
                 }
                 return;
@@ -476,7 +476,7 @@ export function activate(context: vscode.ExtensionContext) {
                 }
                 runtimePy = new GEERuntimePy(consoleView, tokenData.access_token || '', activeProject || '', context.globalStorageUri.fsPath, bridgeServer ? bridgeServer.getPort() : 31415);
                 await context.secrets.store('gee-pro.credentials', JSON.stringify(tokenData));
-                vscode.window.showInformationMessage('✅ GEE Pro: Login Successful!');
+                vscode.window.showInformationMessage('✅ GEE IDE: Login Successful!');
                 await displaySessionBanner(consoleView, tokenData, runtime);
             }
         } catch (err: any) {
@@ -504,7 +504,7 @@ export function activate(context: vscode.ExtensionContext) {
                         if (consoleView) consoleView.append('gee> ');
                     });
                 } else {
-                    if (consoleView) consoleView.append('[Error] Python runtime not ready. Please login first (Cmd+Shift+P -> GEE Pro: Login with Google).');
+                    if (consoleView) consoleView.append('[Error] Python runtime not ready. Please login first (Cmd+Shift+P -> GEE IDE: Login with Google).');
                     if (consoleView) consoleView.append('gee> ');
                 }
                 return;
@@ -742,7 +742,7 @@ export function activate(context: vscode.ExtensionContext) {
                 }
             } catch (e) {}
             consoleView.append(`🚀 Active Cloud Project updated to: ${clean}`);
-            vscode.window.showInformationMessage(`GEE Pro: Cloud Project set to ${clean}`);
+            vscode.window.showInformationMessage(`GEE IDE: Cloud Project set to ${clean}`);
         }
     });
 

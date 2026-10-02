@@ -1,7 +1,7 @@
 # py
 """
 Amazon Deforestation & Gold Mining Analysis — La Pampa, Madre de Dios (Peru)
-GEE Pro IDE — Multi-spectral Sentinel-2 + NDVI monitoring
+GEE IDE — Multi-spectral Sentinel-2 + NDVI monitoring
 """
 import ee
 
@@ -55,7 +55,7 @@ ndviVis = {
   'palette': ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#d9ef8b', '#a6d96a', '#1a9850', '#006837']
 }
 
-# 6. Proyectar capas al visor interactivo de GEE Pro
+# 6. Proyectar capas al visor interactivo de GEE IDE
 # Capa 1: Color Natural enfocado en La Pampa
 Map.addLayer(image, rgbVis, '1. Sentinel-2 Color Natural (La Pampa)', True, 1.0)
 

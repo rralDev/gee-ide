@@ -330,7 +330,7 @@ export class MapView {
                 </div>
 
                 <div id="helpPopup" class="help-popup">
-                    <h3>GEE Pro Shortcuts</h3>
+                    <h3>GEE IDE Shortcuts</h3>
                     <p><kbd>Cmd</kbd> + <kbd>Enter</kbd> : Run Selection / Smart Block</p>
                     <p><kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>Enter</kbd> : Run Entire Script</p>
                     <p><kbd>Cmd</kbd> + <kbd>1..4</kbd> : Switch Focus (Editor/Console/Map/AI)</p>

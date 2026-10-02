@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 
 /**
- * GEE Pro IDE — Python Runtime
+ * GEE IDE — Python Runtime
  * 
  * Executes .gee Python scripts by:
  * 1. Writing the user script to a temp file
@@ -89,7 +89,7 @@ export class GEERuntimePy {
                 await config.update('projectId', this.projectId, vscode.ConfigurationTarget.Global);
                 this.consoleView.append(`🚀 Cloud Project configurado: ${this.projectId}`);
             } else {
-                this.consoleView.append('[GEE Pro] Error: Se requiere un Cloud Project ID para inicializar Earth Engine en Python.');
+                this.consoleView.append('[GEE IDE] Error: Se requiere un Cloud Project ID para inicializar Earth Engine en Python.');
                 this.consoleView.append('💡 Tip: Puedes ver tu Project ID arriba a la derecha en https://code.earthengine.google.com');
                 this.consoleView.append('gee> ');
                 return;
@@ -145,7 +145,7 @@ export class GEERuntimePy {
                     this.promptAndInstallEE(python);
                 } else if (text.includes("not found or deleted") || text.includes("not registered") || text.includes("no project found") || text.includes("USER_PROJECT_DENIED")) {
                     this.consoleView.append(`⚠️ Error de Cloud Project: El proyecto '${this.projectId}' no existe en Google Cloud o no tiene Earth Engine habilitado.`);
-                    this.consoleView.append(`👉 Para corregirlo: Cmd+Shift+P -> 'GEE Pro: Set Active Cloud Project'.`);
+                    this.consoleView.append(`👉 Para corregirlo: Cmd+Shift+P -> 'GEE IDE: Set Active Cloud Project'.`);
                     this.consoleView.append(`💡 Puedes ver el ID exacto arriba a la derecha en https://code.earthengine.google.com`);
                 }
             });
@@ -200,7 +200,7 @@ export class GEERuntimePy {
 import sys
 import os
 
-# Inject the GEE Pro shim directory into the path
+# Inject the GEE IDE shim directory into the path
 sys.path.insert(0, r"${shimDir}")
 
 import ee
@@ -223,7 +223,7 @@ else:
         try:
             ee.Initialize()
         except Exception as e:
-            print(f"[GEE Pro] Warning: could not initialize EE: {e}")
+            print(f"[GEE IDE] Warning: could not initialize EE: {e}")
 
 # Import the Map shim (provides Map.addLayer, Map.setCenter, etc.)
 from gee_pro_shim import Map
@@ -294,7 +294,7 @@ from gee_pro_shim import Map
                             this.customPython = venvPython;
                         }
                         this.consoleView.append("✅ 'earthengine-api' instalado con éxito. Ya puedes ejecutar tu código Python.");
-                        vscode.window.showInformationMessage("✅ GEE Pro: 'earthengine-api' instalado con éxito.");
+                        vscode.window.showInformationMessage("✅ GEE IDE: 'earthengine-api' instalado con éxito.");
                         resolve(true);
                     } else {
                         this.consoleView.append(`[Error] Falló la instalación de pip (código ${code}).`);

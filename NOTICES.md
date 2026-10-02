@@ -1,6 +1,6 @@
-# GEE Pro IDE - Open Source Notices
+# GEE IDE - Open Source Notices
 
-GEE Pro IDE uses open source software and concepts from the community. We are grateful to the authors and contributors of these projects.
+GEE IDE uses open source software and concepts from the community. We are grateful to the authors and contributors of these projects.
 
 ## Earth Engine Extension (12rambau)
 
@@ -23,4 +23,4 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 ---
-*GEE Pro IDE is an independent project and is not officially affiliated with Google LLC.*
+*GEE IDE is an independent project and is not officially affiliated with Google LLC.*

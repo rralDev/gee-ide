@@ -1,10 +1,10 @@
 """
-GEE Pro IDE — Python Map Shim
+GEE IDE — Python Map Shim
 Adapted from earthengine-extension by 12rambau (Apache 2.0)
 https://github.com/12rambau/earthengine-extension
 
 This shim intercepts Map.addLayer(), Map.setCenter(), Map.centerObject()
-calls from user scripts and sends them to the GEE Pro IDE bridge server
+calls from user scripts and sends them to the GEE IDE bridge server
 running on localhost:31415, which then updates the VS Code Leaflet map.
 
 Usage (automatic — injected before user script runs):
@@ -22,7 +22,7 @@ _BRIDGE_URL = f"http://127.0.0.1:{_BRIDGE_PORT}"
 
 
 def _send(action: str, payload: dict) -> None:
-    """Send a command to the VS Code GEE Pro bridge server."""
+    """Send a command to the VS Code GEE IDE bridge server."""
     try:
         data = json.dumps({"action": action, "payload": payload}).encode("utf-8")
         req = urllib.request.Request(
@@ -34,9 +34,9 @@ def _send(action: str, payload: dict) -> None:
         with urllib.request.urlopen(req, timeout=5):
             pass
     except urllib.error.URLError:
-        print(f"[GEE Pro] Warning: could not reach the map bridge at {_BRIDGE_URL}")
+        print(f"[GEE IDE] Warning: could not reach the map bridge at {_BRIDGE_URL}")
     except Exception as e:
-        print(f"[GEE Pro] Map bridge error: {e}")
+        print(f"[GEE IDE] Map bridge error: {e}")
 
 
 def _get_map_id(ee_object, vis_params: dict = None) -> dict | None:
@@ -60,20 +60,20 @@ def _get_map_id(ee_object, vis_params: dict = None) -> dict | None:
         map_id = ee_object.getMapId(vis_params)
         return {"urlFormat": map_id["tile_fetcher"].url_format}
     except Exception as e:
-        print(f"[GEE Pro] Error getting map ID: {e}")
+        print(f"[GEE IDE] Error getting map ID: {e}")
         return None
 
 
 class _GeeProMap:
     """
     Drop-in replacement for geemap.Map or the GEE Code Editor Map object.
-    Sends commands to the GEE Pro IDE Leaflet map via the bridge server.
+    Sends commands to the GEE IDE Leaflet map via the bridge server.
     """
 
     def addLayer(self, ee_object, vis_params: dict = None, name: str = "Layer",
                  shown: bool = True, opacity: float = 1.0) -> None:
-        """Add an EE layer to the GEE Pro IDE map."""
-        print(f"[GEE Pro] Adding layer: {name}...")
+        """Add an EE layer to the GEE IDE map."""
+        print(f"[GEE IDE] Adding layer: {name}...")
         map_id = _get_map_id(ee_object, vis_params or {})
         if map_id:
             _send("addLayer", {
@@ -82,12 +82,12 @@ class _GeeProMap:
                 "shown": shown,
                 "opacity": opacity,
             })
-            print(f"[GEE Pro] Layer added: {name}")
+            print(f"[GEE IDE] Layer added: {name}")
 
     def setCenter(self, lon: float, lat: float, zoom: int = None) -> None:
         """Center the map on a longitude/latitude."""
         target_zoom = zoom if zoom is not None else 10
-        print(f"[GEE Pro] Setting map center: lon={lon:.4f}, lat={lat:.4f} (zoom={target_zoom})")
+        print(f"[GEE IDE] Setting map center: lon={lon:.4f}, lat={lat:.4f} (zoom={target_zoom})")
         payload = {"lon": lon, "lat": lat, "zoom": target_zoom}
         _send("setCenter", payload)
 
@@ -108,14 +108,14 @@ class _GeeProMap:
             lon = (min(lons) + max(lons)) / 2
             lat = (min(lats) + max(lats)) / 2
             target_zoom = zoom if zoom is not None else 12
-            print(f"[GEE Pro] Centering map on object at lon: {lon:.4f}, lat: {lat:.4f} (zoom: {target_zoom})")
+            print(f"[GEE IDE] Centering map on object at lon: {lon:.4f}, lat: {lat:.4f} (zoom: {target_zoom})")
             self.setCenter(lon, lat, target_zoom)
         except Exception as e:
-            print(f"[GEE Pro] centerObject error: {e}")
+            print(f"[GEE IDE] centerObject error: {e}")
 
     def clear(self) -> None:
         """Remove all layers from the map."""
-        print("[GEE Pro] Clearing map layers...")
+        print("[GEE IDE] Clearing map layers...")
         _send("clear", {})
 
     # Compatibility stubs for geemap / Code Editor Map API

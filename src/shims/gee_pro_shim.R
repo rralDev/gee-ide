@@ -1,4 +1,4 @@
-# GEE Pro IDE — R Map Shim
+# GEE IDE — R Map Shim
 # Connects R / rgee to the VS Code Leaflet Map Viewer
 
 options(prompt = " ", continue = " ")
@@ -31,7 +31,7 @@ if (nchar(.gee_pro_token) > 0 && requireNamespace("reticulate", quietly = TRUE))
 Map <- new.env(parent = emptyenv())
 
 Map$setCenter <- function(lon, lat, zoom = 10) {
-    cat(sprintf("[GEE Pro] Setting map center: lon=%.4f, lat=%.4f (zoom=%d)\n", lon, lat, as.integer(zoom)))
+    cat(sprintf("[GEE IDE] Setting map center: lon=%.4f, lat=%.4f (zoom=%d)\n", lon, lat, as.integer(zoom)))
     payload <- sprintf('{"lon":%f,"lat":%f,"zoom":%d}', lon, lat, as.integer(zoom))
     .gee_pro_send("setCenter", payload)
 }
@@ -60,7 +60,7 @@ Map$centerObject <- function(eeObject, zoom = 12) {
 }
 
 Map$addLayer <- function(eeObject, visParams = list(), name = "Layer", shown = TRUE, opacity = 1.0) {
-    cat(sprintf("[GEE Pro] Adding layer: %s...\n", name))
+    cat(sprintf("[GEE IDE] Adding layer: %s...\n", name))
     tryCatch({
         map_id <- eeObject$getMapId(visParams)
         url <- if (!is.null(map_id$tile_fetcher$url_format)) {
@@ -77,13 +77,13 @@ Map$addLayer <- function(eeObject, visParams = list(), name = "Layer", shown = T
         
         payload <- sprintf('{"url":"%s","name":"%s","shown":%s,"opacity":%f}', url, name, shown_str, opacity_num)
         .gee_pro_send("addLayer", payload)
-        cat(sprintf("[GEE Pro] Layer added: %s\n", name))
+        cat(sprintf("[GEE IDE] Layer added: %s\n", name))
     }, error = function(e) {
         cat(sprintf("[Map Error] addLayer: %s\n", e$message))
     })
 }
 
 Map$clear <- function() {
-    cat("[GEE Pro] Clearing map layers...\n")
+    cat("[GEE IDE] Clearing map layers...\n")
     .gee_pro_send("clear", "{}")
 }

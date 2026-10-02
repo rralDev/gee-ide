@@ -40,7 +40,7 @@ function formatLogEntry(text: string): { className: string; innerHtml: string } 
         };
     }
 
-    // Check for [Tag] prefix: e.g. [python], [GEE Pro], [stderr], [Error], [pip], [Routing], [JS], [R], etc.
+    // Check for [Tag] prefix: e.g. [python], [GEE IDE], [stderr], [Error], [pip], [Routing], [JS], [R], etc.
     const tagMatch = text.match(/^\[([-a-zA-Z0-9_ ]+)\](?::)?\s*(.*)$/);
     if (tagMatch) {
         const rawTag = tagMatch[1];
@@ -62,7 +62,7 @@ function formatLogEntry(text: string): { className: string; innerHtml: string } 
         let extraClass = 'log-tagged';
         if (badgeClass.includes('badge-error') || rest.toLowerCase().includes('error:')) extraClass += ' log-error';
         else if (badgeClass.includes('badge-stderr')) extraClass += ' log-stderr';
-        else if (rest.startsWith('Adding layer:') || rest.startsWith('Layer added:') || rest.startsWith('[GEE Pro] Layer added:')) extraClass += ' log-layer';
+        else if (rest.startsWith('Adding layer:') || rest.startsWith('Layer added:') || rest.startsWith('[GEE IDE] Layer added:')) extraClass += ' log-layer';
 
         return {
             className: 'log-entry ' + extraClass,
@@ -100,7 +100,7 @@ function formatLogEntry(text: string): { className: string; innerHtml: string } 
         };
     }
 
-    if (text.startsWith('Adding layer:') || text.startsWith('Layer added:') || text.startsWith('[GEE Pro] Layer added:')) {
+    if (text.startsWith('Adding layer:') || text.startsWith('Layer added:') || text.startsWith('[GEE IDE] Layer added:')) {
         return {
             className: 'log-entry log-layer',
             innerHtml: escapeHtml(text)
@@ -546,7 +546,7 @@ export class ConsoleView {
                     let extraClass = 'log-tagged';
                     if (badgeClass.includes('badge-error') || rest.toLowerCase().includes('error:')) extraClass += ' log-error';
                     else if (badgeClass.includes('badge-stderr')) extraClass += ' log-stderr';
-                    else if (rest.startsWith('Adding layer:') || rest.startsWith('Layer added:') || rest.startsWith('[GEE Pro] Layer added:')) extraClass += ' log-layer';
+                    else if (rest.startsWith('Adding layer:') || rest.startsWith('Layer added:') || rest.startsWith('[GEE IDE] Layer added:')) extraClass += ' log-layer';
 
                     return {
                         className: 'log-entry ' + extraClass,
@@ -584,7 +584,7 @@ export class ConsoleView {
                     };
                 }
 
-                if (text.startsWith('Adding layer:') || text.startsWith('[GEE Pro] Layer added:')) {
+                if (text.startsWith('Adding layer:') || text.startsWith('[GEE IDE] Layer added:')) {
                     return {
                         className: 'log-entry log-layer',
                         innerHtml: escapeHtmlText(text)

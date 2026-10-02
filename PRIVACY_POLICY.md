@@ -1,8 +1,8 @@
-# Privacy Policy for GEE Pro IDE VS Code Extension
+# Privacy Policy for GEE IDE VS Code Extension
 
 **Last Updated: May 3, 2026**
 
-GEE Pro IDE ("the Extension") is committed to protecting your privacy. This Privacy Policy explains how we handle data when you use our VS Code extension.
+GEE IDE ("the Extension") is committed to protecting your privacy. This Privacy Policy explains how we handle data when you use our VS Code extension.
 
 ## 1. Data Collection
 The Extension **does not collect, store, or share any personal data**. 

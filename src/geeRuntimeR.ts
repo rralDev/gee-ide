@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 
 /**
- * GEE Pro IDE — R Runtime
+ * GEE IDE — R Runtime
  * 
  * Provides an interactive, persistent R session inside the unified GEE Console.
  * - Variables persist in memory line-by-line (Cmd+Enter)
@@ -170,7 +170,7 @@ export class GEERuntimeR {
             if (clean.includes("The following objects are masked _by_") || clean.includes("Attaching package:")) return;
             if (clean.includes("invalid value for 'prompt'")) return;
 
-            if (clean.startsWith('[GEE Pro]') || clean.startsWith('Layer added:') || clean.startsWith('Adding layer:')) {
+            if (clean.startsWith('[GEE IDE]') || clean.startsWith('Layer added:') || clean.startsWith('Adding layer:')) {
                 this.consoleView.append(clean);
             } else {
                 this.consoleView.append(`[R] ${line}`);
@@ -285,7 +285,7 @@ export class GEERuntimeR {
                 installProc.on('close', (code) => {
                     if (code === 0) {
                         this.consoleView.append("✅ [R] 'rgee' instalado con éxito. Ya puedes ejecutar tus scripts de Earth Engine en R.");
-                        vscode.window.showInformationMessage("✅ GEE Pro: 'rgee' instalado con éxito en R.");
+                        vscode.window.showInformationMessage("✅ GEE IDE: 'rgee' instalado con éxito en R.");
                         resolve(true);
                     } else {
                         this.consoleView.append(`[Error] Falló la instalación de rgee (código ${code}).`);

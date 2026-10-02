@@ -4,7 +4,7 @@ import { EventEmitter } from 'events';
 
 // Adapted from earthengine-extension by 12rambau (Apache 2.0)
 // https://github.com/12rambau/earthengine-extension
-// Modifications: TypeScript rewrite, adapted to GEE Pro IDE architecture
+// Modifications: TypeScript rewrite, adapted to GEE IDE architecture
 
 export interface MapCommand {
     action: 'addLayer' | 'setCenter' | 'centerObject' | 'clear';
@@ -66,7 +66,7 @@ export class PythonBridgeServer {
 
                 srv.on('error', (err: any) => {
                     if (err.code === 'EADDRINUSE') {
-                        // Port in use (e.g. parent VS Code window is running GEE Pro)
+                        // Port in use (e.g. parent VS Code window is running GEE IDE)
                         // Try next port or fallback to port 0 (OS picks free port)
                         if (portToTry < preferredPort + 10) {
                             tryListen(portToTry + 1);

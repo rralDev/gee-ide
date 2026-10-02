@@ -1,6 +1,6 @@
 {
   "name": "gee-pro-ide",
-  "displayName": "GEE Pro IDE",
+  "displayName": "GEE IDE",
   "description": "Professional Google Earth Engine IDE for VS Code with integrated Map, Console, and AI Assistant.",
   "version": "0.1.6",
   "publisher": "LuisRobles",
@@ -47,7 +47,7 @@
   "main": "./out/extension.js",
   "contributes": {
     "configuration": {
-      "title": "GEE Pro IDE",
+      "title": "GEE IDE",
       "properties": {
         "gee-pro.projectId": {
           "type": "string",
@@ -72,59 +72,59 @@
       {
         "command": "gee-pro.start",
         "title": "Start Environment",
-        "category": "GEE Pro IDE"
+        "category": "GEE IDE"
       },
       {
         "command": "gee-pro.login",
         "title": "Login with Google (Easy)",
-        "category": "GEE Pro IDE"
+        "category": "GEE IDE"
       },
       {
         "command": "gee-pro.setProject",
         "title": "Set Active Cloud Project",
-        "category": "GEE Pro IDE"
+        "category": "GEE IDE"
       },
       {
         "command": "gee-pro.reset",
         "title": "Reset Environment",
-        "category": "GEE Pro IDE"
+        "category": "GEE IDE"
       },
       {
         "command": "gee-pro.run",
         "title": "Run Entire Script",
-        "category": "GEE Pro IDE",
+        "category": "GEE IDE",
         "icon": "$(run-all)"
       },
       {
         "command": "gee-pro.runSelection",
         "title": "Run Selection/Line",
-        "category": "GEE Pro IDE",
+        "category": "GEE IDE",
         "icon": "$(play)"
       },
       {
         "command": "gee-pro.getLink",
         "title": "Get Shareable Link",
-        "category": "GEE Pro IDE"
+        "category": "GEE IDE"
       },
       {
         "command": "gee-pro.focusEditor",
         "title": "Focus Code Editor (Quadrant 1)",
-        "category": "GEE Pro IDE"
+        "category": "GEE IDE"
       },
       {
         "command": "gee-pro.focusConsole",
         "title": "Focus GEE Console (Quadrant 2)",
-        "category": "GEE Pro IDE"
+        "category": "GEE IDE"
       },
       {
         "command": "gee-pro.focusMap",
         "title": "Focus GEE Map (Quadrant 3)",
-        "category": "GEE Pro IDE"
+        "category": "GEE IDE"
       },
       {
         "command": "gee-pro.focusAI",
         "title": "Focus AI Assistant (Quadrant 4)",
-        "category": "GEE Pro IDE"
+        "category": "GEE IDE"
       }
     ],
     "keybindings": [
@@ -191,7 +191,7 @@
       "activitybar": [
         {
           "id": "gee-pro-sidebar",
-          "title": "GEE Pro",
+          "title": "GEE IDE",
           "icon": "$(globe)"
         }
       ]

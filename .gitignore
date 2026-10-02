@@ -10,3 +10,4 @@ out/
 .DS_Store
 src/config.ts
 .tmp/
+ROADMAP.md
