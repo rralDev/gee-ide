@@ -326,7 +326,7 @@ export class MapView {
                 </div>
 
                 <div class="toolbar-container" style="right: 20px; bottom: 20px; left: auto;">
-                    <button class="toolbar-toggle" style="background: rgba(180, 40, 40, 0.95) !important; color: #ffffff !important; width: auto; padding: 0 12px; font-weight: bold; font-family: sans-serif; font-size: 13px; box-shadow: 0 4px 15px rgba(0,0,0,0.6); border: 1px solid rgba(255,100,100,0.4) !important;" onclick="resetEnv()" title="Reset Environment">🧹 Clear Map</button>
+                    <button class="toolbar-toggle" style="background: rgba(180, 40, 40, 0.9) !important; border: 1px solid rgba(255, 120, 120, 0.4) !important; font-size: 15px;" onclick="resetEnv()" title="Reset Environment & Map">🧹</button>
                 </div>
 
                 <div id="helpPopup" class="help-popup">

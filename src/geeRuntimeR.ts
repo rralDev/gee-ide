@@ -210,7 +210,7 @@ export class GEERuntimeR {
     /**
      * Reset the interactive session (clears all R variables).
      */
-    public reset() {
+    public reset(silent: boolean = false) {
         if (this.rProcess) {
             this.rProcess.kill();
             this.rProcess = null;
@@ -218,7 +218,9 @@ export class GEERuntimeR {
         this.stdoutBuffer = '';
         this.isBusy = false;
         this.pendingResolve = null;
-        this.consoleView.append('[R] Entorno de R reiniciado. Variables limpias.');
+        if (!silent) {
+            this.consoleView.append('[R] Entorno de R reiniciado. Variables limpias.');
+        }
     }
 
     /**

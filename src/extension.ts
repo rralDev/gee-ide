@@ -531,16 +531,19 @@ export function activate(context: vscode.ExtensionContext) {
 
     let resetCommand = vscode.commands.registerCommand('gee-pro.reset', () => {
         if (runtime) {
-            runtime.reset();
+            runtime.reset(true);
         }
         if (runtimePy) {
             runtimePy.stop();
         }
         if (runtimeR) {
-            runtimeR.reset();
+            runtimeR.reset(true);
         }
         if (mapView) {
             mapView.clear();
+        }
+        if (consoleView) {
+            consoleView.append('🧹 Environment reset. Map and variables cleared.');
         }
     });
 

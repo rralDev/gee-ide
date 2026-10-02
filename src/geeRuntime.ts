@@ -184,9 +184,11 @@ export class GEERuntime {
         });
     }
 
-    public reset() {
+    public reset(silent: boolean = false) {
         this.resetContext();
-        this.consoleView.append('Environment reset. All variables cleared.');
+        if (!silent) {
+            this.consoleView.append('🧹 Environment reset. All variables cleared.');
+        }
     }
 
     public async execute(code: string, resetContext: boolean = false) {
