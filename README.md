@@ -39,6 +39,8 @@ Ask questions, generate Earth Engine scripts, or debug your algorithms with the 
 - **Python (Optional)**: If you want to run `# py` scripts (requires `earthengine-api` installed in your environment).
 - **R (Optional)**: If you want to run `# r` scripts (requires `rgee` and `reticulate`).
 
+> ⚠️ **Windows Users:** When installing Python or R, please ensure you check the **"Add to PATH"** (or "Add to environment variables") option in the installer. This allows GEE Pro IDE to automatically detect and run the languages in the background.
+
 ### Installation
 1. Install **GEE Pro IDE** from the VS Code Extensions Marketplace (or via VSIX).
 2. Open a workspace and create a new file with the `.gee` extension (e.g., `script.gee`).
