@@ -281,16 +281,34 @@ export class LoopbackAuthServer {
         });
     }
 
+    private _timeoutTimer?: NodeJS.Timeout;
+
     waitForCode(timeoutMs = 300000): Promise<OAuthResponse> {
+        const timeoutPromise = new Promise<OAuthResponse>((_, reject) => {
+            this._timeoutTimer = setTimeout(() => {
+                reject(new Error('Authentication timed out after 5 minutes'));
+            }, timeoutMs);
+        });
+
         return Promise.race([
-            this._codePromise,
-            new Promise<OAuthResponse>((_, reject) =>
-                setTimeout(() => reject(new Error('Authentication timed out after 5 minutes')), timeoutMs)
-            )
+            this._codePromise.then(res => {
+                if (this._timeoutTimer) {
+                    clearTimeout(this._timeoutTimer);
+                    this._timeoutTimer = undefined;
+                }
+                return res;
+            }),
+            timeoutPromise
         ]);
     }
 
     stop(): void {
-        this.server.close();
+        if (this._timeoutTimer) {
+            clearTimeout(this._timeoutTimer);
+            this._timeoutTimer = undefined;
+        }
+        try {
+            this.server.close();
+        } catch (e) {}
     }
 }

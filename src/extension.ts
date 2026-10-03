@@ -123,6 +123,7 @@ export function activate(context: vscode.ExtensionContext) {
     let runtimePy: GEERuntimePy | undefined;
     let runtimeR: GEERuntimeR | undefined;
     let bridgeServer: PythonBridgeServer | undefined;
+    let activeLoopback: LoopbackAuthServer | undefined;
     const snippetsManager = new SnippetsManager(context);
     context.subscriptions.push(snippetsManager.registerSnippetsProvider());
 
@@ -510,7 +511,13 @@ export function activate(context: vscode.ExtensionContext) {
         const { CLIENT_ID } = require('./config');
         const SCOPES = 'https://www.googleapis.com/auth/earthengine https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email';
 
+        if (activeLoopback) {
+            activeLoopback.stop();
+            activeLoopback = undefined;
+        }
+
         const loopback = new LoopbackAuthServer();
+        activeLoopback = loopback;
         try {
             await loopback.start();
             const redirectUri = `http://127.0.0.1:${loopback.port}/callback`;
@@ -589,10 +596,17 @@ export function activate(context: vscode.ExtensionContext) {
             if (consoleView) consoleView.append(`Auth Error: ${err.message}`);
         } finally {
             loopback.stop();
+            if (activeLoopback === loopback) {
+                activeLoopback = undefined;
+            }
         }
     });
 
     let logoutCommand = vscode.commands.registerCommand('gee-pro.logout', async () => {
+        if (activeLoopback) {
+            activeLoopback.stop();
+            activeLoopback = undefined;
+        }
         const os = require('os');
         const path = require('path');
         const fs = require('fs');
