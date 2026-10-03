@@ -264,7 +264,6 @@ export function activate(context: vscode.ExtensionContext) {
             syncCompletionsToConsole();
         } else if (message.command === 'geeCommand') {
             if (!runtime || !runtime.isInitialized) {
-                consoleView.append(`gee> ${message.text}`);
                 consoleView.append('⏳ Inicializando sesión de Earth Engine...');
             }
             await ensureRuntimeInitialized();

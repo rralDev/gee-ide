@@ -244,7 +244,9 @@ export class ConsoleView {
         if (this.logs.length > 500) this.logs.shift();
         this.extractTokens(text);
 
-        if (this.panel) {
+        if (!this.panel) {
+            this.show(vscode.ViewColumn.Two, true);
+        } else {
             this.panel.webview.postMessage({ command: 'append', text });
         }
     }
@@ -701,7 +703,7 @@ export class ConsoleView {
                 const rightPart = val.substring(cursorPos);
                 
                 // Extract current token/word before cursor
-                const match = leftPart.match(/[a-zA-Z0-9_\-\.\/]+$/);
+                const match = leftPart.match(/[a-zA-Z0-9_./-]+$/);
                 const word = match ? match[0] : '';
                 const wordStart = match ? leftPart.length - word.length : cursorPos;
                 const prefix = word.toLowerCase();
