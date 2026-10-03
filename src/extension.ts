@@ -263,9 +263,16 @@ export function activate(context: vscode.ExtensionContext) {
         } else if (message.command === 'requestCompletions' || message.command === 'consoleReady') {
             syncCompletionsToConsole();
         } else if (message.command === 'geeCommand') {
+            if (!runtime || !runtime.isInitialized) {
+                consoleView.append(`gee> ${message.text}`);
+                consoleView.append('⏳ Inicializando sesión de Earth Engine...');
+            }
             await ensureRuntimeInitialized();
             if (runtime) {
-                runtime.handleCommand(message.text);
+                await runtime.handleCommand(message.text);
+            } else {
+                consoleView.append('⚠️ GEE no está autenticado. Presiona Cmd+Shift+P -> "GEE IDE: Login with Google"');
+                consoleView.append('gee> ');
             }
         }
     });
@@ -1106,6 +1113,11 @@ export function activate(context: vscode.ExtensionContext) {
         focusEditorCommand, focusConsoleCommand, focusMapCommand, focusAICommand,
         clearConsoleCommand, saveLayoutCommand, resetLayoutCommand, editSnippetsCommand, listSnippetsCommand
     );
+    // Auto-initialize GEE runtime and restore active session banner on startup
+    ensureRuntimeInitialized().catch(e => {
+        logStep(`Background auto-init note: ${e.message}`);
+    });
+
     logStep('>>> ACTIVATE() COMPLETED SUCCESSFULLY — All commands ready');
 }
 

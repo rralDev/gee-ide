@@ -118,7 +118,11 @@ function formatLogEntry(text: string): { className: string; innerHtml: string } 
 export class ConsoleView {
     private panel: vscode.WebviewPanel | undefined;
     private messageCallback: ((message: any) => void) | undefined;
-    private logs: string[] = [];
+    private logs: string[] = [
+        '🛰️ GEE IDE Interactive Console',
+        'Type CLI commands (ls, dir, cd, pwd, vars, snippets) or JavaScript expressions below.',
+        '----------------------------------------'
+    ];
     private knownCompletions: Set<string> = new Set([
         'ls', 'dir', 'vars', 'objects', 'whos', 'cd', 'pwd', 'mkdir', 'rm', 'rmdir', 'cp', 'mv', 'clear', 'cls',
         '-r', '-rf',
@@ -657,7 +661,14 @@ export class ConsoleView {
         }
 
         cmdInput.addEventListener('focus', requestFreshCompletions);
-        window.addEventListener('focus', requestFreshCompletions);
+
+        // Click anywhere in console pane to focus input automatically
+        document.body.addEventListener('click', (e) => {
+            const sel = window.getSelection();
+            if (!sel || sel.toString().length === 0) {
+                cmdInput.focus();
+            }
+        });
 
         cmdInput.addEventListener('keydown', (e) => {
             const isCmdOrCtrl = e.metaKey || e.ctrlKey;
@@ -674,13 +685,13 @@ export class ConsoleView {
                 if (cmd) {
                     commandHistory.push(cmd);
                     historyIndex = -1;
+                    cmdInput.value = '';
                     if (cmd === 'clear' || cmd === 'cls') {
                         consoleDiv.innerHTML = '';
                         if (vscode) vscode.postMessage({ command: 'clearLogs' });
                     } else if (vscode) {
                         vscode.postMessage({ command: 'geeCommand', text: cmd });
                     }
-                    cmdInput.value = '';
                 }
                 return;
             }

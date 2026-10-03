@@ -671,37 +671,43 @@ export class GEERuntime {
     }
 
     public async handleCommand(text: string) {
-        const trimmed = text.trim();
-        if (this.consoleView.appendHistory) {
-            this.consoleView.appendHistory(trimmed);
-        }
-
-        if (trimmed === 'snippets' || trimmed === '?snippets' || trimmed === 'help snippets') {
-            this.showSnippetsList();
-            return;
-        }
-
-        if (trimmed.startsWith('?') || trimmed === 'help' || trimmed.startsWith('help ')) {
-            let query = '';
-            if (trimmed.startsWith('?')) {
-                query = trimmed.substring(1).trim();
-            } else {
-                query = trimmed.replace(/^help\s*/, '').replace(/[()]/g, '').trim();
+        try {
+            const trimmed = text.trim();
+            if (this.consoleView.appendHistory) {
+                this.consoleView.appendHistory(trimmed);
             }
-            this.showHelp(query);
-            return;
-        }
 
-        const parts = trimmed.split(/\s+/);
-        const cmd = parts[0];
-        const args = parts.slice(1);
-        const promptDisplay = (!this.cwd || this.cwd === '~') ? '~' : this.cwd;
+            if (trimmed === 'snippets' || trimmed === '?snippets' || trimmed === 'help snippets') {
+                this.showSnippetsList();
+                return;
+            }
 
-        this.consoleView.append(`gee:${promptDisplay}> ${text}`);
+            if (trimmed.startsWith('?') || trimmed === 'help' || trimmed.startsWith('help ')) {
+                let query = '';
+                if (trimmed.startsWith('?')) {
+                    query = trimmed.substring(1).trim();
+                } else {
+                    query = trimmed.replace(/^help\s*/, '').replace(/[()]/g, '').trim();
+                }
+                this.showHelp(query);
+                return;
+            }
 
-        const ee = getEE();
+            const parts = trimmed.split(/\s+/);
+            const cmd = parts[0];
+            const args = parts.slice(1);
+            const promptDisplay = (!this.cwd || this.cwd === '~') ? '~' : this.cwd;
 
-        switch (cmd) {
+            this.consoleView.append(`gee:${promptDisplay}> ${text}`);
+
+            if (!this.isInitialized && ['ls', 'dir', 'cd', 'mkdir', 'rm', 'rmdir', 'cp', 'mv'].includes(cmd)) {
+                this.consoleView.append('⚠️ GEE no está inicializado. Por favor autentícate primero: Cmd+Shift+P -> "GEE IDE: Login with Google"');
+                return;
+            }
+
+            const ee = getEE();
+
+            switch (cmd) {
             case 'snippets':
                 this.showSnippetsList();
                 break;
@@ -967,6 +973,9 @@ export class GEERuntime {
                 } else {
                     this.consoleView.append(`Unknown command: ${cmd}. Available: ls, dir, vars, objects, cd, pwd, mkdir, rm, cp, mv, clear`);
                 }
+        }
+        } catch (err: any) {
+            this.consoleView.append(`[Command Error]: ${err.message || err}`);
         }
     }
 }
