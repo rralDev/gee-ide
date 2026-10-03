@@ -283,7 +283,12 @@ export function activate(context: vscode.ExtensionContext) {
                             logStep('Token refresh successful');
                         } catch (e: any) {
                             logStep(`Token refresh warning: ${e.message}`);
-                            consoleView.append(`Refresh failed, using old token: ${e.message}`);
+                            if (e.message && (e.message.includes('401') || e.message.includes('unauthorized_client') || e.message.includes('invalid_grant'))) {
+                                consoleView.append('⚠️ Previous session has expired. Please log in using: Cmd+Shift+P -> GEE IDE: Login with Google');
+                                await context.secrets.delete('gee-pro.credentials');
+                                return false;
+                            }
+                            consoleView.append(`Using cached token: ${e.message}`);
                         }
                     }
 
@@ -422,41 +427,86 @@ export function activate(context: vscode.ExtensionContext) {
         const fs = require('fs');
         const credPath = path.join(os.homedir(), '.config', 'earthengine', 'credentials');
 
-        // Option 1: Try reading earthengine CLI credentials (the easy path)
+        // Step 1: Detect if user already has an active, valid session
+        const savedSecret = await context.secrets.get('gee-pro.credentials');
+        if (savedSecret) {
+            try {
+                const existingCreds = JSON.parse(savedSecret);
+                if (existingCreds && existingCreds.access_token) {
+                    const email = existingCreds.email || 'Google User';
+                    const activeProj = existingCreds.project_id || (runtime ? runtime.getProjectId() : '') || 'Default Project';
+                    
+                    const choice = await vscode.window.showInformationMessage(
+                        `You already have an active GEE session as ${email} (Project: ${activeProj}).`,
+                        'Keep Current Session',
+                        'Switch Account / Re-login'
+                    );
+
+                    if (choice !== 'Switch Account / Re-login') {
+                        if (consoleView) {
+                            consoleView.append(`ℹ️ Active session maintained for: ${email}`);
+                        }
+                        return;
+                    }
+
+                    // User selected Switch Account: perform a clean teardown of prior session
+                    if (consoleView) consoleView.append('Switching account: clearing previous session...');
+                    await context.secrets.delete('gee-pro.credentials');
+                    if (fs.existsSync(credPath)) {
+                        try { fs.unlinkSync(credPath); } catch (e) {}
+                    }
+                    if (runtime) runtime.reset(true);
+                    if (runtimePy) runtimePy.stop();
+                    if (runtimeR) runtimeR.reset(true);
+                }
+            } catch (e) {}
+        }
+
+        // Step 2: Check for existing refreshable credentials (clean fallback, zero raw 401 dumps)
         if (fs.existsSync(credPath)) {
             try {
                 const raw = fs.readFileSync(credPath, 'utf8');
                 const cliCreds = JSON.parse(raw);
-                const { CLIENT_ID, CLIENT_SECRET } = require('./config');
-                const fullCreds = { ...cliCreds, client_id: CLIENT_ID, client_secret: CLIENT_SECRET };
+                if (cliCreds && cliCreds.refresh_token) {
+                    const { CLIENT_ID, CLIENT_SECRET } = require('./config');
+                    const fullCreds = { ...cliCreds, client_id: CLIENT_ID, client_secret: CLIENT_SECRET };
 
-                if (consoleView) consoleView.append('Found earthengine CLI credentials. Getting fresh token...');
-                
-                const freshTokens = await refreshAccessToken(fullCreds.refresh_token);
-                let readyCreds = { ...fullCreds, ...freshTokens };
+                    try {
+                        const freshTokens = await refreshAccessToken(fullCreds.refresh_token);
+                        let readyCreds = { ...fullCreds, ...freshTokens };
 
-                if (readyCreds.access_token) {
-                    const uInfo = await getUserInfo(readyCreds.access_token);
-                    if (uInfo && uInfo.email) {
-                        readyCreds.email = uInfo.email;
+                        if (readyCreds.access_token) {
+                            const uInfo = await getUserInfo(readyCreds.access_token);
+                            if (uInfo && uInfo.email) {
+                                readyCreds.email = uInfo.email;
+                            }
+                        }
+                        
+                        await context.secrets.store('gee-pro.credentials', JSON.stringify(readyCreds));
+
+                        if (runtime) {
+                            await runtime.initialize(readyCreds);
+                            runtimePy = new GEERuntimePy(consoleView, readyCreds.access_token || '', readyCreds.project_id || '', context.globalStorageUri.fsPath, bridgeServer ? bridgeServer.getPort() : 31415);
+                            runtimeR = new GEERuntimeR(consoleView, readyCreds.access_token || '', readyCreds.project_id || '', bridgeServer ? bridgeServer.getPort() : 31415);
+                            runtimePy.getPythonExecutable().then(py => {
+                                if (py && runtimeR) runtimeR.setPythonPath(py);
+                            });
+                            vscode.window.showInformationMessage('✅ GEE IDE: Login Successful!');
+                            await displaySessionBanner(consoleView, readyCreds, runtime);
+                        }
+                        return;
+                    } catch (refreshErr: any) {
+                        // Stale credentials on disk: cleanly remove the invalid file so it doesn't cause errors
+                        try { fs.unlinkSync(credPath); } catch (e) {}
+                        logStep(`Stale credentials removed from disk: ${refreshErr.message}`);
                     }
                 }
-                
-                await context.secrets.store('gee-pro.credentials', JSON.stringify(readyCreds));
-
-                if (runtime) {
-                    await runtime.initialize(readyCreds);
-                    runtimePy = new GEERuntimePy(consoleView, readyCreds.access_token || '', readyCreds.project_id || '', context.globalStorageUri.fsPath, bridgeServer ? bridgeServer.getPort() : 31415);
-                    vscode.window.showInformationMessage('✅ GEE IDE: Login Successful! (via earthengine CLI)');
-                    await displaySessionBanner(consoleView, readyCreds, runtime);
-                }
-                return;
             } catch (err: any) {
-                if (consoleView) consoleView.append(`CLI login failed: ${err.message}. Falling back to OAuth login...`);
+                // Ignore parse errors, proceed to web login
             }
         }
 
-        // Option 2: Automatic Loopback OAuth flow
+        // Step 3: Automatic Loopback OAuth flow (Clean web login)
         const { CLIENT_ID } = require('./config');
         const SCOPES = 'https://www.googleapis.com/auth/earthengine https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email';
 
@@ -513,7 +563,24 @@ export function activate(context: vscode.ExtensionContext) {
                     await runtime.loadAssetRoots(tokenData.email);
                 }
                 runtimePy = new GEERuntimePy(consoleView, tokenData.access_token || '', activeProject || '', context.globalStorageUri.fsPath, bridgeServer ? bridgeServer.getPort() : 31415);
+                runtimeR = new GEERuntimeR(consoleView, tokenData.access_token || '', activeProject || '', bridgeServer ? bridgeServer.getPort() : 31415);
+                runtimePy.getPythonExecutable().then(py => {
+                    if (py && runtimeR) runtimeR.setPythonPath(py);
+                });
                 await context.secrets.store('gee-pro.credentials', JSON.stringify(tokenData));
+
+                // Synchronize credentials to ~/.config/earthengine/credentials for CLI/Python/R harmony
+                try {
+                    const earthengineDir = path.join(os.homedir(), '.config', 'earthengine');
+                    if (!fs.existsSync(earthengineDir)) {
+                        fs.mkdirSync(earthengineDir, { recursive: true });
+                    }
+                    const diskCreds: any = {};
+                    if (tokenData.refresh_token) diskCreds.refresh_token = tokenData.refresh_token;
+                    if (activeProject) diskCreds.project = activeProject;
+                    fs.writeFileSync(credPath, JSON.stringify(diskCreds, null, 2), 'utf8');
+                } catch (e) {}
+
                 vscode.window.showInformationMessage('✅ GEE IDE: Login Successful!');
                 await displaySessionBanner(consoleView, tokenData, runtime);
             }
@@ -526,7 +593,17 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     let logoutCommand = vscode.commands.registerCommand('gee-pro.logout', async () => {
+        const os = require('os');
+        const path = require('path');
+        const fs = require('fs');
+        const credPath = path.join(os.homedir(), '.config', 'earthengine', 'credentials');
+
         await context.secrets.delete('gee-pro.credentials');
+        if (fs.existsSync(credPath)) {
+            try {
+                fs.unlinkSync(credPath);
+            } catch (e) {}
+        }
         if (runtime) {
             runtime.reset(true);
             runtime = undefined;
@@ -543,9 +620,10 @@ export function activate(context: vscode.ExtensionContext) {
             mapView.clear();
         }
         if (consoleView) {
-            consoleView.append('🔒 GEE Session logged out. You can now login with another account using: Cmd+Shift+P -> GEE IDE: Login with Google');
+            consoleView.append('🔒 GEE Session logged out. All credentials cleared.');
+            consoleView.append('You can now login with another account using: Cmd+Shift+P -> GEE IDE: Login with Google');
         }
-        vscode.window.showInformationMessage('🔒 GEE IDE: Sesión cerrada con éxito. Puedes iniciar sesión con otra cuenta.');
+        vscode.window.showInformationMessage('🔒 GEE IDE: Session closed. Credentials cleared.');
     });
 
     let runCommand = vscode.commands.registerCommand('gee-pro.run', async () => {
