@@ -117,7 +117,7 @@
   "Shebang JavaScript": {
     "prefix": "shebangjs",
     "body": [
-      "# js",
+      "// js",
       "$0"
     ],
     "description": "Shebang para indicar código JavaScript en archivos .gee"

@@ -78,10 +78,10 @@ Unlike rigid editor layouts, GEE IDE provides full workspace sovereignty:
 
 GEE IDE introduces the **`.gee`** file specification. A single project can orchestrate scripts across the three major remote sensing languages using **shebang routing** on the first line:
 
-### 1. JavaScript (`# js`)
+### 1. JavaScript (`// js`)
 Executed locally via Node.js coupled with the official `@google/earthengine` client:
 ```javascript
-# js
+// js
 var collection = ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
   .filterDate('2024-01-01', '2024-03-31')
   .filterBounds(Map.getBounds());
