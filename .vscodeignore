@@ -1,13 +1,16 @@
 .vscode/**
 .vscode-test/**
-out/test/**
+.tmp/**
+learning/**
+scratch/**
+ROADMAP.md
+media/concept_logos/**
+**/.DS_Store
 src/**
-.gitignore
-.vscodeignore
 tsconfig.json
 node_modules/**
 vsc-extension-quickstart.md
-**/.*
 **/*.map
 **/*.ts
-**/*.png (except media/logo.png)
+**/__pycache__/**
+*.vsix
