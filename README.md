@@ -1,7 +1,7 @@
 # GEE IDE (Google Earth Engine IDE)
 
 <p align="center">
-  <img src="media/logo.png" alt="GEE IDE Logo" width="130" />
+  <img src="https://raw.githubusercontent.com/rralDev/gee-ide/main/media/logo.png" alt="GEE IDE Logo" width="130" />
 </p>
 
 <p align="center">
