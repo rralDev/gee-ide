@@ -333,8 +333,19 @@ export function activate(context: vscode.ExtensionContext) {
 
     let initPromise: Promise<boolean> | undefined;
 
-    async function ensureRuntimeInitialized(): Promise<boolean> {
-        if (runtime && runtime.isInitialized) return true;
+    async function ensureRuntimeInitialized(forceShowBanner: boolean = false): Promise<boolean> {
+        if (runtime && runtime.isInitialized) {
+            if (forceShowBanner) {
+                const savedJson = await context.secrets.get('gee-pro.credentials');
+                if (savedJson) {
+                    try {
+                        const creds = JSON.parse(savedJson);
+                        await displaySessionBanner(consoleView, creds, runtime);
+                    } catch (e) {}
+                }
+            }
+            return true;
+        }
         if (initPromise) return initPromise;
 
         initPromise = (async () => {
@@ -503,7 +514,7 @@ export function activate(context: vscode.ExtensionContext) {
             aiView.show();
         }
 
-        await ensureRuntimeInitialized();
+        await ensureRuntimeInitialized(true);
         vscode.window.showInformationMessage('GEE IDE: Workspace Ready');
     });
 
@@ -1113,11 +1124,6 @@ export function activate(context: vscode.ExtensionContext) {
         focusEditorCommand, focusConsoleCommand, focusMapCommand, focusAICommand,
         clearConsoleCommand, saveLayoutCommand, resetLayoutCommand, editSnippetsCommand, listSnippetsCommand
     );
-    // Auto-initialize GEE runtime and restore active session banner on startup
-    ensureRuntimeInitialized().catch(e => {
-        logStep(`Background auto-init note: ${e.message}`);
-    });
-
     logStep('>>> ACTIVATE() COMPLETED SUCCESSFULLY — All commands ready');
 }
 

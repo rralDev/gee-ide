@@ -118,11 +118,7 @@ function formatLogEntry(text: string): { className: string; innerHtml: string } 
 export class ConsoleView {
     private panel: vscode.WebviewPanel | undefined;
     private messageCallback: ((message: any) => void) | undefined;
-    private logs: string[] = [
-        '🛰️ GEE IDE Interactive Console',
-        'Type CLI commands (ls, dir, cd, pwd, vars, snippets) or JavaScript expressions below.',
-        '----------------------------------------'
-    ];
+    private logs: string[] = [];
     private knownCompletions: Set<string> = new Set([
         'ls', 'dir', 'vars', 'objects', 'whos', 'cd', 'pwd', 'mkdir', 'rm', 'rmdir', 'cp', 'mv', 'clear', 'cls',
         '-r', '-rf',
@@ -248,9 +244,7 @@ export class ConsoleView {
         if (this.logs.length > 500) this.logs.shift();
         this.extractTokens(text);
 
-        if (!this.panel) {
-            this.show(vscode.ViewColumn.Two, true);
-        } else {
+        if (this.panel) {
             this.panel.webview.postMessage({ command: 'append', text });
         }
     }
