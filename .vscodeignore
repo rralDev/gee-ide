@@ -16,3 +16,5 @@ vsc-extension-quickstart.md
 *.vsix
 .gee_history
 README_es.md
+media/*.icns
+media/*.ico
