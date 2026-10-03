@@ -346,6 +346,11 @@ export function activate(context: vscode.ExtensionContext) {
                     return true;
                 } else {
                     logStep('No credentials stored, prompt user to login');
+                    if (!runtime) {
+                        const { GEERuntime } = require('./geeRuntime');
+                        runtime = new GEERuntime(consoleView, mapView);
+                        runtime.setSnippetsManager(snippetsManager);
+                    }
                     consoleView.append('Authentication required: Cmd+Shift+P -> GEE IDE: Login with Google');
                     return false;
                 }
@@ -485,16 +490,20 @@ export function activate(context: vscode.ExtensionContext) {
                         
                         await context.secrets.store('gee-pro.credentials', JSON.stringify(readyCreds));
 
-                        if (runtime) {
-                            await runtime.initialize(readyCreds);
-                            runtimePy = new GEERuntimePy(consoleView, readyCreds.access_token || '', readyCreds.project_id || '', context.globalStorageUri.fsPath, bridgeServer ? bridgeServer.getPort() : 31415);
-                            runtimeR = new GEERuntimeR(consoleView, readyCreds.access_token || '', readyCreds.project_id || '', bridgeServer ? bridgeServer.getPort() : 31415);
-                            runtimePy.getPythonExecutable().then(py => {
-                                if (py && runtimeR) runtimeR.setPythonPath(py);
-                            });
-                            vscode.window.showInformationMessage('✅ GEE IDE: Login Successful!');
-                            await displaySessionBanner(consoleView, readyCreds, runtime);
+                        if (!runtime) {
+                            const { GEERuntime } = require('./geeRuntime');
+                            runtime = new GEERuntime(consoleView, mapView);
+                            runtime.setSnippetsManager(snippetsManager);
                         }
+
+                        await runtime.initialize(readyCreds);
+                        runtimePy = new GEERuntimePy(consoleView, readyCreds.access_token || '', readyCreds.project_id || '', context.globalStorageUri.fsPath, bridgeServer ? bridgeServer.getPort() : 31415);
+                        runtimeR = new GEERuntimeR(consoleView, readyCreds.access_token || '', readyCreds.project_id || '', bridgeServer ? bridgeServer.getPort() : 31415);
+                        runtimePy.getPythonExecutable().then(py => {
+                            if (py && runtimeR) runtimeR.setPythonPath(py);
+                        });
+                        vscode.window.showInformationMessage('✅ GEE IDE: Login Successful!');
+                        await displaySessionBanner(consoleView, readyCreds, runtime);
                         return;
                     } catch (refreshErr: any) {
                         // Stale credentials on disk: cleanly remove the invalid file so it doesn't cause errors
@@ -536,9 +545,14 @@ export function activate(context: vscode.ExtensionContext) {
                     tokenData.email = uInfo.email;
                 }
             }
-            if (runtime) {
-                await runtime.initialize(tokenData);
-                let activeProject = tokenData.project_id || tokenData.project;
+            if (!runtime) {
+                const { GEERuntime } = require('./geeRuntime');
+                runtime = new GEERuntime(consoleView, mapView);
+                runtime.setSnippetsManager(snippetsManager);
+            }
+
+            await runtime.initialize(tokenData);
+            let activeProject = tokenData.project_id || tokenData.project;
                 if (activeProject === 'gee-pro-default' || activeProject === 'PeruREDD') {
                     activeProject = '';
                     delete tokenData.project_id;
@@ -590,7 +604,6 @@ export function activate(context: vscode.ExtensionContext) {
 
                 vscode.window.showInformationMessage('✅ GEE IDE: Login Successful!');
                 await displaySessionBanner(consoleView, tokenData, runtime);
-            }
         } catch (err: any) {
             vscode.window.showErrorMessage(`Login Failed: ${err.message}`);
             if (consoleView) consoleView.append(`Auth Error: ${err.message}`);
