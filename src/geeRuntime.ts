@@ -126,7 +126,7 @@ export class GEERuntime {
 
     public async initialize(credentials: any) {
         if (!(global as any).XMLHttpRequest) {
-            const XMLHttpRequest = require('xhr2');
+            const { XMLHttpRequest } = require('xmlhttprequest');
             (global as any).XMLHttpRequest = XMLHttpRequest;
         }
 
@@ -525,7 +525,44 @@ export class GEERuntime {
                 const newPath = this.resolvePath(targetDir);
                 this.cwd = newPath;
                 this.consoleView.append(`📂 Current directory: ${this.cwd === '~' ? '~ (Root)' : this.cwd}`);
+            case 'vars':
+            case 'objects':
+            case 'whos':
+            case 'who':
+                if (!this.context) {
+                    this.consoleView.append('  (no active runtime context)');
+                    break;
+                }
+                const builtins = new Set(['ee', 'Map', 'ui', 'Export', 'print', 'require', 'global', 'console', 'window', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Buffer', 'process']);
+                const userVars = Object.keys(this.context).filter(k => !builtins.has(k) && !k.startsWith('_'));
+                if (userVars.length === 0) {
+                    this.consoleView.append('  (no user variables currently in memory)');
+                } else {
+                    this.consoleView.append(`📊 Variables en memoria (${userVars.length}):`);
+                    userVars.forEach(k => {
+                        const val = this.context[k];
+                        let typeName = typeof val;
+                        let detail = '';
+                        if (val && typeof val === 'object') {
+                            if (val.constructor && val.constructor.name && val.constructor.name !== 'Object') {
+                                typeName = val.constructor.name;
+                            }
+                            if (val.name && typeof val.name === 'function') {
+                                typeName = val.name();
+                            }
+                            if (Array.isArray(val)) {
+                                detail = `[Array length: ${val.length}]`;
+                            } else if (val.getInfo) {
+                                detail = `[Earth Engine Object]`;
+                            }
+                        } else if (typeof val === 'number' || typeof val === 'string' || typeof val === 'boolean') {
+                            detail = `= ${val}`;
+                        }
+                        this.consoleView.append(`  🔹 ${k} : ${typeName} ${detail}`);
+                    });
+                }
                 break;
+            case 'dir':
             case 'ls':
                 try {
                     let rawArg = args.find(a => !a.startsWith('-')) || '';

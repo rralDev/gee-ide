@@ -2,7 +2,7 @@
   "name": "gee-pro-ide",
   "displayName": "GEE IDE",
   "description": "Ultimate Google Earth Engine IDE for VS Code with integrated Map, Console, and AI Assistant.",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "publisher": "LuisRobles",
   "icon": "media/logo.png",
   "engines": {
@@ -80,6 +80,11 @@
         "category": "GEE IDE"
       },
       {
+        "command": "gee-pro.logout",
+        "title": "Logout (Cerrar sesión)",
+        "category": "GEE IDE"
+      },
+      {
         "command": "gee-pro.setProject",
         "title": "Set Active Cloud Project",
         "category": "GEE IDE"
@@ -108,22 +113,22 @@
       },
       {
         "command": "gee-pro.focusEditor",
-        "title": "Focus Code Editor (Quadrant 1)",
+        "title": "Show / Focus Code Editor (Quadrant 1)",
         "category": "GEE IDE"
       },
       {
         "command": "gee-pro.focusConsole",
-        "title": "Focus GEE Console (Quadrant 2)",
+        "title": "Show / Focus Console (Quadrant 2)",
         "category": "GEE IDE"
       },
       {
         "command": "gee-pro.focusMap",
-        "title": "Focus GEE Map (Quadrant 3)",
+        "title": "Show / Focus Map Viewer (Quadrant 3)",
         "category": "GEE IDE"
       },
       {
         "command": "gee-pro.focusAI",
-        "title": "Focus AI Assistant (Quadrant 4)",
+        "title": "Show / Focus AI Assistant (Quadrant 4)",
         "category": "GEE IDE"
       }
     ],
@@ -218,7 +223,7 @@
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "build": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --external:@google/earthengine --external:xhr2 --format=cjs --platform=node --main-fields=main,module && mkdir -p out/shims && cp src/shims/gee_pro_shim.py src/shims/gee_pro_shim.R out/shims/",
+    "build": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --external:@google/earthengine --external:xmlhttprequest --format=cjs --platform=node --main-fields=main,module && mkdir -p out/shims && cp src/shims/gee_pro_shim.py src/shims/gee_pro_shim.R out/shims/",
     "mpupdate": "npm run build && npx @vscode/vsce publish patch",
     "mppackage": "npm run build && npx @vscode/vsce package"
   },
@@ -230,6 +235,6 @@
   },
   "dependencies": {
     "@google/earthengine": "^0.1.350",
-    "xhr2": "^0.2.1"
+    "xmlhttprequest": "^1.8.0"
   }
 }

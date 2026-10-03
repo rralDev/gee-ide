@@ -10,14 +10,14 @@ export class AIView {
         this.messageCallback = callback;
     }
 
-    public show(column?: vscode.ViewColumn) {
+    public show(column: vscode.ViewColumn = vscode.ViewColumn.Four, preserveFocus: boolean = true) {
         if (this.panel) {
-            this.panel.reveal(column);
+            this.panel.reveal(column, preserveFocus);
         } else {
             this.panel = vscode.window.createWebviewPanel(
                 'geeAI',
                 'GEE AI Assistant',
-                column || vscode.ViewColumn.Two,
+                { viewColumn: column, preserveFocus },
                 {
                     enableScripts: true,
                     retainContextWhenHidden: true

@@ -318,6 +318,7 @@ export function activate(context: vscode.ExtensionContext) {
             } catch (e: any) {
                 logStep(`Session init error: ${e.message}`);
                 consoleView.append(`Session error: ${e.message}`);
+                consoleView.append('💡 Tip: Para reconectar tu cuenta, presiona Cmd+Shift+P -> GEE IDE: Login with Google');
                 runtime = undefined;
                 return false;
             } finally {
@@ -487,6 +488,29 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
+    let logoutCommand = vscode.commands.registerCommand('gee-pro.logout', async () => {
+        await context.secrets.delete('gee-pro.credentials');
+        if (runtime) {
+            runtime.reset(true);
+            runtime = undefined;
+        }
+        if (runtimePy) {
+            runtimePy.stop();
+            runtimePy = undefined;
+        }
+        if (runtimeR) {
+            runtimeR.reset(true);
+            runtimeR = undefined;
+        }
+        if (mapView) {
+            mapView.clear();
+        }
+        if (consoleView) {
+            consoleView.append('🔒 GEE Session logged out. You can now login with another account using: Cmd+Shift+P -> GEE IDE: Login with Google');
+        }
+        vscode.window.showInformationMessage('🔒 GEE IDE: Sesión cerrada con éxito. Puedes iniciar sesión con otra cuenta.');
+    });
+
     let runCommand = vscode.commands.registerCommand('gee-pro.run', () => {
         const editor = vscode.window.activeTextEditor;
         if (editor) {
@@ -547,6 +571,18 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
+    function isNonRunnableLine(text: string, langId: string): boolean {
+        const trimmed = text.trim();
+        if (trimmed.length === 0) return true;
+        if (langId === 'python' || langId === 'r') {
+            if (trimmed.startsWith('#')) return true;
+        }
+        if (trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*') || trimmed.startsWith('*/')) {
+            return true;
+        }
+        return false;
+    }
+
     let runSelectionCommand = vscode.commands.registerCommand('gee-pro.runSelection', () => {
         const editor = vscode.window.activeTextEditor;
         if (editor) {
@@ -558,6 +594,15 @@ export function activate(context: vscode.ExtensionContext) {
                 // SMART SELECTION: Expand to complete block if necessary
                 const langId = editor.document.languageId;
                 let currentLineIndex = selection.active.line;
+
+                // RStudio-style: Skip comments and blank lines forward to next runnable line
+                while (currentLineIndex < editor.document.lineCount && isNonRunnableLine(editor.document.lineAt(currentLineIndex).text, langId)) {
+                    currentLineIndex++;
+                }
+                if (currentLineIndex >= editor.document.lineCount) {
+                    return;
+                }
+
                 let fullCode = "";
                 let isBalanced = false;
 
@@ -711,7 +756,10 @@ export function activate(context: vscode.ExtensionContext) {
                 });
             }
 
-            const nextLine = targetLine + 1;
+            let nextLine = targetLine + 1;
+            while (nextLine < editor.document.lineCount && isNonRunnableLine(editor.document.lineAt(nextLine).text, langId)) {
+                nextLine++;
+            }
             if (nextLine < editor.document.lineCount) {
                 const newPos = new vscode.Position(nextLine, 0);
                 editor.selection = new vscode.Selection(newPos, newPos);
@@ -766,7 +814,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     context.subscriptions.push(
-        startCommand, authCommand, loginCommand, runCommand, runSelectionCommand, resetCommand, setProjectCommand,
+        startCommand, authCommand, loginCommand, logoutCommand, runCommand, runSelectionCommand, resetCommand, setProjectCommand,
         focusEditorCommand, focusConsoleCommand, focusMapCommand, focusAICommand
     );
     logStep('>>> ACTIVATE() COMPLETED SUCCESSFULLY — All commands ready');

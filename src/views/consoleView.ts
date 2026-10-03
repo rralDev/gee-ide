@@ -118,7 +118,7 @@ export class ConsoleView {
     private messageCallback: ((message: any) => void) | undefined;
     private logs: string[] = [];
     private knownCompletions: Set<string> = new Set([
-        'ls', 'cd', 'pwd', 'mkdir', 'rm', 'rmdir', 'cp', 'mv', 'clear', 'cls',
+        'ls', 'dir', 'vars', 'objects', 'whos', 'cd', 'pwd', 'mkdir', 'rm', 'rmdir', 'cp', 'mv', 'clear', 'cls',
         '-r', '-rf',
         'Map.addLayer', 'Map.setCenter', 'Map.centerObject', 'Map.clear',
         'ee.Image', 'ee.ImageCollection', 'ee.FeatureCollection', 'ee.Geometry',
@@ -131,14 +131,14 @@ export class ConsoleView {
         this.messageCallback = callback;
     }
 
-    public show(column: vscode.ViewColumn) {
+    public show(column: vscode.ViewColumn = vscode.ViewColumn.Two, preserveFocus: boolean = true) {
         if (this.panel) {
-            this.panel.reveal(column);
+            this.panel.reveal(column, preserveFocus);
         } else {
             this.panel = vscode.window.createWebviewPanel(
                 'geeConsole',
                 'GEE Console',
-                column,
+                { viewColumn: column, preserveFocus },
                 {
                     enableScripts: true,
                     retainContextWhenHidden: true
@@ -207,7 +207,9 @@ export class ConsoleView {
         if (this.logs.length > 500) this.logs.shift();
         this.extractTokens(text);
 
-        if (this.panel) {
+        if (!this.panel) {
+            this.show(vscode.ViewColumn.Two, true);
+        } else {
             this.panel.webview.postMessage({ command: 'append', text });
         }
     }
