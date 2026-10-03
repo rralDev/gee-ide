@@ -129,24 +129,117 @@ export function activate(context: vscode.ExtensionContext) {
 
     logStep('Step 4: Views and variables initialized');
 
-    // RStudio IntelliSense: Proporcionar variables en memoria al autocompletado del editor (.gee)
+    function extractDocumentVariables(document: vscode.TextDocument): { name: string; kind: vscode.CompletionItemKind; detail: string }[] {
+        const text = document.getText();
+        const map = new Map<string, { kind: vscode.CompletionItemKind; detail: string }>();
+
+        // 1. JS / TS declarations: var, let, const
+        const jsVarRegex = /\b(?:var|let|const)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/g;
+        let match: RegExpExecArray | null;
+        while ((match = jsVarRegex.exec(text)) !== null) {
+            map.set(match[1], { kind: vscode.CompletionItemKind.Variable, detail: '(Variable de documento)' });
+        }
+
+        // 2. JS / TS function declarations: function funcName(...)
+        const jsFuncRegex = /\bfunction\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/g;
+        while ((match = jsFuncRegex.exec(text)) !== null) {
+            map.set(match[1], { kind: vscode.CompletionItemKind.Function, detail: '(Función de documento)' });
+        }
+
+        // 3. Python def: def func_name(...)
+        const pyDefRegex = /^[ \t]*def\s+([a-zA-Z_][a-zA-Z0-9_]*)/gm;
+        while ((match = pyDefRegex.exec(text)) !== null) {
+            map.set(match[1], { kind: vscode.CompletionItemKind.Function, detail: '(Función Python)' });
+        }
+
+        // 4. Assignments in Python/R/JS: name = ... or name <- ...
+        const assignRegex = /^[ \t]*([a-zA-Z_$][a-zA-Z0-9_$]*)\s*(?:=|<-)[^=]/gm;
+        const reserved = new Set([
+            'if', 'else', 'elif', 'for', 'while', 'def', 'class', 'return', 'import', 'from',
+            'var', 'let', 'const', 'function', 'try', 'except', 'catch', 'finally', 'with', 'as',
+            'in', 'is', 'not', 'and', 'or', 'lambda', 'switch', 'case', 'break', 'continue',
+            'typeof', 'instanceof', 'void', 'delete', 'yield', 'await', 'async'
+        ]);
+        while ((match = assignRegex.exec(text)) !== null) {
+            const name = match[1];
+            if (!reserved.has(name) && !map.has(name)) {
+                map.set(name, { kind: vscode.CompletionItemKind.Variable, detail: '(Variable de script)' });
+            }
+        }
+
+        return Array.from(map.entries()).map(([name, info]) => ({
+            name,
+            kind: info.kind,
+            detail: info.detail
+        }));
+    }
+
+    function syncCompletionsToConsole() {
+        const vars = new Set<string>();
+        if (runtime) {
+            try {
+                runtime.getUserVariables().forEach(v => vars.add(v));
+            } catch (e) {}
+        }
+        const activeEditor = vscode.window.activeTextEditor;
+        if (activeEditor) {
+            extractDocumentVariables(activeEditor.document).forEach(dv => vars.add(dv.name));
+        }
+        for (const doc of vscode.workspace.textDocuments) {
+            if (doc.languageId === 'gee' || doc.languageId === 'javascript' || doc.languageId === 'python' || doc.languageId === 'r' || doc.fileName.endsWith('.gee') || doc.fileName.endsWith('.js')) {
+                extractDocumentVariables(doc).forEach(dv => vars.add(dv.name));
+            }
+        }
+        if (vars.size > 0) {
+            consoleView.addCompletions(Array.from(vars));
+        }
+    }
+
+    // IntelliSense prioritario: Variables en memoria (runtime) y variables declaradas en el script (.gee, .js, .py, .r)
     context.subscriptions.push(
         vscode.languages.registerCompletionItemProvider(
             [{ scheme: 'file', language: 'gee' }, { scheme: 'file', language: 'javascript' }, { scheme: 'file', language: 'python' }, { scheme: 'file', language: 'r' }],
             {
                 provideCompletionItems(document: vscode.TextDocument, position: vscode.Position) {
-                    if (!runtime) return [];
-                    const userVars = runtime.getUserVariables();
-                    return userVars.map(v => {
-                        const item = new vscode.CompletionItem(v, vscode.CompletionItemKind.Variable);
-                        item.detail = '(Variable en memoria GEE)';
-                        item.documentation = new vscode.MarkdownString(`Variable activa en la sesión de GEE IDE: \`${v}\``);
-                        item.sortText = '0_' + v;
-                        return item;
-                    });
+                    const items: vscode.CompletionItem[] = [];
+                    const seen = new Set<string>();
+
+                    // 1. Máxima prioridad: Variables en memoria activa (runtime)
+                    if (runtime) {
+                        try {
+                            const userVars = runtime.getUserVariables();
+                            for (const v of userVars) {
+                                seen.add(v);
+                                const item = new vscode.CompletionItem(v, vscode.CompletionItemKind.Variable);
+                                item.detail = '(Variable en memoria GEE)';
+                                item.documentation = new vscode.MarkdownString(`Variable activa en la sesión interactiva GEE: \`${v}\``);
+                                item.sortText = '00_' + v;
+                                item.preselect = true;
+                                items.push(item);
+                            }
+                        } catch (e) {}
+                    }
+
+                    // 2. Variables y funciones declaradas en el documento actual (disponibles antes de ejecutar)
+                    const docVars = extractDocumentVariables(document);
+                    for (const dv of docVars) {
+                        if (!seen.has(dv.name)) {
+                            seen.add(dv.name);
+                            const item = new vscode.CompletionItem(dv.name, dv.kind);
+                            item.detail = dv.detail;
+                            item.documentation = new vscode.MarkdownString(`Declarada en el script actual: \`${dv.name}\``);
+                            item.sortText = '01_' + dv.name;
+                            item.preselect = true;
+                            items.push(item);
+                        }
+                    }
+
+                    return items;
                 }
             }
-        )
+        ),
+        vscode.window.onDidChangeActiveTextEditor(() => syncCompletionsToConsole()),
+        vscode.workspace.onDidSaveTextDocument(() => syncCompletionsToConsole())
     );
 
     function switchQuadrant(quadrant: number) {
@@ -167,6 +260,8 @@ export function activate(context: vscode.ExtensionContext) {
             switchQuadrant(message.quadrant);
         } else if (message.command === 'webviewError') {
             logStep(`CONSOLE WEBVIEW JS ERROR: ${message.message} | ${message.stack}`);
+        } else if (message.command === 'requestCompletions' || message.command === 'consoleReady') {
+            syncCompletionsToConsole();
         } else if (message.command === 'geeCommand') {
             await ensureRuntimeInitialized();
             if (runtime) {

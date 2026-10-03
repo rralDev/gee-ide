@@ -652,6 +652,13 @@ export class ConsoleView {
             consoleDiv.scrollTop = consoleDiv.scrollHeight;
         }
 
+        function requestFreshCompletions() {
+            if (vscode) vscode.postMessage({ command: 'requestCompletions' });
+        }
+
+        cmdInput.addEventListener('focus', requestFreshCompletions);
+        window.addEventListener('focus', requestFreshCompletions);
+
         cmdInput.addEventListener('keydown', (e) => {
             const isCmdOrCtrl = e.metaKey || e.ctrlKey;
             if (isCmdOrCtrl && e.key.toLowerCase() === 'l') {
@@ -680,25 +687,47 @@ export class ConsoleView {
 
             if (e.key === 'Tab') {
                 e.preventDefault();
+                e.stopPropagation();
+                if (vscode) vscode.postMessage({ command: 'requestCompletions' });
+
                 const val = cmdInput.value;
                 const cursorPos = cmdInput.selectionStart;
                 const leftPart = val.substring(0, cursorPos);
-                const lastSpace = leftPart.lastIndexOf(' ');
-                const wordStart = lastSpace === -1 ? 0 : lastSpace + 1;
-                const prefix = leftPart.substring(wordStart).toLowerCase();
+                const rightPart = val.substring(cursorPos);
+                
+                // Extract current token/word before cursor
+                const match = leftPart.match(/[a-zA-Z0-9_\-\.\/]+$/);
+                const word = match ? match[0] : '';
+                const wordStart = match ? leftPart.length - word.length : cursorPos;
+                const prefix = word.toLowerCase();
 
+                const allItems = Array.from(knownCompletions);
                 if (prefix) {
-                    const matches = Array.from(knownCompletions).filter(c => c.toLowerCase().startsWith(prefix));
+                    const matches = allItems.filter(c => c.toLowerCase().startsWith(prefix));
                     if (matches.length === 1) {
-                        const match = matches[0];
-                        cmdInput.value = val.substring(0, wordStart) + match + (match.endsWith('/') ? '' : ' ');
-                        cmdInput.selectionStart = cmdInput.selectionEnd = cmdInput.value.length;
+                        const matchStr = matches[0];
+                        const trailing = matchStr.endsWith('/') ? '' : ' ';
+                        cmdInput.value = val.substring(0, wordStart) + matchStr + trailing + rightPart;
+                        const newPos = wordStart + matchStr.length + trailing.length;
+                        cmdInput.selectionStart = cmdInput.selectionEnd = newPos;
                     } else if (matches.length > 1) {
                         appendSingleEntry('🔹 ' + matches.join('   '));
-                        const match = matches[0];
-                        cmdInput.value = val.substring(0, wordStart) + match;
-                        cmdInput.selectionStart = cmdInput.selectionEnd = cmdInput.value.length;
+                        let common = matches[0];
+                        for (let i = 1; i < matches.length; i++) {
+                            while (!matches[i].toLowerCase().startsWith(common.toLowerCase()) && common.length > 0) {
+                                common = common.substring(0, common.length - 1);
+                            }
+                        }
+                        if (common.length > word.length) {
+                            cmdInput.value = val.substring(0, wordStart) + common + rightPart;
+                            const newPos = wordStart + common.length;
+                            cmdInput.selectionStart = cmdInput.selectionEnd = newPos;
+                        }
+                    } else {
+                        appendSingleEntry('ℹ️ No hay coincidencias para: ' + word);
                     }
+                } else {
+                    appendSingleEntry('💡 Sugerencias: ' + allItems.slice(0, 16).join('  ') + (allItems.length > 16 ? ' ...' : ''));
                 }
                 return;
             }
