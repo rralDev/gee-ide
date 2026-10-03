@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
+import * as fs from 'fs';
 
 function escapeHtml(text: string): string {
     return text
@@ -151,6 +153,7 @@ export class ConsoleView {
                     if (this.panel) {
                         this.panel.webview.postMessage({ command: 'syncLogs', logs: this.logs });
                         this.panel.webview.postMessage({ command: 'setCompletions', items: Array.from(this.knownCompletions) });
+                        this.panel.webview.postMessage({ command: 'setHistory', history: this.loadHistory() });
                     }
                 } else if (message.command === 'clearLogs') {
                     this.logs = [];
@@ -188,6 +191,7 @@ export class ConsoleView {
                 if (this.panel) {
                     this.panel.webview.postMessage({ command: 'syncLogs', logs: this.logs });
                     this.panel.webview.postMessage({ command: 'setCompletions', items: Array.from(this.knownCompletions) });
+                    this.panel.webview.postMessage({ command: 'setHistory', history: this.loadHistory() });
                 }
             } else if (message.command === 'clearLogs') {
                 this.logs = [];
@@ -200,6 +204,39 @@ export class ConsoleView {
         }, null, this.context.subscriptions);
 
         this.panel.webview.html = this.getHtml();
+    }
+
+    public getHistoryFilePath(): string | null {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (workspaceFolders && workspaceFolders.length > 0) {
+            return path.join(workspaceFolders[0].uri.fsPath, '.gee_history');
+        }
+        return null;
+    }
+
+    public loadHistory(): string[] {
+        const hFile = this.getHistoryFilePath();
+        if (hFile && fs.existsSync(hFile)) {
+            try {
+                const content = fs.readFileSync(hFile, 'utf8');
+                return content.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            } catch (e) {}
+        }
+        return [];
+    }
+
+    public appendHistory(cmd: string) {
+        if (!cmd || !cmd.trim()) return;
+        const clean = cmd.trim();
+        const hFile = this.getHistoryFilePath();
+        if (hFile) {
+            try {
+                fs.appendFileSync(hFile, clean + '\n', 'utf8');
+            } catch (e) {}
+        }
+        if (this.panel) {
+            this.panel.webview.postMessage({ command: 'addHistory', text: clean });
+        }
     }
 
     public append(text: string) {
@@ -484,7 +521,7 @@ export class ConsoleView {
             consoleDiv.scrollTop = consoleDiv.scrollHeight;
         }
 
-        const commandHistory = [];
+        let commandHistory = [];
         let historyIndex = -1;
         const knownCompletions = new Set(${initialCompletions});
 
@@ -616,6 +653,14 @@ export class ConsoleView {
         }
 
         cmdInput.addEventListener('keydown', (e) => {
+            const isCmdOrCtrl = e.metaKey || e.ctrlKey;
+            if (isCmdOrCtrl && e.key.toLowerCase() === 'l') {
+                e.preventDefault();
+                consoleDiv.innerHTML = '';
+                if (vscode) vscode.postMessage({ command: 'clearLogs' });
+                return;
+            }
+
             if (e.key === 'Enter') {
                 e.preventDefault();
                 const cmd = cmdInput.value.trim();
@@ -644,9 +689,14 @@ export class ConsoleView {
 
                 if (prefix) {
                     const matches = Array.from(knownCompletions).filter(c => c.toLowerCase().startsWith(prefix));
-                    if (matches.length > 0) {
+                    if (matches.length === 1) {
                         const match = matches[0];
                         cmdInput.value = val.substring(0, wordStart) + match + (match.endsWith('/') ? '' : ' ');
+                        cmdInput.selectionStart = cmdInput.selectionEnd = cmdInput.value.length;
+                    } else if (matches.length > 1) {
+                        appendSingleEntry('🔹 ' + matches.join('   '));
+                        const match = matches[0];
+                        cmdInput.value = val.substring(0, wordStart) + match;
                         cmdInput.selectionStart = cmdInput.selectionEnd = cmdInput.value.length;
                     }
                 }
@@ -682,6 +732,13 @@ export class ConsoleView {
 
         window.addEventListener('keydown', e => {
             const isCmdOrCtrl = e.metaKey || e.ctrlKey;
+            if (isCmdOrCtrl && e.key.toLowerCase() === 'l') {
+                e.preventDefault();
+                e.stopPropagation();
+                consoleDiv.innerHTML = '';
+                if (vscode) vscode.postMessage({ command: 'clearLogs' });
+                return;
+            }
             if (isCmdOrCtrl && ['1', '2', '3', '4'].includes(e.key)) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -707,6 +764,16 @@ export class ConsoleView {
             } else if (message.command === 'setCompletions') {
                 if (Array.isArray(message.items)) {
                     message.items.forEach(item => knownCompletions.add(item));
+                }
+            } else if (message.command === 'setHistory') {
+                if (Array.isArray(message.history)) {
+                    commandHistory = message.history;
+                    historyIndex = -1;
+                }
+            } else if (message.command === 'addHistory') {
+                if (message.text && (commandHistory.length === 0 || commandHistory[commandHistory.length - 1] !== message.text)) {
+                    commandHistory.push(message.text);
+                    historyIndex = -1;
                 }
             }
         });

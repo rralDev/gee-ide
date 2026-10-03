@@ -14,3 +14,5 @@ vsc-extension-quickstart.md
 **/*.ts
 **/__pycache__/**
 *.vsix
+.gee_history
+README_es.md

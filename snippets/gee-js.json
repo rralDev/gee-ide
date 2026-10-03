@@ -1,0 +1,125 @@
+{
+  "Earth Engine ImageCollection": {
+    "prefix": "eecol",
+    "body": [
+      "var ${1:collection} = ee.ImageCollection('${2:COPERNICUS/S2_SR_HARMONIZED}')",
+      "  .filterDate('${3:2024-01-01}', '${4:2024-12-31}')",
+      "  .filterBounds(${5:geometry});",
+      "$0"
+    ],
+    "description": "Cargar una colección de imágenes con filtros de fecha y geometría"
+  },
+  "Earth Engine Single Image": {
+    "prefix": "eeimg",
+    "body": [
+      "var ${1:image} = ee.Image('${2:COPERNICUS/S2_SR_HARMONIZED}');",
+      "$0"
+    ],
+    "description": "Cargar una imagen de Earth Engine"
+  },
+  "Calculate NDVI": {
+    "prefix": "ndvi",
+    "body": [
+      "var ${1:ndvi} = ${2:image}.normalizedDifference(['${3:B8}', '${4:B4}']).rename('ndvi');",
+      "$0"
+    ],
+    "description": "Calcular Índice de Vegetación de Diferencia Normalizada (NDVI)"
+  },
+  "Calculate NDWI": {
+    "prefix": "ndwi",
+    "body": [
+      "var ${1:ndwi} = ${2:image}.normalizedDifference(['${3:B3}', '${4:B8}']).rename('ndwi');",
+      "$0"
+    ],
+    "description": "Calcular Índice de Agua de Diferencia Normalizada (NDWI)"
+  },
+  "Map AddLayer": {
+    "prefix": ["maplayer", "addlayer"],
+    "body": [
+      "Map.addLayer(${1:image}, {min: ${2:0}, max: ${3:3000}, bands: ['${4:B4}', '${5:B3}', '${6:B2}']}, '${7:Layer Name}');",
+      "$0"
+    ],
+    "description": "Añadir capa al mapa visor integrado con parámetros de visualización"
+  },
+  "Map Center": {
+    "prefix": "mapcenter",
+    "body": [
+      "Map.setCenter(${1:-75.0}, ${2:-9.0}, ${3:6});",
+      "$0"
+    ],
+    "description": "Centrar el mapa en coordenadas [longitud, latitud] con nivel de zoom"
+  },
+  "Map Center Object": {
+    "prefix": "centerobj",
+    "body": [
+      "Map.centerObject(${1:geometry}, ${2:10});",
+      "$0"
+    ],
+    "description": "Centrar el mapa sobre un objeto o geometría GEE"
+  },
+  "Sentinel-2 Cloud Mask": {
+    "prefix": "cloudmask",
+    "body": [
+      "function maskS2clouds(image) {",
+      "  var qa = image.select('QA60');",
+      "  var cloudBitMask = 1 << 10;",
+      "  var cirrusBitMask = 1 << 11;",
+      "  var mask = qa.bitwiseAnd(cloudBitMask).eq(0)",
+      "      .and(qa.bitwiseAnd(cirrusBitMask).eq(0));",
+      "  return image.updateMask(mask).divide(10000);",
+      "}",
+      "$0"
+    ],
+    "description": "Función de enmascaramiento de nubes y cirros para Sentinel-2"
+  },
+  "Export Image to Drive": {
+    "prefix": "exportimg",
+    "body": [
+      "Export.image.toDrive({",
+      "  image: ${1:image},",
+      "  description: '${2:export_image}',",
+      "  folder: '${3:EarthEngine}',",
+      "  scale: ${4:10},",
+      "  region: ${5:geometry},",
+      "  maxPixels: 1e13",
+      "});",
+      "$0"
+    ],
+    "description": "Exportar una imagen raster a Google Drive"
+  },
+  "Export Table to Drive": {
+    "prefix": "exporttable",
+    "body": [
+      "Export.table.toDrive({",
+      "  collection: ${1:features},",
+      "  description: '${2:export_table}',",
+      "  folder: '${3:EarthEngine}',",
+      "  fileFormat: '${4|CSV,SHP,GeoJSON,KML|}'",
+      "});",
+      "$0"
+    ],
+    "description": "Exportar una tabla o FeatureCollection a Google Drive"
+  },
+  "Reduce Region": {
+    "prefix": "reduce",
+    "body": [
+      "var ${1:stats} = ${2:image}.reduceRegion({",
+      "  reducer: ee.Reducer.${3|mean(),median(),sum(),min(),max(),stdDev()|},",
+      "  geometry: ${4:geometry},",
+      "  scale: ${5:30},",
+      "  maxPixels: 1e9",
+      "});",
+      "print('${1:stats}:', ${1:stats});",
+      "$0"
+    ],
+    "description": "Calcular estadísticas zonales con reduceRegion"
+  },
+  "Shebang JavaScript": {
+    "prefix": "shebangjs",
+    "body": [
+      "# js",
+      "$0"
+    ],
+    "description": "Shebang para indicar código JavaScript en archivos .gee"
+  }
+}

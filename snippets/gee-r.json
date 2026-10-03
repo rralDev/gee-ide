@@ -1,0 +1,52 @@
+{
+  "R rgee ImageCollection": {
+    "prefix": "eecol",
+    "body": [
+      "${1:collection} <- ee$ImageCollection('${2:COPERNICUS/S2_SR_HARMONIZED}')$",
+      "  filterDate('${3:2024-01-01}', '${4:2024-12-31}')$",
+      "  filterBounds(${5:geometry})",
+      "$0"
+    ],
+    "description": "Cargar una colección de imágenes con rgee en R"
+  },
+  "R rgee Single Image": {
+    "prefix": "eeimg",
+    "body": [
+      "${1:image} <- ee$Image('${2:COPERNICUS/S2_SR_HARMONIZED}')",
+      "$0"
+    ],
+    "description": "Cargar una imagen GEE con rgee en R"
+  },
+  "R rgee Calculate NDVI": {
+    "prefix": "ndvi",
+    "body": [
+      "${1:ndvi} <- ${2:image}$normalizedDifference(c('${3:B8}', '${4:B4}'))$rename('ndvi')",
+      "$0"
+    ],
+    "description": "Calcular NDVI con rgee en R"
+  },
+  "R rgee Map AddLayer": {
+    "prefix": ["maplayer", "addlayer"],
+    "body": [
+      "Map$addLayer(${1:image}, list(min = ${2:0}, max = ${3:3000}, bands = c('${4:B4}', '${5:B3}', '${6:B2}')), '${7:Layer Name}')",
+      "$0"
+    ],
+    "description": "Añadir capa al mapa visor con rgee en R"
+  },
+  "R rgee Map Center": {
+    "prefix": "mapcenter",
+    "body": [
+      "Map$setCenter(${1:-75.0}, ${2:-9.0}, ${3:6})",
+      "$0"
+    ],
+    "description": "Centrar el mapa en coordenadas [lon, lat] con zoom en R"
+  },
+  "Shebang R": {
+    "prefix": "shebangr",
+    "body": [
+      "# r",
+      "$0"
+    ],
+    "description": "Shebang para indicar código R en archivos .gee"
+  }
+}

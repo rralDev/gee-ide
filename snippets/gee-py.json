@@ -1,0 +1,74 @@
+{
+  "Python ImageCollection": {
+    "prefix": "eecol",
+    "body": [
+      "${1:collection} = (ee.ImageCollection('${2:COPERNICUS/S2_SR_HARMONIZED}')",
+      "    .filterDate('${3:2024-01-01}', '${4:2024-12-31}')",
+      "    .filterBounds(${5:geometry}))",
+      "$0"
+    ],
+    "description": "Cargar una colección de imágenes GEE en Python"
+  },
+  "Python Single Image": {
+    "prefix": "eeimg",
+    "body": [
+      "${1:image} = ee.Image('${2:COPERNICUS/S2_SR_HARMONIZED}')",
+      "$0"
+    ],
+    "description": "Cargar una imagen de Earth Engine en Python"
+  },
+  "Python Calculate NDVI": {
+    "prefix": "ndvi",
+    "body": [
+      "${1:ndvi} = ${2:image}.normalizedDifference(['${3:B8}', '${4:B4}']).rename('ndvi')",
+      "$0"
+    ],
+    "description": "Calcular NDVI en Python"
+  },
+  "Python Map AddLayer": {
+    "prefix": ["maplayer", "addlayer"],
+    "body": [
+      "Map.addLayer(${1:image}, {'min': ${2:0}, 'max': ${3:3000}, 'bands': ['${4:B4}', '${5:B3}', '${6:B2}']}, '${7:Layer Name}')",
+      "$0"
+    ],
+    "description": "Añadir capa al mapa en Python"
+  },
+  "Python Sentinel-2 Cloud Mask": {
+    "prefix": "cloudmask",
+    "body": [
+      "def mask_s2_clouds(image):",
+      "    qa = image.select('QA60')",
+      "    cloud_bit_mask = 1 << 10",
+      "    cirrus_bit_mask = 1 << 11",
+      "    mask = (qa.bitwiseAnd(cloud_bit_mask).eq(0)",
+      "            .And(qa.bitwiseAnd(cirrus_bit_mask).eq(0)))",
+      "    return image.updateMask(mask).divide(10000)",
+      "$0"
+    ],
+    "description": "Función de máscara de nubes Sentinel-2 en Python"
+  },
+  "Python Export Image": {
+    "prefix": "exportimg",
+    "body": [
+      "task = ee.batch.Export.image.toDrive(",
+      "    image=${1:image},",
+      "    description='${2:export_image}',",
+      "    folder='${3:EarthEngine}',",
+      "    scale=${4:10},",
+      "    region=${5:geometry}",
+      ")",
+      "task.start()",
+      "print('Export task started:', task.id)",
+      "$0"
+    ],
+    "description": "Exportar imagen a Google Drive en Python"
+  },
+  "Shebang Python": {
+    "prefix": "shebangpy",
+    "body": [
+      "# py",
+      "$0"
+    ],
+    "description": "Shebang para indicar código Python en archivos .gee"
+  }
+}

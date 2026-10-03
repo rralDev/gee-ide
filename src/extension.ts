@@ -8,9 +8,11 @@ import { PythonBridgeServer } from './pythonBridgeServer';
 import { LoopbackAuthServer } from './loopbackAuthServer';
 import { AssetExplorerProvider } from './views/assetExplorer';
 import { AIView } from './views/aiView';
+import { SnippetsManager } from './snippetsManager';
 import { exchangeCodeForToken, refreshAccessToken, getUserInfo, getAvailableCloudProjects, autoDetectCloudProject } from './auth';
 
 import * as fs from 'fs';
+import * as path from 'path';
 
 const LOG_FILE = '/tmp/gee_pro_debug.log';
 function logStep(msg: string) {
@@ -87,6 +89,10 @@ async function detectAndSetGeeLanguage(document: vscode.TextDocument) {
 }
 
 export function activate(context: vscode.ExtensionContext) {
+    try {
+        const os = require('os');
+        process.chdir(os.tmpdir());
+    } catch (e) {}
     logStep('>>> ACTIVATE() STARTED');
 
     // Register dynamic language switchers
@@ -117,7 +123,30 @@ export function activate(context: vscode.ExtensionContext) {
     let runtimePy: GEERuntimePy | undefined;
     let runtimeR: GEERuntimeR | undefined;
     let bridgeServer: PythonBridgeServer | undefined;
+    const snippetsManager = new SnippetsManager(context);
+    context.subscriptions.push(snippetsManager.registerSnippetsProvider());
+
     logStep('Step 4: Views and variables initialized');
+
+    // RStudio IntelliSense: Proporcionar variables en memoria al autocompletado del editor (.gee)
+    context.subscriptions.push(
+        vscode.languages.registerCompletionItemProvider(
+            [{ scheme: 'file', language: 'gee' }, { scheme: 'file', language: 'javascript' }, { scheme: 'file', language: 'python' }, { scheme: 'file', language: 'r' }],
+            {
+                provideCompletionItems(document: vscode.TextDocument, position: vscode.Position) {
+                    if (!runtime) return [];
+                    const userVars = runtime.getUserVariables();
+                    return userVars.map(v => {
+                        const item = new vscode.CompletionItem(v, vscode.CompletionItemKind.Variable);
+                        item.detail = '(Variable en memoria GEE)';
+                        item.documentation = new vscode.MarkdownString(`Variable activa en la sesión de GEE IDE: \`${v}\``);
+                        item.sortText = '0_' + v;
+                        return item;
+                    });
+                }
+            }
+        )
+    );
 
     function switchQuadrant(quadrant: number) {
         if (quadrant === 1) {
@@ -181,7 +210,6 @@ export function activate(context: vscode.ExtensionContext) {
                 logStep('Deserializing geeConsole webview panel');
                 webviewPanel.webview.options = { enableScripts: true };
                 consoleView.attachPanel(webviewPanel);
-                ensureRuntimeInitialized().catch(e => logStep(`Background init error: ${e.message}`));
             }
         }),
         vscode.window.registerWebviewPanelSerializer('geeMap', {
@@ -189,7 +217,6 @@ export function activate(context: vscode.ExtensionContext) {
                 logStep('Deserializing geeMap webview panel');
                 webviewPanel.webview.options = { enableScripts: true };
                 mapView.attachPanel(webviewPanel);
-                ensureRuntimeInitialized().catch(e => logStep(`Background init error: ${e.message}`));
             }
         }),
         vscode.window.registerWebviewPanelSerializer('geeAI', {
@@ -262,6 +289,7 @@ export function activate(context: vscode.ExtensionContext) {
 
                     const { GEERuntime } = require('./geeRuntime');
                     const rt = new GEERuntime(consoleView, mapView);
+                    rt.setSnippetsManager(snippetsManager);
                     await rt.initialize(creds);
                     runtime = rt;
 
@@ -329,29 +357,38 @@ export function activate(context: vscode.ExtensionContext) {
         return initPromise;
     }
 
-    // Initialize session automatically on startup
-    ensureRuntimeInitialized();
+    // Session is only initialized on explicit user action (Start Environment, Run code, etc.)
+    // to prevent unwanted background resource consumption.
 
     let startCommand = vscode.commands.registerCommand('gee-pro.start', async () => {
-        // 1. Force the professional 2x2 grid layout
-        await vscode.commands.executeCommand('vscode.setEditorLayout', {
-            orientation: 0,
-            groups: [
-                { groups: [{}, {}], size: 0.5 },
-                { groups: [{}, {}], size: 0.5 }
-            ]
-        });
+        const customLayoutSaved = context.workspaceState.get<boolean>('gee-pro.customLayoutSaved', false);
+        if (!customLayoutSaved) {
+            // 1. Force the professional 2x2 grid layout
+            await vscode.commands.executeCommand('vscode.setEditorLayout', {
+                orientation: 0,
+                groups: [
+                    { groups: [{}, {}], size: 0.5 },
+                    { groups: [{}, {}], size: 0.5 }
+                ]
+            });
+        }
 
         // 2. Open the demo script on the Top-Left (Column One)
         const demoPath = vscode.Uri.file(context.asAbsolutePath('demos/welcome_to_gee_ide.gee'));
         const doc = await vscode.workspace.openTextDocument(demoPath);
         await detectAndSetGeeLanguage(doc);
-        await vscode.window.showTextDocument(doc, { preview: false, viewColumn: vscode.ViewColumn.One });
+        await vscode.window.showTextDocument(doc, { preview: false, viewColumn: customLayoutSaved ? undefined : vscode.ViewColumn.One });
 
         // 3. Show views in their respective grid positions
-        consoleView.show(vscode.ViewColumn.Two);
-        mapView.show(vscode.ViewColumn.Three);
-        aiView.show(vscode.ViewColumn.Four);
+        if (!customLayoutSaved) {
+            consoleView.show(vscode.ViewColumn.Two);
+            mapView.show(vscode.ViewColumn.Three);
+            aiView.show(vscode.ViewColumn.Four);
+        } else {
+            consoleView.show();
+            mapView.show();
+            aiView.show();
+        }
 
         await ensureRuntimeInitialized();
         vscode.window.showInformationMessage('GEE IDE: Workspace Ready');
@@ -511,7 +548,7 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage('🔒 GEE IDE: Sesión cerrada con éxito. Puedes iniciar sesión con otra cuenta.');
     });
 
-    let runCommand = vscode.commands.registerCommand('gee-pro.run', () => {
+    let runCommand = vscode.commands.registerCommand('gee-pro.run', async () => {
         const editor = vscode.window.activeTextEditor;
         if (editor) {
             const code = editor.document.getText();
@@ -519,9 +556,14 @@ export function activate(context: vscode.ExtensionContext) {
             if (consoleView) {
                 consoleView.append('----------------------------------------');
                 consoleView.append(`Running full script [${langId.toUpperCase()}]...`);
+                const docName = path.basename(editor.document.fileName);
+                consoleView.appendHistory(`// Run full script: ${docName}`);
             }
             
             if (langId === 'python') {
+                if (!runtimePy) {
+                    await ensureRuntimeInitialized();
+                }
                 if (runtimePy) {
                     if (mapView) mapView.show(vscode.ViewColumn.Three);
                     runtimePy.execute(code).then(() => {
@@ -545,6 +587,9 @@ export function activate(context: vscode.ExtensionContext) {
                 return;
             }
 
+            if (!runtime || !runtime.isInitialized) {
+                await ensureRuntimeInitialized();
+            }
             if (runtime) {
                 runtime.execute(code, true).then(() => {
                     if (consoleView) consoleView.append('gee> ');
@@ -583,7 +628,7 @@ export function activate(context: vscode.ExtensionContext) {
         return false;
     }
 
-    let runSelectionCommand = vscode.commands.registerCommand('gee-pro.runSelection', () => {
+    let runSelectionCommand = vscode.commands.registerCommand('gee-pro.runSelection', async () => {
         const editor = vscode.window.activeTextEditor;
         if (editor) {
             const selection = editor.selection;
@@ -724,6 +769,7 @@ export function activate(context: vscode.ExtensionContext) {
             const langId = editor.document.languageId;
             
             if (view) {
+                view.appendHistory(code);
                 const lines = code.split('\n');
                 lines.forEach((line, idx) => {
                     if (idx === 0) {
@@ -735,6 +781,9 @@ export function activate(context: vscode.ExtensionContext) {
             }
 
             if (langId === 'python') {
+                if (!runtimePy) {
+                    await ensureRuntimeInitialized();
+                }
                 if (runtimePy) {
                     runtimePy.executeLine(code).then(() => {
                         if (consoleView) consoleView.append('gee> ');
@@ -750,10 +799,15 @@ export function activate(context: vscode.ExtensionContext) {
                 runtimeR.executeLine(code).then(() => {
                     if (consoleView) consoleView.append('gee> ');
                 });
-            } else if (runtime) {
-                runtime.execute(code).then(() => {
-                    if (consoleView) consoleView.append('gee> ');
-                });
+            } else {
+                if (!runtime || !runtime.isInitialized) {
+                    await ensureRuntimeInitialized();
+                }
+                if (runtime) {
+                    runtime.execute(code).then(() => {
+                        if (consoleView) consoleView.append('gee> ');
+                    });
+                }
             }
 
             let nextLine = targetLine + 1;
@@ -813,9 +867,44 @@ export function activate(context: vscode.ExtensionContext) {
         aiView.focus();
     });
 
+    let clearConsoleCommand = vscode.commands.registerCommand('gee-pro.clearConsole', () => {
+        consoleView.clear();
+    });
+
+    let saveLayoutCommand = vscode.commands.registerCommand('gee-pro.saveLayout', async () => {
+        await context.workspaceState.update('gee-pro.customLayoutSaved', true);
+        vscode.window.showInformationMessage('💾 GEE IDE: Diseño actual guardado como predeterminado para este proyecto.');
+        consoleView.append('💾 Workspace layout saved as default. Your custom window positions will be preserved.');
+    });
+
+    let resetLayoutCommand = vscode.commands.registerCommand('gee-pro.resetLayout', async () => {
+        await context.workspaceState.update('gee-pro.customLayoutSaved', false);
+        await vscode.commands.executeCommand('vscode.setEditorLayout', {
+            orientation: 0,
+            groups: [
+                { groups: [{}, {}], size: 0.5 },
+                { groups: [{}, {}], size: 0.5 }
+            ]
+        });
+        consoleView.show(vscode.ViewColumn.Two);
+        mapView.show(vscode.ViewColumn.Three);
+        aiView.show(vscode.ViewColumn.Four);
+        vscode.window.showInformationMessage('🔄 GEE IDE: Diseño restaurado a cuadrícula 2x2 estándar.');
+        consoleView.append('🔄 Workspace layout reset to default 2x2 grid.');
+    });
+
+    let editSnippetsCommand = vscode.commands.registerCommand('gee-pro.editSnippets', async () => {
+        await snippetsManager.openUserSnippetsFile();
+    });
+
+    let listSnippetsCommand = vscode.commands.registerCommand('gee-pro.listSnippets', async () => {
+        await snippetsManager.showSnippetsQuickPick();
+    });
+
     context.subscriptions.push(
         startCommand, authCommand, loginCommand, logoutCommand, runCommand, runSelectionCommand, resetCommand, setProjectCommand,
-        focusEditorCommand, focusConsoleCommand, focusMapCommand, focusAICommand
+        focusEditorCommand, focusConsoleCommand, focusMapCommand, focusAICommand,
+        clearConsoleCommand, saveLayoutCommand, resetLayoutCommand, editSnippetsCommand, listSnippetsCommand
     );
     logStep('>>> ACTIVATE() COMPLETED SUCCESSFULLY — All commands ready');
 }

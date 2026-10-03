@@ -65,7 +65,29 @@
         "aliases": [
           "Google Earth Engine",
           "gee"
-        ]
+        ],
+        "icon": {
+          "light": "./media/logo.png",
+          "dark": "./media/logo.png"
+        }
+      }
+    ],
+    "snippets": [
+      {
+        "language": "gee",
+        "path": "./snippets/gee.json"
+      },
+      {
+        "language": "javascript",
+        "path": "./snippets/gee-js.json"
+      },
+      {
+        "language": "python",
+        "path": "./snippets/gee-py.json"
+      },
+      {
+        "language": "r",
+        "path": "./snippets/gee-r.json"
       }
     ],
     "commands": [
@@ -81,7 +103,7 @@
       },
       {
         "command": "gee-pro.logout",
-        "title": "Logout (Cerrar sesión)",
+        "title": "Logout",
         "category": "GEE IDE"
       },
       {
@@ -130,9 +152,40 @@
         "command": "gee-pro.focusAI",
         "title": "Show / Focus AI Assistant (Quadrant 4)",
         "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.clearConsole",
+        "title": "Clear Console",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.saveLayout",
+        "title": "Save Current Layout as Default",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.resetLayout",
+        "title": "Reset to 2x2 Grid Layout",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.editSnippets",
+        "title": "Edit User Snippets",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.listSnippets",
+        "title": "List & Insert Snippet",
+        "category": "GEE IDE"
       }
     ],
     "keybindings": [
+      {
+        "command": "gee-pro.clearConsole",
+        "key": "ctrl+l",
+        "mac": "cmd+l",
+        "when": "editorTextFocus || focusedView == 'geeConsole' || activeWebviewPanelId == 'geeConsole'"
+      },
       {
         "command": "gee-pro.runSelection",
         "key": "cmd+enter",

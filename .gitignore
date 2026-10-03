@@ -7,9 +7,12 @@ out/
 !package.json
 !tsconfig.json
 !media/*.json
+!snippets/*.json
 .DS_Store
 src/config.ts
 .tmp/
 ROADMAP.md
 media/concept_logos/
 learning/
+.gee_history
+README_es.md

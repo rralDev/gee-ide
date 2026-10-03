@@ -1,5 +1,11 @@
 import * as vscode from 'vscode';
 import * as vm from 'vm';
+import * as os from 'os';
+
+// Ensure working directory is always writable (fixes EROFS on macOS/Linux for synchronous XMLHttpRequests)
+try {
+    process.chdir(os.tmpdir());
+} catch (e) {}
 
 let ee: any = null;
 function getEE(): any {
@@ -14,11 +20,19 @@ export class GEERuntime {
     private context: vm.Context | undefined;
     private cwd: string = ''; // Current working directory in GEE
     private projectId: string = '';
+    private snippetsManager: any;
+
+    public setSnippetsManager(sm: any) {
+        this.snippetsManager = sm;
+    }
 
     constructor(
         private consoleView: any,
         private mapView: any
     ) {
+        try {
+            process.chdir(os.tmpdir());
+        } catch (e) {}
         this.resetContext();
     }
 
@@ -27,9 +41,21 @@ export class GEERuntime {
         const ctx = {
             ee: eeInstance,
             print: (...args: any[]) => {
+                try {
+                    process.chdir(os.tmpdir());
+                } catch (e) {}
                 this.consoleView.append(args.map(a => {
                     if (a === null) return 'null';
                     if (a === undefined) return 'undefined';
+                    // Auto-resolve Earth Engine server-side objects via getInfo() if available (like official Code Editor)
+                    if (a && typeof a.getInfo === 'function') {
+                        try {
+                            const val = a.getInfo();
+                            return typeof val === 'object' ? JSON.stringify(val, null, 2) : val;
+                        } catch (e: any) {
+                            return `[EE Object: ${e.message || e}]`;
+                        }
+                    }
                     return typeof a === 'object' ? JSON.stringify(a, null, 2) : a;
                 }).join(' '));
             },
@@ -191,6 +217,12 @@ export class GEERuntime {
         }
     }
 
+    public getUserVariables(): string[] {
+        if (!this.context) return [];
+        const builtins = new Set(['ee', 'Map', 'ui', 'Export', 'print', 'require', 'global', 'console', 'window', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Buffer', 'process']);
+        return Object.keys(this.context).filter(k => !builtins.has(k) && !k.startsWith('_'));
+    }
+
     public async execute(code: string, resetContext: boolean = false) {
         if (!this.isInitialized) {
             vscode.window.showErrorMessage('GEE not initialized. Please authenticate first.');
@@ -202,6 +234,9 @@ export class GEERuntime {
         }
 
         try {
+            try {
+                process.chdir(os.tmpdir());
+            } catch (e) {}
             if (this.context) {
                 let cleanCode = code.trim();
                 // If code starts with shebang like # js or #! /usr/bin/env, convert to comment so JS engine accepts it
@@ -209,14 +244,39 @@ export class GEERuntime {
                     cleanCode = '//' + cleanCode.substring(1);
                 }
                 if (cleanCode) {
-                    vm.runInContext(cleanCode, this.context);
+                    const result = vm.runInContext(cleanCode, this.context);
+                    // RStudio UX: If the executed line/selection is an expression that yields a value, print it
+                    if (!resetContext && result !== undefined && !(result instanceof Promise)) {
+                        let outputVal = result;
+                        if (result && typeof result.getInfo === 'function') {
+                            try {
+                                outputVal = result.getInfo();
+                            } catch (e: any) {
+                                outputVal = `[EE Object: ${e.message || e}]`;
+                            }
+                        }
+                        if (typeof outputVal === 'object' && outputVal !== null) {
+                            this.consoleView.append(JSON.stringify(outputVal, null, 2));
+                        } else {
+                            this.consoleView.append(String(outputVal));
+                        }
+                    }
+
+                    // Sincronizar variables vivas al autocompletado de la consola
+                    const userVars = this.getUserVariables();
+                    if (userVars.length > 0) {
+                        this.consoleView.addCompletions(userVars);
+                    }
                 }
             }
         } catch (err: any) {
             const msg = err.message || 'Unknown Runtime Error';
             this.consoleView.append(`Runtime Error: ${msg}`);
             if (msg.includes('EROFS')) {
-                this.consoleView.append('Tip: System was in read-only mode. I have fixed this. Please re-run the line.');
+                try {
+                    process.chdir(os.tmpdir());
+                } catch (e) {}
+                this.consoleView.append('Tip: Fixed working directory to writable temp folder. Please re-run the line.');
             }
         }
     }
@@ -506,8 +566,133 @@ export class GEERuntime {
         return deletedCount;
     }
 
+    public showHelp(query: string) {
+        const clean = query.trim().replace(/^ee\./, '');
+        if (!clean || clean === 'help') {
+            this.consoleView.append('📖 Sistema de Ayuda de GEE IDE:');
+            this.consoleView.append('  Usa: ?<funcion> o ?<comando> para consultar detalles y parámetros.');
+            this.consoleView.append('  Ejemplos de algoritmos GEE:');
+            this.consoleView.append('    ?ee.Image.normalizedDifference');
+            this.consoleView.append('    ?ee.Reducer.mean');
+            this.consoleView.append('    ?ee.Filter.date');
+            this.consoleView.append('    ?ee.Algorithms.Landsat.TOA');
+            this.consoleView.append('  Comandos del sistema:');
+            this.consoleView.append('    ?vars     (ver variables en memoria)');
+            this.consoleView.append('    ?history  (ver historial de comandos)');
+            this.consoleView.append('    ?clear    (limpiar consola - Atajo: Cmd+L / Ctrl+L)');
+            this.consoleView.append('    ?Map.addLayer');
+            return;
+        }
+
+        // Builtin commands help
+        const builtinsHelp: Record<string, { desc: string; usage: string }> = {
+            'vars': { desc: 'Muestra todas las variables activas en la memoria local con sus tipos.', usage: 'vars  o  objects' },
+            'objects': { desc: 'Muestra todas las variables activas en la memoria local con sus tipos.', usage: 'vars  o  objects' },
+            'snippets': { desc: 'Lista todos los snippets de código disponibles (GEE base y personalizados).', usage: 'snippets  o  ?snippets' },
+            'history': { desc: 'Muestra la lista de comandos ejecutados en la sesión guardados en .gee_history.', usage: 'history' },
+            'clear': { desc: 'Limpia la pantalla de la consola. Atajo rápido: Cmd+L (Mac) o Ctrl+L (Win/Linux).', usage: 'clear  o  cls' },
+            'cls': { desc: 'Limpia la pantalla de la consola. Atajo rápido: Cmd+L (Mac) o Ctrl+L (Win/Linux).', usage: 'clear  o  cls' },
+            'ls': { desc: 'Lista los archivos de la carpeta actual o carpetas de Assets de GEE.', usage: 'ls [carpeta]' },
+            'dir': { desc: 'Lista los archivos de la carpeta actual o carpetas de Assets de GEE.', usage: 'dir [carpeta]' },
+            'cd': { desc: 'Cambia el directorio activo de Assets en GEE.', usage: 'cd [ruta]' },
+            'pwd': { desc: 'Muestra la ruta del directorio activo de Assets en GEE.', usage: 'pwd' },
+            'mkdir': { desc: 'Crea una nueva carpeta en tus Assets de Earth Engine.', usage: 'mkdir [-p] [nombre]' },
+            'rm': { desc: 'Elimina un asset de Earth Engine (o recursivo con -r).', usage: 'rm [-r] [asset_id]' },
+            'Map.addLayer': { desc: 'Agrega una capa ráster o vectorial al visor de mapas Leaflet.', usage: 'Map.addLayer(eeObject, visParams?, name?, shown?, opacity?)' },
+            'Map.centerObject': { desc: 'Centra automáticamente el visor Leaflet sobre la geometría o imagen.', usage: 'Map.centerObject(eeObject, zoom?)' },
+            'Map.setCenter': { desc: 'Centra el mapa en coordenadas geográficas específicas [lon, lat].', usage: 'Map.setCenter(lon, lat, zoom?)' }
+        };
+
+        if (clean === 'snippets') {
+            this.showSnippetsList();
+            return;
+        }
+
+        if (builtinsHelp[clean] || builtinsHelp[query]) {
+            const h = builtinsHelp[clean] || builtinsHelp[query];
+            this.consoleView.append(`📖 [Comando] ${clean}`);
+            this.consoleView.append(`  ${h.desc}`);
+            this.consoleView.append(`  Uso: ${h.usage}`);
+            return;
+        }
+
+        // Earth Engine Algorithm Lookup
+        const ee = getEE();
+        try {
+            if (ee && ee.ApiFunction) {
+                let sig = ee.ApiFunction.lookup(clean) || ee.ApiFunction.lookup(query);
+                if (!sig && typeof ee.ApiFunction.allSignatures === 'function') {
+                    const all = ee.ApiFunction.allSignatures();
+                    if (all) {
+                        const targetKey = Object.keys(all).find(k => k.toLowerCase() === clean.toLowerCase() || k.toLowerCase().endsWith('.' + clean.toLowerCase()));
+                        if (targetKey) sig = all[targetKey];
+                    }
+                }
+
+                if (sig) {
+                    const returns = sig.returns || 'void';
+                    const desc = sig.description || 'Sin descripción disponible.';
+                    this.consoleView.append(`📖 ee.${sig.name || clean}`);
+                    this.consoleView.append(`  ${desc}`);
+                    if (Array.isArray(sig.args) && sig.args.length > 0) {
+                        this.consoleView.append('  Parámetros:');
+                        sig.args.forEach((a: any) => {
+                            const opt = a.optional ? ' (opcional)' : '';
+                            const def = a.default !== null && a.default !== undefined ? ` [default: ${a.default}]` : '';
+                            this.consoleView.append(`    • ${a.name} (${a.type}${opt}): ${a.description || ''}${def}`);
+                        });
+                    }
+                    this.consoleView.append(`  Retorna: ${returns}`);
+                    return;
+                }
+            }
+        } catch (e: any) {}
+
+        this.consoleView.append(`❓ No se encontró documentación para '${query}'.`);
+        this.consoleView.append(`  Tip: Escribe ?help para ver ejemplos de consultas de ayuda.`);
+    }
+
+    public showSnippetsList() {
+        if (!this.snippetsManager) {
+            this.consoleView.append('✂️ Gestor de snippets no inicializado aún.');
+            return;
+        }
+        const list = this.snippetsManager.getAllSnippets();
+        this.consoleView.append(`✂️ Snippets disponibles en GEE IDE (${list.length}):`);
+        this.consoleView.append('  Escribe el prefijo en el editor y presiona Tab para expandirlo con saltos de cursor.');
+        this.consoleView.append('----------------------------------------');
+        list.forEach((s: any) => {
+            const badge = s.isCustom ? '[Personalizado]' : `[${s.lang || 'GEE'}]`;
+            this.consoleView.append(`  🔹 ${s.prefix.padEnd(14, ' ')} : ${badge} ${s.title} — ${s.description || ''}`);
+        });
+        this.consoleView.append('----------------------------------------');
+        this.consoleView.append('💡 Tip: Presiona Cmd+Shift+P -> GEE IDE: List & Insert Snippet para buscar e insertar en 1 clic.');
+        this.consoleView.append('💡 Tip: Presiona Cmd+Shift+P -> GEE IDE: Edit User Snippets para crear tus propias plantillas.');
+    }
+
     public async handleCommand(text: string) {
-        const parts = text.trim().split(/\s+/);
+        const trimmed = text.trim();
+        if (this.consoleView.appendHistory) {
+            this.consoleView.appendHistory(trimmed);
+        }
+
+        if (trimmed === 'snippets' || trimmed === '?snippets' || trimmed === 'help snippets') {
+            this.showSnippetsList();
+            return;
+        }
+
+        if (trimmed.startsWith('?') || trimmed === 'help' || trimmed.startsWith('help ')) {
+            let query = '';
+            if (trimmed.startsWith('?')) {
+                query = trimmed.substring(1).trim();
+            } else {
+                query = trimmed.replace(/^help\s*/, '').replace(/[()]/g, '').trim();
+            }
+            this.showHelp(query);
+            return;
+        }
+
+        const parts = trimmed.split(/\s+/);
         const cmd = parts[0];
         const args = parts.slice(1);
         const promptDisplay = (!this.cwd || this.cwd === '~') ? '~' : this.cwd;
@@ -517,6 +702,9 @@ export class GEERuntime {
         const ee = getEE();
 
         switch (cmd) {
+            case 'snippets':
+                this.showSnippetsList();
+                break;
             case 'pwd':
                 this.consoleView.append((!this.cwd || this.cwd === '~') ? '~ (Asset Roots)' : this.cwd);
                 break;
@@ -525,6 +713,19 @@ export class GEERuntime {
                 const newPath = this.resolvePath(targetDir);
                 this.cwd = newPath;
                 this.consoleView.append(`📂 Current directory: ${this.cwd === '~' ? '~ (Root)' : this.cwd}`);
+                break;
+            case 'history':
+                const historyList = this.consoleView.loadHistory ? this.consoleView.loadHistory() : [];
+                if (historyList.length === 0) {
+                    this.consoleView.append('  (no command history yet in .gee_history)');
+                } else {
+                    this.consoleView.append(`📜 Historial reciente (${Math.min(25, historyList.length)} de ${historyList.length}):`);
+                    const startIdx = Math.max(0, historyList.length - 25);
+                    for (let i = startIdx; i < historyList.length; i++) {
+                        this.consoleView.append(`  ${(i + 1).toString().padStart(3, ' ')}  ${historyList[i]}`);
+                    }
+                }
+                break;
             case 'vars':
             case 'objects':
             case 'whos':
@@ -729,10 +930,42 @@ export class GEERuntime {
                 this.consoleView.clear();
                 break;
             default:
+                try {
+                    process.chdir(os.tmpdir());
+                } catch (e) {}
+                if (this.context) {
+                    try {
+                        const result = vm.runInContext(text, this.context);
+                        if (result !== undefined && !(result instanceof Promise)) {
+                            let outputVal = result;
+                            if (result && typeof result.getInfo === 'function') {
+                                try {
+                                    outputVal = result.getInfo();
+                                } catch (e: any) {
+                                    outputVal = `[EE Object: ${e.message || e}]`;
+                                }
+                            }
+                            if (typeof outputVal === 'object' && outputVal !== null) {
+                                this.consoleView.append(JSON.stringify(outputVal, null, 2));
+                            } else {
+                                this.consoleView.append(String(outputVal));
+                            }
+                            const uv = this.getUserVariables();
+                            if (uv.length > 0) this.consoleView.addCompletions(uv);
+                            break;
+                        } else if (result === undefined && (text.startsWith('var ') || text.startsWith('let ') || text.startsWith('const ') || text.includes('='))) {
+                            const uv = this.getUserVariables();
+                            if (uv.length > 0) this.consoleView.addCompletions(uv);
+                            break;
+                        }
+                    } catch (e) {
+                        // If it fails as JS expression, continue to unknown command
+                    }
+                }
                 if (text.includes('Map.') || text.includes('ee.')) {
                     this.consoleView.append(`[HINT] To run GEE script code, write it in the Editor and press Cmd+Enter.`);
                 } else {
-                    this.consoleView.append(`Unknown command: ${cmd}. Available: ls, cd, pwd, mkdir, rm, cp, mv, clear`);
+                    this.consoleView.append(`Unknown command: ${cmd}. Available: ls, dir, vars, objects, cd, pwd, mkdir, rm, cp, mv, clear`);
                 }
         }
     }
