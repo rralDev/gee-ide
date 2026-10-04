@@ -120,7 +120,7 @@ export class ConsoleView {
     private messageCallback: ((message: any) => void) | undefined;
     private logs: string[] = [];
     private knownCompletions: Set<string> = new Set([
-        'ls', 'dir', 'vars', 'objects', 'whos', 'cd', 'pwd', 'mkdir', 'rm', 'rmdir', 'cp', 'mv', 'clear', 'cls',
+        'ls', 'dir', 'vars', 'objects', 'whos', 'cd', 'pwd', 'mkdir', 'rm', 'rmdir', 'cp', 'mv', 'clear', 'cls', 'history', 'help',
         '-r', '-rf',
         'Map.addLayer', 'Map.setCenter', 'Map.centerObject', 'Map.clear',
         'ee.Image', 'ee.ImageCollection', 'ee.FeatureCollection', 'ee.Geometry',

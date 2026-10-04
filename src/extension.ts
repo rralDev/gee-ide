@@ -198,7 +198,12 @@ export function activate(context: vscode.ExtensionContext) {
     // IntelliSense prioritario: Variables en memoria (runtime) y variables declaradas en el script (.gee, .js, .py, .r)
     context.subscriptions.push(
         vscode.languages.registerCompletionItemProvider(
-            [{ scheme: 'file', language: 'gee' }, { scheme: 'file', language: 'javascript' }, { scheme: 'file', language: 'python' }, { scheme: 'file', language: 'r' }],
+            [
+                { scheme: 'file', language: 'gee' }, { scheme: 'untitled', language: 'gee' },
+                { scheme: 'file', language: 'javascript' }, { scheme: 'untitled', language: 'javascript' },
+                { scheme: 'file', language: 'python' }, { scheme: 'untitled', language: 'python' },
+                { scheme: 'file', language: 'r' }, { scheme: 'untitled', language: 'r' }
+            ],
             {
                 provideCompletionItems(document: vscode.TextDocument, position: vscode.Position) {
                     const items: vscode.CompletionItem[] = [];
@@ -1021,9 +1026,16 @@ export function activate(context: vscode.ExtensionContext) {
                     await ensureRuntimeInitialized();
                 }
                 if (runtime) {
-                    runtime.execute(code).then(() => {
+                    const trimmedCode = code.trim();
+                    if (trimmedCode.startsWith('?')) {
+                        // Help system: '?ee.Image.normalizedDifference' is not JavaScript, so it must not reach the JS engine
+                        runtime.showHelp(trimmedCode.substring(1).trim());
                         if (consoleView) consoleView.append('gee> ');
-                    });
+                    } else {
+                        runtime.execute(code).then(() => {
+                            if (consoleView) consoleView.append('gee> ');
+                        });
+                    }
                 }
             }
 

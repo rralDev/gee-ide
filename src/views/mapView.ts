@@ -12,7 +12,7 @@ export class MapView {
         this.messageCallback = callback;
     }
 
-    public show(column: vscode.ViewColumn, preserveFocus: boolean = true) {
+    public show(column: vscode.ViewColumn = vscode.ViewColumn.Three, preserveFocus: boolean = true) {
         if (this.panel) {
             this.panel.reveal(column, preserveFocus);
         } else {

@@ -54,15 +54,15 @@ Executing the command `GEE IDE: Start Environment` automatically organizes your 
 
 ```
 ┌──────────────────────────────────────┬──────────────────────────────────────┐
-│  QUADRANT 1: Code Editor             │  QUADRANT 2: Interactive Console     │
-│  - Polyglot scripts (.gee)           │  - Reactive prompt gee>              │
-│  - JS / Python / R syntax routing    │  - Automatic server-side evaluation  │
-│  - Tabstop snippet expansion         │  - Infinite history (.gee_history)   │
+│  QUADRANT 1: Code Editor             │  QUADRANT 2: Leaflet Map Viewer      │
+│  - Polyglot scripts (.gee)           │  - Live satellite layer rendering    │
+│  - JS / Python / R syntax routing    │  - Interactive coordinate inspector  │
+│  - Tabstop snippet expansion         │  - Map.addLayer / Map$addLayer sync  │
 ├──────────────────────────────────────┼──────────────────────────────────────┤
-│  QUADRANT 3: Leaflet Map Viewer      │  QUADRANT 4: AI Assistant & Assets   │
-│  - Live satellite layer rendering    │  - Visual Earth Engine Assets tree   │
-│  - Interactive coordinate inspector  │  - Intelligent coding assistant      │
-│  - Map.addLayer / Map$addLayer sync  │  - Task monitor & export tracker     │
+│  QUADRANT 3: Interactive Console     │  QUADRANT 4: AI Assistant & Assets   │
+│  - Reactive prompt gee>              │  - Visual Earth Engine Assets tree   │
+│  - Automatic server-side evaluation  │  - Intelligent coding assistant      │
+│  - Infinite history (.gee_history)   │  - Task monitor & export tracker     │
 └──────────────────────────────────────┴──────────────────────────────────────┘
 ```
 

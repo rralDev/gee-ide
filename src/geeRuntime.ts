@@ -620,7 +620,11 @@ export class GEERuntime {
         const ee = getEE();
         try {
             if (ee && ee.ApiFunction) {
-                let sig = ee.ApiFunction.lookup(clean) || ee.ApiFunction.lookup(query);
+                let sig: any = null;
+                const apiFn = ee.ApiFunction.lookupInternal(clean) || ee.ApiFunction.lookupInternal(query);
+                if (apiFn && typeof apiFn.getSignature === 'function') {
+                    sig = apiFn.getSignature();
+                }
                 if (!sig && typeof ee.ApiFunction.allSignatures === 'function') {
                     const all = ee.ApiFunction.allSignatures();
                     if (all) {
@@ -672,7 +676,22 @@ export class GEERuntime {
 
     public async handleCommand(text: string) {
         try {
-            const trimmed = text.trim();
+            let trimmed = text.trim();
+            
+            // Bash-like history expansion (!number)
+            if (trimmed.match(/^!\d+$/)) {
+                const targetIdx = parseInt(trimmed.substring(1), 10) - 1;
+                const historyList = this.consoleView.loadHistory ? this.consoleView.loadHistory() : [];
+                if (targetIdx >= 0 && targetIdx < historyList.length) {
+                    text = historyList[targetIdx];
+                    trimmed = text.trim();
+                    this.consoleView.append(`🔄 Expandiendo ${trimmed.substring(0, 50)}...`);
+                } else {
+                    this.consoleView.append(`[Error] Event not found: ${trimmed}`);
+                    return;
+                }
+            }
+
             if (this.consoleView.appendHistory) {
                 this.consoleView.appendHistory(trimmed);
             }
@@ -693,7 +712,14 @@ export class GEERuntime {
                 return;
             }
 
-            const parts = trimmed.split(/\s+/);
+            let parts = trimmed.split(/\s+/);
+            
+            // Normalize history(args) syntax
+            if (parts[0].startsWith('history(') && parts[0].endsWith(')')) {
+                const innerArgs = parts[0].substring(8, parts[0].length - 1);
+                parts = ['history', innerArgs];
+            }
+            
             const cmd = parts[0];
             const args = parts.slice(1);
             const promptDisplay = (!this.cwd || this.cwd === '~') ? '~' : this.cwd;
@@ -725,10 +751,34 @@ export class GEERuntime {
                 if (historyList.length === 0) {
                     this.consoleView.append('  (no command history yet in .gee_history)');
                 } else {
-                    this.consoleView.append(`📜 Historial reciente (${Math.min(25, historyList.length)} de ${historyList.length}):`);
-                    const startIdx = Math.max(0, historyList.length - 25);
-                    for (let i = startIdx; i < historyList.length; i++) {
-                        this.consoleView.append(`  ${(i + 1).toString().padStart(3, ' ')}  ${historyList[i]}`);
+                    let startIdx = Math.max(0, historyList.length - 25);
+                    let endIdx = historyList.length;
+                    
+                    if (args.length > 0) {
+                        const arg = args[0];
+                        if (arg.includes(':') || arg.includes('-')) {
+                            const separator = arg.includes(':') ? ':' : '-';
+                            const parts = arg.split(separator);
+                            const parsedStart = parseInt(parts[0], 10);
+                            const parsedEnd = parseInt(parts[1], 10);
+                            if (!isNaN(parsedStart)) startIdx = Math.max(0, parsedStart - 1);
+                            if (!isNaN(parsedEnd)) endIdx = Math.min(historyList.length, parsedEnd);
+                        } else {
+                            const count = parseInt(arg, 10);
+                            if (!isNaN(count)) {
+                                startIdx = Math.max(0, historyList.length - count);
+                            }
+                        }
+                    }
+
+                    if (startIdx >= endIdx) {
+                        this.consoleView.append(`  (No hay comandos en ese rango)`);
+                    } else {
+                        const count = endIdx - startIdx;
+                        this.consoleView.append(`📜 Historial (${count} de ${historyList.length}):`);
+                        for (let i = startIdx; i < endIdx; i++) {
+                            this.consoleView.append(`  ${(i + 1).toString().padStart(3, ' ')}  ${historyList[i]}`);
+                        }
                     }
                 }
                 break;
@@ -747,7 +797,7 @@ export class GEERuntime {
                 } else {
                     this.consoleView.append(`📊 Variables en memoria (${userVars.length}):`);
                     userVars.forEach(k => {
-                        const val = this.context[k];
+                        const val = this.context ? this.context[k] : undefined;
                         let typeName = typeof val;
                         let detail = '';
                         if (val && typeof val === 'object') {
@@ -812,6 +862,8 @@ export class GEERuntime {
                                 this.consoleView.append('  (no asset roots found)');
                             }
                         } else {
+                            const rootNames = roots.map(r => r.shortName);
+                            this.consoleView.addCompletions(rootNames);
                             roots.forEach(r => {
                                 this.consoleView.append(`  📁 ${r.shortName} [${r.type}]  (${r.id})`);
                             });
@@ -845,6 +897,8 @@ export class GEERuntime {
                                     this.consoleView.append('  (empty folder)');
                                 }
                             } else {
+                                const completions = assets.map((a: any) => a.id ? a.id.split('/').pop() : a.name.split('/').pop());
+                                this.consoleView.addCompletions(completions);
                                 assets.forEach((a: any) => {
                                     const shortName = a.id ? a.id.split('/').pop() : a.name.split('/').pop();
                                     const type = a.type || 'ASSET';
