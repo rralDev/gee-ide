@@ -567,7 +567,10 @@ export class GEERuntime {
     }
 
     public showHelp(query: string) {
-        const clean = query.trim().replace(/^ee\./, '');
+        // Normalize: strip leading ee., replace $ with . (for R users), strip trailing () or parameters
+        const normalized = query.trim().replace(/^ee[\.\$]/, '').replace(/\$/g, '.').replace(/\(.*?\)$/, '').trim();
+        const clean = normalized.replace(/^ee\./, '');
+
         if (!clean || clean === 'help') {
             this.consoleView.append('📖 Sistema de Ayuda de GEE IDE:');
             this.consoleView.append('  Usa: ?<funcion> o ?<comando> para consultar detalles y parámetros.');
@@ -581,6 +584,7 @@ export class GEERuntime {
             this.consoleView.append('    ?history  (ver historial de comandos)');
             this.consoleView.append('    ?clear    (limpiar consola - Atajo: Cmd+L / Ctrl+L)');
             this.consoleView.append('    ?Map.addLayer');
+            this.consoleView.append('    ?Map.clear');
             return;
         }
 
@@ -589,7 +593,7 @@ export class GEERuntime {
             'vars': { desc: 'Muestra todas las variables activas en la memoria local con sus tipos.', usage: 'vars  o  objects' },
             'objects': { desc: 'Muestra todas las variables activas en la memoria local con sus tipos.', usage: 'vars  o  objects' },
             'snippets': { desc: 'Lista todos los snippets de código disponibles (GEE base y personalizados).', usage: 'snippets  o  ?snippets' },
-            'history': { desc: 'Muestra la lista de comandos ejecutados en la sesión guardados en .gee_history.', usage: 'history' },
+            'history': { desc: 'Muestra la lista de comandos ejecutados en la sesión guardados en .gee_history.', usage: 'history  o  history(10:40)  o  !numero' },
             'clear': { desc: 'Limpia la pantalla de la consola. Atajo rápido: Cmd+L (Mac) o Ctrl+L (Win/Linux).', usage: 'clear  o  cls' },
             'cls': { desc: 'Limpia la pantalla de la consola. Atajo rápido: Cmd+L (Mac) o Ctrl+L (Win/Linux).', usage: 'clear  o  cls' },
             'ls': { desc: 'Lista los archivos de la carpeta actual o carpetas de Assets de GEE.', usage: 'ls [carpeta]' },
@@ -600,7 +604,8 @@ export class GEERuntime {
             'rm': { desc: 'Elimina un asset de Earth Engine (o recursivo con -r).', usage: 'rm [-r] [asset_id]' },
             'Map.addLayer': { desc: 'Agrega una capa ráster o vectorial al visor de mapas Leaflet.', usage: 'Map.addLayer(eeObject, visParams?, name?, shown?, opacity?)' },
             'Map.centerObject': { desc: 'Centra automáticamente el visor Leaflet sobre la geometría o imagen.', usage: 'Map.centerObject(eeObject, zoom?)' },
-            'Map.setCenter': { desc: 'Centra el mapa en coordenadas geográficas específicas [lon, lat].', usage: 'Map.setCenter(lon, lat, zoom?)' }
+            'Map.setCenter': { desc: 'Centra el mapa en coordenadas geográficas específicas [lon, lat].', usage: 'Map.setCenter(lon, lat, zoom?)' },
+            'Map.clear': { desc: 'Limpia y elimina todas las capas visibles del visor de mapas Leaflet.', usage: 'Map.clear()' }
         };
 
         if (clean === 'snippets') {
@@ -608,11 +613,11 @@ export class GEERuntime {
             return;
         }
 
-        if (builtinsHelp[clean] || builtinsHelp[query]) {
-            const h = builtinsHelp[clean] || builtinsHelp[query];
+        const matchedCmd = builtinsHelp[clean] || builtinsHelp[normalized] || builtinsHelp[query];
+        if (matchedCmd) {
             this.consoleView.append(`📖 [Comando] ${clean}`);
-            this.consoleView.append(`  ${h.desc}`);
-            this.consoleView.append(`  Uso: ${h.usage}`);
+            this.consoleView.append(`  ${matchedCmd.desc}`);
+            this.consoleView.append(`  Uso: ${matchedCmd.usage}`);
             return;
         }
 

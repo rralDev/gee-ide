@@ -18,25 +18,43 @@ import urllib.error
 import ee
 
 _BRIDGE_PORT = os.environ.get("GEE_PRO_BRIDGE_PORT", "31415")
-_BRIDGE_URL = f"http://127.0.0.1:{_BRIDGE_PORT}"
 
 
 def _send(action: str, payload: dict) -> None:
     """Send a command to the VS Code GEE IDE bridge server."""
+    # Try the designated bridge port first, then fallback to nearby ports (31415..31422)
+    ports_to_try = []
     try:
-        data = json.dumps({"action": action, "payload": payload}).encode("utf-8")
-        req = urllib.request.Request(
-            _BRIDGE_URL,
-            data=data,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=5):
-            pass
-    except urllib.error.URLError:
-        print(f"[GEE IDE] Warning: could not reach the map bridge at {_BRIDGE_URL}")
-    except Exception as e:
-        print(f"[GEE IDE] Map bridge error: {e}")
+        ports_to_try.append(int(_BRIDGE_PORT))
+    except (ValueError, TypeError):
+        ports_to_try.append(31415)
+
+    for p in range(31415, 31422):
+        if p not in ports_to_try:
+            ports_to_try.append(p)
+
+    data = json.dumps({"action": action, "payload": payload}).encode("utf-8")
+    last_err = None
+
+    for port in ports_to_try:
+        url = f"http://127.0.0.1:{port}"
+        try:
+            req = urllib.request.Request(
+                url,
+                data=data,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=3):
+                return
+        except urllib.error.URLError as e:
+            last_err = e
+        except Exception as e:
+            last_err = e
+            break
+
+    if last_err:
+        print(f"[GEE IDE] Warning: could not reach the map bridge at http://127.0.0.1:{_BRIDGE_PORT}")
 
 
 def _get_map_id(ee_object, vis_params: dict = None) -> dict | None:

@@ -10,10 +10,12 @@ export class AIView {
         this.messageCallback = callback;
     }
 
-    public show(column: vscode.ViewColumn = vscode.ViewColumn.Four, preserveFocus: boolean = true) {
+    public async show(column: vscode.ViewColumn = vscode.ViewColumn.Four, preserveFocus: boolean = true) {
         if (this.panel) {
             this.panel.reveal(column, preserveFocus);
         } else {
+            await this.closeExistingTabs();
+
             this.panel = vscode.window.createWebviewPanel(
                 'geeAI',
                 'GEE AI Assistant',
@@ -35,6 +37,29 @@ export class AIView {
         }
     }
 
+    public dispose() {
+        if (this.panel) {
+            this.panel.dispose();
+            this.panel = undefined;
+        }
+    }
+
+    private async closeExistingTabs() {
+        try {
+            const tabsToClose: vscode.Tab[] = [];
+            for (const group of vscode.window.tabGroups.all) {
+                for (const tab of group.tabs) {
+                    if (tab.input instanceof vscode.TabInputWebview && tab.input.viewType === 'geeAI') {
+                        tabsToClose.push(tab);
+                    }
+                }
+            }
+            if (tabsToClose.length > 0) {
+                await vscode.window.tabGroups.close(tabsToClose);
+            }
+        } catch (e) {}
+    }
+
     public focus() {
         if (this.panel) {
             this.panel.reveal();
@@ -50,6 +75,9 @@ export class AIView {
     }
 
     public attachPanel(panel: vscode.WebviewPanel) {
+        if (this.panel && this.panel !== panel) {
+            this.panel.dispose();
+        }
         this.panel = panel;
         this.panel.webview.options = {
             enableScripts: true

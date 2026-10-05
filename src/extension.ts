@@ -335,6 +335,51 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
+    let bridgeServerStarting: Promise<number> | null = null;
+    async function ensureBridgeServer(): Promise<number> {
+        if (!bridgeServer) {
+            bridgeServer = new PythonBridgeServer();
+            bridgeServer.onCommand((cmd: any) => {
+                logStep(`Bridge server received: ${cmd.action}`);
+                if (cmd.action === 'addLayer' && mapView) {
+                    logStep(`Bridge addLayer: ${cmd.payload.name}`);
+                    mapView.addLayer(cmd.payload.url, cmd.payload.name, cmd.payload.shown, cmd.payload.opacity);
+                } else if (cmd.action === 'setCenter' && mapView) {
+                    logStep(`Bridge setCenter: lat=${cmd.payload.lat}, lon=${cmd.payload.lon}, zoom=${cmd.payload.zoom}`);
+                    mapView.setCenter(cmd.payload.lat, cmd.payload.lon, cmd.payload.zoom);
+                } else if (cmd.action === 'clear' && mapView) {
+                    logStep('Bridge clear map');
+                    mapView.clear();
+                }
+            });
+            context.subscriptions.push({
+                dispose: () => {
+                    if (bridgeServer) {
+                        bridgeServer.stop();
+                    }
+                }
+            });
+        }
+        if (!bridgeServerStarting) {
+            bridgeServerStarting = bridgeServer.start().then(port => {
+                logStep(`PythonBridgeServer listening on port ${port}`);
+                if (runtimePy) runtimePy.setBridgePort(port);
+                if (runtimeR) runtimeR.setBridgePort(port);
+                return port;
+            }).catch(err => {
+                logStep(`Python bridge server error: ${err.message}`);
+                return bridgeServer ? bridgeServer.getPort() : 31415;
+            });
+        }
+        const port = await bridgeServerStarting;
+        if (runtimePy) runtimePy.setBridgePort(port);
+        if (runtimeR) runtimeR.setBridgePort(port);
+        return port;
+    }
+
+    // Warm up the map bridge server immediately on extension startup
+    ensureBridgeServer().catch(() => {});
+
     let initPromise: Promise<boolean> | undefined;
 
     async function ensureRuntimeInitialized(forceShowBanner: boolean = false): Promise<boolean> {
@@ -355,34 +400,7 @@ export function activate(context: vscode.ExtensionContext) {
         initPromise = (async () => {
             logStep('>>> ensureRuntimeInitialized started');
             try {
-                if (!bridgeServer) {
-                    bridgeServer = new PythonBridgeServer();
-                    bridgeServer.onCommand((cmd: any) => {
-                        logStep(`Bridge server received: ${cmd.action}`);
-                        if (cmd.action === 'addLayer' && mapView) {
-                            logStep(`Bridge addLayer: ${cmd.payload.name}`);
-                            mapView.addLayer(cmd.payload.url, cmd.payload.name, cmd.payload.shown, cmd.payload.opacity);
-                        } else if (cmd.action === 'setCenter' && mapView) {
-                            logStep(`Bridge setCenter: lat=${cmd.payload.lat}, lon=${cmd.payload.lon}, zoom=${cmd.payload.zoom}`);
-                            mapView.setCenter(cmd.payload.lat, cmd.payload.lon, cmd.payload.zoom);
-                        } else if (cmd.action === 'clear' && mapView) {
-                            logStep('Bridge clear map');
-                            mapView.clear();
-                        }
-                    });
-                    try {
-                        const port = await bridgeServer.start();
-                        logStep(`PythonBridgeServer listening on port ${port}`);
-                        if (runtimePy) {
-                            runtimePy.setBridgePort(port);
-                        }
-                        if (runtimeR) {
-                            runtimeR.setBridgePort(port);
-                        }
-                    } catch (err: any) {
-                        logStep(`Python bridge server error: ${err.message}`);
-                    }
-                }
+                const bridgePort = await ensureBridgeServer();
 
                 const savedJson = await context.secrets.get('gee-pro.credentials');
                 logStep(`Credentials from secrets: ${savedJson ? 'FOUND' : 'NOT FOUND'}`);
@@ -453,8 +471,8 @@ export function activate(context: vscode.ExtensionContext) {
                         await context.secrets.store('gee-pro.credentials', JSON.stringify(creds));
                     }
 
-                    runtimePy = new GEERuntimePy(consoleView, creds.access_token || '', activeProject || '', context.globalStorageUri.fsPath, bridgeServer ? bridgeServer.getPort() : 31415);
-                    runtimeR = new GEERuntimeR(consoleView, creds.access_token || '', activeProject || '', bridgeServer ? bridgeServer.getPort() : 31415);
+                    runtimePy = new GEERuntimePy(consoleView, creds.access_token || '', activeProject || '', context.globalStorageUri.fsPath, bridgePort);
+                    runtimeR = new GEERuntimeR(consoleView, creds.access_token || '', activeProject || '', bridgePort);
                     runtimePy.getPythonExecutable().then(py => {
                         if (py && runtimeR) runtimeR.setPythonPath(py);
                     });
@@ -488,9 +506,33 @@ export function activate(context: vscode.ExtensionContext) {
     // Session is only initialized on explicit user action (Start Environment, Run code, etc.)
     // to prevent unwanted background resource consumption.
 
+    async function closeAllGeeWebviewTabs() {
+        try {
+            const tabsToClose: vscode.Tab[] = [];
+            for (const group of vscode.window.tabGroups.all) {
+                for (const tab of group.tabs) {
+                    if (tab.input instanceof vscode.TabInputWebview && 
+                        ['geeAI', 'geeMap', 'geeConsole'].includes(tab.input.viewType)) {
+                        tabsToClose.push(tab);
+                    }
+                }
+            }
+            if (tabsToClose.length > 0) {
+                await vscode.window.tabGroups.close(tabsToClose);
+            }
+        } catch (e) {}
+
+        consoleView.dispose();
+        mapView.dispose();
+        aiView.dispose();
+    }
+
     let startCommand = vscode.commands.registerCommand('gee-pro.start', async () => {
         const customLayoutSaved = context.workspaceState.get<boolean>('gee-pro.customLayoutSaved', false);
         if (!customLayoutSaved) {
+            // Close any existing/dormant tabs from prior sessions to avoid duplicate panels
+            await closeAllGeeWebviewTabs();
+
             // 1. Force the professional 2x2 grid layout
             await vscode.commands.executeCommand('vscode.setEditorLayout', {
                 orientation: 0,
@@ -533,7 +575,8 @@ export function activate(context: vscode.ExtensionContext) {
                 const creds = JSON.parse(json);
                 if (runtime) {
                     await runtime.initialize(creds);
-                    runtimePy = new GEERuntimePy(consoleView, creds.access_token || '', creds.project_id || '', context.globalStorageUri.fsPath, bridgeServer ? bridgeServer.getPort() : 31415);
+                    const bridgePort = await ensureBridgeServer();
+                    runtimePy = new GEERuntimePy(consoleView, creds.access_token || '', creds.project_id || '', context.globalStorageUri.fsPath, bridgePort);
                     await context.secrets.store('gee-pro.credentials', json);
                     vscode.window.showInformationMessage('GEE Authenticated and Saved Successfully');
                     await displaySessionBanner(consoleView, creds, runtime);
@@ -614,8 +657,9 @@ export function activate(context: vscode.ExtensionContext) {
                         }
 
                         await runtime.initialize(readyCreds);
-                        runtimePy = new GEERuntimePy(consoleView, readyCreds.access_token || '', readyCreds.project_id || '', context.globalStorageUri.fsPath, bridgeServer ? bridgeServer.getPort() : 31415);
-                        runtimeR = new GEERuntimeR(consoleView, readyCreds.access_token || '', readyCreds.project_id || '', bridgeServer ? bridgeServer.getPort() : 31415);
+                        const bridgePort = await ensureBridgeServer();
+                        runtimePy = new GEERuntimePy(consoleView, readyCreds.access_token || '', readyCreds.project_id || '', context.globalStorageUri.fsPath, bridgePort);
+                        runtimeR = new GEERuntimeR(consoleView, readyCreds.access_token || '', readyCreds.project_id || '', bridgePort);
                         runtimePy.getPythonExecutable().then(py => {
                             if (py && runtimeR) runtimeR.setPythonPath(py);
                         });
@@ -700,8 +744,9 @@ export function activate(context: vscode.ExtensionContext) {
                     runtime.setProjectId(activeProject);
                     await runtime.loadAssetRoots(tokenData.email);
                 }
-                runtimePy = new GEERuntimePy(consoleView, tokenData.access_token || '', activeProject || '', context.globalStorageUri.fsPath, bridgeServer ? bridgeServer.getPort() : 31415);
-                runtimeR = new GEERuntimeR(consoleView, tokenData.access_token || '', activeProject || '', bridgeServer ? bridgeServer.getPort() : 31415);
+                const bridgePort = await ensureBridgeServer();
+                runtimePy = new GEERuntimePy(consoleView, tokenData.access_token || '', activeProject || '', context.globalStorageUri.fsPath, bridgePort);
+                runtimeR = new GEERuntimeR(consoleView, tokenData.access_token || '', activeProject || '', bridgePort);
                 runtimePy.getPythonExecutable().then(py => {
                     if (py && runtimeR) runtimeR.setPythonPath(py);
                 });
@@ -783,6 +828,7 @@ export function activate(context: vscode.ExtensionContext) {
             }
             
             if (langId === 'python') {
+                await ensureBridgeServer();
                 if (!runtimePy) {
                     await ensureRuntimeInitialized();
                 }
@@ -799,8 +845,9 @@ export function activate(context: vscode.ExtensionContext) {
             }
 
             if (langId === 'r') {
+                const port = await ensureBridgeServer();
                 if (!runtimeR) {
-                    runtimeR = new GEERuntimeR(consoleView, '', '', bridgeServer ? bridgeServer.getPort() : 31415);
+                    runtimeR = new GEERuntimeR(consoleView, '', '', port);
                 }
                 if (mapView) mapView.show(vscode.ViewColumn.Three);
                 runtimeR.execute(code).then(() => {
@@ -1002,7 +1049,18 @@ export function activate(context: vscode.ExtensionContext) {
                 });
             }
 
-            if (langId === 'python') {
+            const trimmedCode = code.trim();
+            if (trimmedCode.startsWith('?') || trimmedCode.startsWith('help ') || trimmedCode === 'help') {
+                if (!runtime) {
+                    const { GEERuntime } = require('./geeRuntime');
+                    runtime = new GEERuntime(consoleView, mapView);
+                    runtime.setSnippetsManager(snippetsManager);
+                }
+                const query = trimmedCode.startsWith('?') ? trimmedCode.substring(1).trim() : trimmedCode.replace(/^help\s*/, '').trim();
+                runtime.showHelp(query);
+                if (consoleView) consoleView.append('gee> ');
+            } else if (langId === 'python') {
+                await ensureBridgeServer();
                 if (!runtimePy) {
                     await ensureRuntimeInitialized();
                 }
@@ -1015,8 +1073,9 @@ export function activate(context: vscode.ExtensionContext) {
                     if (consoleView) consoleView.append('gee> ');
                 }
             } else if (langId === 'r') {
+                const port = await ensureBridgeServer();
                 if (!runtimeR) {
-                    runtimeR = new GEERuntimeR(consoleView, '', '', bridgeServer ? bridgeServer.getPort() : 31415);
+                    runtimeR = new GEERuntimeR(consoleView, '', '', port);
                 }
                 runtimeR.executeLine(code).then(() => {
                     if (consoleView) consoleView.append('gee> ');
@@ -1026,16 +1085,9 @@ export function activate(context: vscode.ExtensionContext) {
                     await ensureRuntimeInitialized();
                 }
                 if (runtime) {
-                    const trimmedCode = code.trim();
-                    if (trimmedCode.startsWith('?')) {
-                        // Help system: '?ee.Image.normalizedDifference' is not JavaScript, so it must not reach the JS engine
-                        runtime.showHelp(trimmedCode.substring(1).trim());
+                    runtime.execute(code).then(() => {
                         if (consoleView) consoleView.append('gee> ');
-                    } else {
-                        runtime.execute(code).then(() => {
-                            if (consoleView) consoleView.append('gee> ');
-                        });
-                    }
+                    });
                 }
             }
 
@@ -1108,6 +1160,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     let resetLayoutCommand = vscode.commands.registerCommand('gee-pro.resetLayout', async () => {
         await context.workspaceState.update('gee-pro.customLayoutSaved', false);
+        await closeAllGeeWebviewTabs();
         await vscode.commands.executeCommand('vscode.setEditorLayout', {
             orientation: 0,
             groups: [

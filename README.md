@@ -306,10 +306,23 @@ Type a prefix and hit **`Tab`** to deploy standard remote sensing patterns, jump
 
 ## 🗺 Real-Time Synchronized Leaflet Map Viewer
 
-Quadrant 3 hosts an integrated Leaflet map canvas:
+Quadrant 3 hosts an integrated Leaflet map canvas engineered specifically for remote sensing analysis and interactive GIS workflows:
 * **Bidirectional Socket Bridge:** An internal socket bridge (`PythonBridgeServer`) intercepts `Map.addLayer(...)` calls across JavaScript, Python, and R, rendering spatial rasters and vectors live in seconds.
-* **Layer Transparency & Visibility:** Dynamic layer tree featuring individual visibility toggles and continuous opacity sliders.
-* **Coordinate Inspector:** Click anywhere on the map canvas to extract high-precision geographic coordinates `[longitude, latitude]` with one-click cursor insertion into code.
+* **🎛 Advanced Layers Manager:**
+  * **Compact Floating Dock:** A dedicated, non-intrusive **Layers** dock with auto-collapse, pin mode (always visible or hover-only), and numeric toggle shortcuts (`1..9` and `0` to toggle all).
+  * **Individual Layer Controls:** Instant per-layer visibility toggles and continuous precision opacity sliders (`0% – 100%`).
+  * **Hierarchical Grouping:** Supports subfolder organization (e.g., `Classifications/NDVI`) with group-level visibility toggles.
+* **📸 HD Retina Map Snapshots (`Option + S` / `Alt + S`):**
+  * One-click or hotkey capture of the current map viewport in crystal-clear **2x Retina resolution**.
+  * Automatic export to a dedicated `Screenshots/` directory within your workspace (`gee_snapshot_YYYYMMDD_HHMMSS.png`).
+  * Instant access via interactive HUD notifications: **Open Image**, **Open Folder**, **Save As...**, and **Copy to Clipboard**.
+* **✏️ Interactive Vector Geometry & GIS Drawing Tools:**
+  * **Drawing Toolbar:** Draw custom Points/Markers, Polygons, Rectangles, Polyline transects, and Circles directly over satellite basemaps.
+  * **GIS Micro-Dot Vertices:** High-precision, jitter-free 9px circular vertex handles with glow feedback for fine-grained boundary editing.
+  * **Floating Micro-Dock Toolbar:** Clicking any drawn geometry displays an elevated micro-toolbar `[ ✏️ Edit ] [ 🎨 Style ] [ 🗑️ Delete ]` directly above the shape without obscuring vertices.
+  * **10-Color Curated GIS Palette & Custom HTML/HEX Input:** Select from 10 industry-standard GIS colors (Emerald Green, Ruby Red, Sapphire Blue, Amber Orange, etc.) or enter custom `#HEX` / HTML codes with real-time preview and one-click application.
+  * **Accidental Loss Prevention:** Two-step inline confirmation (`¿Eliminar? [ ✓ ] [ ✕ ]`) prevents accidental deletion of complex digitized boundaries.
+* **📍 High-Precision Coordinate Inspector:** Click anywhere on the map canvas to extract high-precision geographic coordinates `[longitude, latitude]` with one-click cursor insertion into code.
 
 ---
 
@@ -345,6 +358,9 @@ Manage cloud storage assets directly from your editor workspace:
 | `Cmd + Enter` | `Ctrl + Enter` | **Execute Line or Smart Block** | `.gee` Editor |
 | `Cmd + Shift + Enter` | `Ctrl + Shift + Enter` | **Execute Entire Script** | `.gee` Editor |
 | `Cmd + L` | `Ctrl + L` | **Clear Console Screen** | Global / Console |
+| `Option + S` | `Alt + S` | **Capture HD Map Snapshot (2x Retina)** | Map Viewer / Global |
+| `1` – `9` | `1` – `9` | **Toggle Layer 1 to 9 Visibility** | Map Viewer (Layers Dock) |
+| `0` | `0` | **Toggle All Layers Visibility** | Map Viewer (Layers Dock) |
 | `Tab` | `Tab` | **Advance to next Snippet Placeholder** | Snippet Mode |
 | `Shift + Tab` | `Shift + Tab` | **Return to previous Snippet Placeholder**| Snippet Mode |
 | `↑` / `↓` | `↑` / `↓` | **Cycle Command History** | `gee>` Console |
