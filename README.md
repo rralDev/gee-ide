@@ -343,11 +343,16 @@ Earth Engine authentication across heterogeneous language runtimes is traditiona
 Manage cloud storage assets directly from your editor workspace:
 * **Visual Sidebar Tree:** Browse user roots (`users/...`) and Google Cloud storage assets (`projects/...`).
 * **Interactive CLI Filesystem:**
-  * `ls` / `dir`: List collections, rasters, and tables.
+  * `find`: Recursive asset discovery with glob matching and type filtering:
+    * `find -name "*ndvi*"`: Search all assets matching a pattern across all roots.
+    * `find users/mi_usuario -name "*2023*" -type image`: Search images specifically.
+    * `find -type folder -maxdepth 2`: Search subfolders up to a specific recursion depth.
+  * `ls` / `dir`: List collections, rasters, and tables (supports glob patterns like `ls *landsat*`).
   * `cd`: Change active asset directory.
   * `pwd`: Print working directory.
-  * `mkdir`: Create new Earth Engine asset folders.
-  * `rm`: Delete assets (supports `-r` recursive removal).
+  * `mkdir`: Create new Earth Engine asset folders (`mkdir [-p] nombre`).
+  * `rm`: Delete assets (supports `-r` recursive removal for folders and collections).
+  * `cp` / `mv`: Copy or rename/move assets across folders or projects.
 
 ---
 

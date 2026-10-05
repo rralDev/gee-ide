@@ -566,6 +566,57 @@ export class GEERuntime {
         return deletedCount;
     }
 
+    private async findAssetsRecursively(
+        folderPath: string,
+        pattern: RegExp | null,
+        typeFilter: string | null,
+        maxDepth: number,
+        currentDepth: number = 0,
+        results: any[] = []
+    ): Promise<any[]> {
+        if (currentDepth > maxDepth) {
+            return results;
+        }
+
+        let children: any[] = [];
+        try {
+            children = await this.listAllAssets(folderPath);
+        } catch (e) {
+            return results;
+        }
+
+        for (const child of children) {
+            const childId = child.id || child.name || '';
+            const shortName = childId.split('/').pop() || '';
+            const childType = (child.type || 'ASSET').toUpperCase();
+
+            let matchesName = true;
+            if (pattern) {
+                matchesName = pattern.test(shortName) || pattern.test(childId);
+            }
+
+            let matchesType = true;
+            if (typeFilter) {
+                matchesType = childType === typeFilter;
+            }
+
+            if (matchesName && matchesType) {
+                results.push({
+                    id: childId,
+                    shortName: shortName,
+                    type: childType
+                });
+            }
+
+            // Recurse into subfolders and image collections if depth allows
+            if ((childType === 'FOLDER' || childType === 'IMAGE_COLLECTION') && currentDepth < maxDepth) {
+                await this.findAssetsRecursively(childId, pattern, typeFilter, maxDepth, currentDepth + 1, results);
+            }
+        }
+
+        return results;
+    }
+
     public showHelp(query: string) {
         // Normalize: strip leading ee., replace $ with . (for R users), strip trailing () or parameters
         const normalized = query.trim().replace(/^ee[\.\$]/, '').replace(/\$/g, '.').replace(/\(.*?\)$/, '').trim();
@@ -596,6 +647,7 @@ export class GEERuntime {
             'history': { desc: 'Muestra la lista de comandos ejecutados en la sesión guardados en .gee_history.', usage: 'history  o  history(10:40)  o  !numero' },
             'clear': { desc: 'Limpia la pantalla de la consola. Atajo rápido: Cmd+L (Mac) o Ctrl+L (Win/Linux).', usage: 'clear  o  cls' },
             'cls': { desc: 'Limpia la pantalla de la consola. Atajo rápido: Cmd+L (Mac) o Ctrl+L (Win/Linux).', usage: 'clear  o  cls' },
+            'find': { desc: 'Busca recursivamente assets en Earth Engine por nombre, patrón o tipo.', usage: 'find [ruta] [-name patron] [-type tipo] [-maxdepth n]' },
             'ls': { desc: 'Lista los archivos de la carpeta actual o carpetas de Assets de GEE.', usage: 'ls [carpeta]' },
             'dir': { desc: 'Lista los archivos de la carpeta actual o carpetas de Assets de GEE.', usage: 'dir [carpeta]' },
             'cd': { desc: 'Cambia el directorio activo de Assets en GEE.', usage: 'cd [ruta]' },
@@ -731,7 +783,7 @@ export class GEERuntime {
 
             this.consoleView.append(`gee:${promptDisplay}> ${text}`);
 
-            if (!this.isInitialized && ['ls', 'dir', 'cd', 'mkdir', 'rm', 'rmdir', 'cp', 'mv'].includes(cmd)) {
+            if (!this.isInitialized && ['find', 'ls', 'dir', 'cd', 'mkdir', 'rm', 'rmdir', 'cp', 'mv'].includes(cmd)) {
                 this.consoleView.append('⚠️ GEE no está inicializado. Por favor autentícate primero: Cmd+Shift+P -> "GEE IDE: Login with Google"');
                 return;
             }
@@ -822,6 +874,115 @@ export class GEERuntime {
                         }
                         this.consoleView.append(`  🔹 ${k} : ${typeName} ${detail}`);
                     });
+                }
+                break;
+            case 'find':
+                try {
+                    let searchPath: string = (!this.cwd || this.cwd === '~') ? '~' : this.cwd;
+                    let namePatternStr: string | null = null;
+                    let typeFilterStr: string | null = null;
+                    let maxDepthNum: number = 5;
+
+                    for (let i = 0; i < args.length; i++) {
+                        const a = args[i];
+                        if (a === '-name' || a === '--name' || a === '-n') {
+                            if (i + 1 < args.length) {
+                                namePatternStr = args[++i];
+                            }
+                        } else if (a === '-type' || a === '--type' || a === '-t') {
+                            if (i + 1 < args.length) {
+                                typeFilterStr = args[++i].toUpperCase();
+                            }
+                        } else if (a === '-maxdepth' || a === '--maxdepth' || a === '-d') {
+                            if (i + 1 < args.length) {
+                                const parsedD = parseInt(args[++i], 10);
+                                if (!isNaN(parsedD)) maxDepthNum = parsedD;
+                            }
+                        } else if (!a.startsWith('-')) {
+                            // If user specified an explicit path or a direct pattern (e.g. `find *ndvi*` or `find users/foo *ndvi*`)
+                            if (a.includes('*') || a.includes('?')) {
+                                if (!namePatternStr) {
+                                    namePatternStr = a;
+                                }
+                            } else {
+                                searchPath = a;
+                            }
+                        }
+                    }
+
+                    // Normalize type filter aliases (folder, image, collection, table)
+                    if (typeFilterStr) {
+                        if (typeFilterStr === 'COLLECTION' || typeFilterStr === 'IMAGECOLLECTION') {
+                            typeFilterStr = 'IMAGE_COLLECTION';
+                        } else if (typeFilterStr === 'DIR' || typeFilterStr === 'DIRECTORY') {
+                            typeFilterStr = 'FOLDER';
+                        } else if (typeFilterStr === 'VECTOR' || typeFilterStr === 'FC') {
+                            typeFilterStr = 'TABLE';
+                        }
+                    }
+
+                    let compiledRegex: RegExp | null = null;
+                    if (namePatternStr) {
+                        const cleanPattern = namePatternStr.replace(/^['"]|['"]$/g, '');
+                        if (cleanPattern.includes('*') || cleanPattern.includes('?')) {
+                            const rx = '^' + cleanPattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.') + '$';
+                            compiledRegex = new RegExp(rx, 'i');
+                        } else {
+                            compiledRegex = new RegExp(cleanPattern.replace(/[.+^${}()|[\]\\]/g, '\\$&'), 'i');
+                        }
+                    }
+
+                    const resolvedStart = this.resolvePath(searchPath);
+                    const filterDesc = [
+                        namePatternStr ? `name='${namePatternStr}'` : '',
+                        typeFilterStr ? `type='${typeFilterStr}'` : '',
+                        `maxdepth=${maxDepthNum}`
+                    ].filter(Boolean).join(', ');
+
+                    this.consoleView.append(`🔍 Buscando assets en '${resolvedStart === '~' ? '~ (Todas las raíces)' : resolvedStart}' [${filterDesc}]...`);
+
+                    let startRoots: string[] = [];
+                    if (resolvedStart === '~') {
+                        if (this.assetRoots.length === 0) {
+                            await this.loadAssetRoots();
+                        }
+                        startRoots = this.assetRoots.map(r => r.id);
+                    } else {
+                        startRoots = [resolvedStart];
+                    }
+
+                    if (startRoots.length === 0) {
+                        this.consoleView.append('  (no asset roots found to search)');
+                        break;
+                    }
+
+                    let foundAssets: any[] = [];
+                    for (const root of startRoots) {
+                        // Check if the root folder itself matches
+                        const rootShort = root.split('/').pop() || '';
+                        let rootMatchesName = compiledRegex ? (compiledRegex.test(rootShort) || compiledRegex.test(root)) : true;
+                        let rootMatchesType = typeFilterStr ? (typeFilterStr === 'FOLDER') : true;
+                        if (rootMatchesName && rootMatchesType && resolvedStart === '~') {
+                            foundAssets.push({ id: root, shortName: rootShort, type: 'FOLDER' });
+                        }
+
+                        const subResults = await this.findAssetsRecursively(root, compiledRegex, typeFilterStr, maxDepthNum, 1);
+                        foundAssets = foundAssets.concat(subResults);
+                    }
+
+                    if (foundAssets.length === 0) {
+                        this.consoleView.append('  (no assets found matching criteria)');
+                    } else {
+                        this.consoleView.append(`✨ Encontrados ${foundAssets.length} asset(s):`);
+                        const completions = foundAssets.map(a => a.shortName);
+                        this.consoleView.addCompletions(completions);
+                        foundAssets.forEach(a => {
+                            const icon = (a.type === 'FOLDER' || a.type === 'IMAGE_COLLECTION') ? '📁' : (a.type === 'IMAGE' ? '🛰️' : '📊');
+                            this.consoleView.append(`  ${icon} ${a.id} [${a.type}]`);
+                        });
+                    }
+                } catch (findErr: any) {
+                    this.consoleView.append(`[Error in find]: ${findErr.message || findErr}`);
                 }
                 break;
             case 'dir':
@@ -1030,7 +1191,7 @@ export class GEERuntime {
                 if (text.includes('Map.') || text.includes('ee.')) {
                     this.consoleView.append(`[HINT] To run GEE script code, write it in the Editor and press Cmd+Enter.`);
                 } else {
-                    this.consoleView.append(`Unknown command: ${cmd}. Available: ls, dir, vars, objects, cd, pwd, mkdir, rm, cp, mv, clear`);
+                    this.consoleView.append(`Unknown command: ${cmd}. Available: find, ls, dir, vars, objects, cd, pwd, mkdir, rm, cp, mv, clear`);
                 }
         }
         } catch (err: any) {
