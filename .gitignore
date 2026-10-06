@@ -8,6 +8,7 @@ out/
 !tsconfig.json
 !media/*.json
 !snippets/*.json
+!data/*.json
 .DS_Store
 src/config.ts
 .tmp/

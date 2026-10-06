@@ -356,6 +356,35 @@ Manage cloud storage assets directly from your editor workspace:
 
 ---
 
+## 🌐 Earth Engine Public Data Catalog Search (+1,100 Datasets)
+
+Query and discover over 1,100 official public Google Earth Engine datasets (Sentinel, Landsat, MODIS, ERA5, SRTM, Dynamic World, WorldCover, etc.) without switching to a web browser:
+
+### 1. Interactive Command Palette Search (`Cmd+Shift+P`)
+* Press `Cmd+Shift+P` ➔ **`GEE IDE: Search Data Catalog`**.
+* Search in real-time by mission, sensor, variable, band, or tag (e.g. `sentinel 2`, `landsat 8`, `elevation`, `srtm`, `modis ndvi`, `landcover`).
+* Inspect temporal coverage, data type, and band summaries.
+* **One-Click Actions:**
+  * **Insert in Editor:** Automatically inserts language-aware declarations (`var s2 = ee.ImageCollection('...')` in JS, Python, or R) at your active cursor.
+  * **Copy Snippet:** Copies the dataset declaration to your system clipboard.
+  * **Open in Earth Engine Catalog:** Opens the official Google documentation page in your browser.
+
+### 2. Interactive CLI Search via `gee>` Console
+* **Direct commands:**
+  ```text
+  gee> catalog sentinel 2
+  gee> search modis ndvi
+  gee> catalog srtm -type image
+  ```
+* **Unified via `find` flag:**
+  ```text
+  gee> find -catalog "land cover"
+  gee> find -c elevation
+  ```
+* Prints dataset IDs, descriptions, temporal ranges, band lists, and runnable code snippets directly to the console canvas.
+
+---
+
 ## ⌨️ Keyboard Shortcuts Cheat Sheet
 
 | macOS Shortcut | Windows/Linux Shortcut | Action | Context |

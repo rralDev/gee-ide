@@ -9,6 +9,7 @@ import { LoopbackAuthServer } from './loopbackAuthServer';
 import { AssetExplorerProvider } from './views/assetExplorer';
 import { AIView } from './views/aiView';
 import { SnippetsManager } from './snippetsManager';
+import { CatalogManager } from './catalogManager';
 import { exchangeCodeForToken, refreshAccessToken, getUserInfo, getAvailableCloudProjects, autoDetectCloudProject } from './auth';
 
 import * as fs from 'fs';
@@ -126,6 +127,7 @@ export function activate(context: vscode.ExtensionContext) {
     let activeLoopback: LoopbackAuthServer | undefined;
     const snippetsManager = new SnippetsManager(context);
     context.subscriptions.push(snippetsManager.registerSnippetsProvider());
+    const catalogManager = new CatalogManager(context);
 
     logStep('Step 4: Views and variables initialized');
 
@@ -431,6 +433,7 @@ export function activate(context: vscode.ExtensionContext) {
                     const { GEERuntime } = require('./geeRuntime');
                     const rt = new GEERuntime(consoleView, mapView);
                     rt.setSnippetsManager(snippetsManager);
+                    rt.setCatalogManager(catalogManager);
                     await rt.initialize(creds);
                     runtime = rt;
 
@@ -485,6 +488,7 @@ export function activate(context: vscode.ExtensionContext) {
                         const { GEERuntime } = require('./geeRuntime');
                         runtime = new GEERuntime(consoleView, mapView);
                         runtime.setSnippetsManager(snippetsManager);
+                        runtime.setCatalogManager(catalogManager);
                     }
                     consoleView.append('Authentication required: Cmd+Shift+P -> GEE IDE: Login with Google');
                     return false;
@@ -654,6 +658,7 @@ export function activate(context: vscode.ExtensionContext) {
                             const { GEERuntime } = require('./geeRuntime');
                             runtime = new GEERuntime(consoleView, mapView);
                             runtime.setSnippetsManager(snippetsManager);
+                            runtime.setCatalogManager(catalogManager);
                         }
 
                         await runtime.initialize(readyCreds);
@@ -710,6 +715,7 @@ export function activate(context: vscode.ExtensionContext) {
                 const { GEERuntime } = require('./geeRuntime');
                 runtime = new GEERuntime(consoleView, mapView);
                 runtime.setSnippetsManager(snippetsManager);
+                runtime.setCatalogManager(catalogManager);
             }
 
             await runtime.initialize(tokenData);
@@ -1183,10 +1189,15 @@ export function activate(context: vscode.ExtensionContext) {
         await snippetsManager.showSnippetsQuickPick();
     });
 
+    let searchCatalogCommand = vscode.commands.registerCommand('gee-pro.searchCatalog', async () => {
+        await catalogManager.showCatalogQuickPick();
+    });
+
     context.subscriptions.push(
         startCommand, authCommand, loginCommand, logoutCommand, runCommand, runSelectionCommand, resetCommand, setProjectCommand,
         focusEditorCommand, focusConsoleCommand, focusMapCommand, focusAICommand,
-        clearConsoleCommand, saveLayoutCommand, resetLayoutCommand, editSnippetsCommand, listSnippetsCommand
+        clearConsoleCommand, saveLayoutCommand, resetLayoutCommand, editSnippetsCommand, listSnippetsCommand,
+        searchCatalogCommand
     );
     logStep('>>> ACTIVATE() COMPLETED SUCCESSFULLY — All commands ready');
 }

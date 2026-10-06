@@ -21,9 +21,14 @@ export class GEERuntime {
     private cwd: string = ''; // Current working directory in GEE
     private projectId: string = '';
     private snippetsManager: any;
+    private catalogManager: any;
 
     public setSnippetsManager(sm: any) {
         this.snippetsManager = sm;
+    }
+
+    public setCatalogManager(cm: any) {
+        this.catalogManager = cm;
     }
 
     constructor(
@@ -647,7 +652,9 @@ export class GEERuntime {
             'history': { desc: 'Muestra la lista de comandos ejecutados en la sesión guardados en .gee_history.', usage: 'history  o  history(10:40)  o  !numero' },
             'clear': { desc: 'Limpia la pantalla de la consola. Atajo rápido: Cmd+L (Mac) o Ctrl+L (Win/Linux).', usage: 'clear  o  cls' },
             'cls': { desc: 'Limpia la pantalla de la consola. Atajo rápido: Cmd+L (Mac) o Ctrl+L (Win/Linux).', usage: 'clear  o  cls' },
-            'find': { desc: 'Busca recursivamente assets en Earth Engine por nombre, patrón o tipo.', usage: 'find [ruta] [-name patron] [-type tipo] [-maxdepth n]' },
+            'find': { desc: 'Busca assets en Earth Engine o en el catálogo público global con -catalog (-c).', usage: 'find [ruta] [-name patron] [-type tipo]  o  find -c <dataset>' },
+            'catalog': { desc: 'Busca en el catálogo público oficial de Earth Engine (+1,100 datasets).', usage: 'catalog <query> [-type image|collection|table]' },
+            'search': { desc: 'Alias para buscar en el catálogo público de datos de Earth Engine.', usage: 'search <query>' },
             'ls': { desc: 'Lista los archivos de la carpeta actual o carpetas de Assets de GEE.', usage: 'ls [carpeta]' },
             'dir': { desc: 'Lista los archivos de la carpeta actual o carpetas de Assets de GEE.', usage: 'dir [carpeta]' },
             'cd': { desc: 'Cambia el directorio activo de Assets en GEE.', usage: 'cd [ruta]' },
@@ -876,8 +883,81 @@ export class GEERuntime {
                     });
                 }
                 break;
+            case 'search':
+            case 'catalog':
             case 'find':
                 try {
+                    // Check if this is a catalog search (via `catalog <query>`, `search <query>`, or `find -catalog / -c <query>`)
+                    const isCatalogDirect = (cmd === 'catalog' || cmd === 'search');
+                    const hasCatalogFlag = args.some(a => a === '-c' || a === '-catalog' || a === '--catalog');
+
+                    if (isCatalogDirect || hasCatalogFlag) {
+                        if (!this.catalogManager) {
+                            this.consoleView.append('⚠️ Gestor de catálogo público no inicializado.');
+                            break;
+                        }
+
+                        let queryTerms: string[] = [];
+                        let catTypeFilter: string | undefined = undefined;
+
+                        for (let i = 0; i < args.length; i++) {
+                            const a = args[i];
+                            if (a === '-c' || a === '-catalog' || a === '--catalog') {
+                                continue;
+                            } else if (a === '-type' || a === '--type' || a === '-t') {
+                                if (i + 1 < args.length) {
+                                    catTypeFilter = args[++i];
+                                }
+                            } else if (!a.startsWith('-')) {
+                                queryTerms.push(a);
+                            }
+                        }
+
+                        const query = queryTerms.join(' ').trim();
+                        if (!query) {
+                            this.consoleView.append('📖 Uso del buscador del catálogo público de GEE:');
+                            this.consoleView.append('  catalog <termino> [-type image|collection|table]');
+                            this.consoleView.append('  find -catalog <termino>');
+                            this.consoleView.append('  Ejemplos:');
+                            this.consoleView.append('    catalog sentinel 2');
+                            this.consoleView.append('    catalog srtm');
+                            this.consoleView.append('    catalog "land cover" -type image');
+                            this.consoleView.append('    search modis ndvi');
+                            this.consoleView.append('💡 Tip: También puedes presionar Cmd+Shift+P -> "GEE IDE: Search Data Catalog" para una búsqueda visual interactiva.');
+                            break;
+                        }
+
+                        this.consoleView.append(`🌐 Buscando en el catálogo público oficial de GEE (+1,100 datasets): '${query}'...`);
+                        const results = this.catalogManager.search(query, catTypeFilter, 15);
+
+                        if (results.length === 0) {
+                            this.consoleView.append(`  (No se encontraron datasets para '${query}')`);
+                            this.consoleView.append(`  Tip: Intenta con términos más genéricos como 'sentinel', 'landsat', 'modis', 'elevation', 'climate'.`);
+                        } else {
+                            this.consoleView.append(`✨ Encontrados ${results.length} dataset(s) coincidentes:`);
+                            const completions = results.map((r: any) => r.id);
+                            this.consoleView.addCompletions(completions);
+
+                            results.forEach((ds: any, idx: number) => {
+                                const isColl = ds.type === 'image_collection' || ds.type === 'collection';
+                                const isTab = ds.type === 'table';
+                                const icon = isColl ? '🛰️' : (isTab ? '📊' : '🗺️');
+                                const dateStr = ds.start ? ` [${ds.start} a ${ds.end || 'present'}]` : '';
+                                const bandsStr = ds.bands && ds.bands.length > 0 ? `\n     Bandas (${ds.bands.length}): ${ds.bands.slice(0, 8).join(', ')}${ds.bands.length > 8 ? '...' : ''}` : '';
+
+                                this.consoleView.append(`  ${icon} ${ds.id} (${ds.type})${dateStr}`);
+                                this.consoleView.append(`     ${ds.title}${bandsStr}`);
+                                this.consoleView.append(`     Snippet: ${this.catalogManager.generateSnippet(ds, 'javascript')}`);
+                                if (idx < results.length - 1) {
+                                    this.consoleView.append(`     ---`);
+                                }
+                            });
+                            this.consoleView.append('💡 Tip: Copia el Snippet directamente en tu script o presiona Cmd+Shift+P -> "GEE IDE: Search Data Catalog"');
+                        }
+                        break;
+                    }
+
+                    // Otherwise, regular Asset find
                     let searchPath: string = (!this.cwd || this.cwd === '~') ? '~' : this.cwd;
                     let namePatternStr: string | null = null;
                     let typeFilterStr: string | null = null;

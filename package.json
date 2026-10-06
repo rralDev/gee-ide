@@ -2,7 +2,7 @@
   "name": "gee-pro-ide",
   "displayName": "GEE IDE",
   "description": "Ultimate Google Earth Engine IDE for VS Code with integrated Map, Console, and AI Assistant.",
-  "version": "0.1.19",
+  "version": "0.1.20",
   "publisher": "LuisRobles",
   "icon": "media/logo.png",
   "engines": {
@@ -40,6 +40,7 @@
     "onCommand:gee-pro.runSelection",
     "onCommand:gee-pro.getLink",
     "onCommand:gee-pro.setProject",
+    "onCommand:gee-pro.searchCatalog",
     "onWebviewPanel:geeMap",
     "onWebviewPanel:geeConsole",
     "onWebviewPanel:geeAI"
@@ -176,6 +177,11 @@
       {
         "command": "gee-pro.listSnippets",
         "title": "List & Insert Snippet",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.searchCatalog",
+        "title": "Search Data Catalog",
         "category": "GEE IDE"
       }
     ],
