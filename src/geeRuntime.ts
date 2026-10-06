@@ -941,12 +941,21 @@ export class GEERuntime {
                             results.forEach((ds: any, idx: number) => {
                                 const isColl = ds.type === 'image_collection' || ds.type === 'collection';
                                 const isTab = ds.type === 'table';
-                                const icon = isColl ? '🛰️' : (isTab ? '📊' : '🗺️');
+                                const deprecated = this.catalogManager.isDeprecated(ds);
+                                const replacement = this.catalogManager.getReplacementSuggestion(ds.id);
+
+                                let icon = isColl ? '🛰️' : (isTab ? '📊' : '🗺️');
+                                if (deprecated) icon = '⚠️';
+
                                 const dateStr = ds.start ? ` [${ds.start} a ${ds.end || 'present'}]` : '';
                                 const bandsStr = ds.bands && ds.bands.length > 0 ? `\n     Bandas (${ds.bands.length}): ${ds.bands.slice(0, 8).join(', ')}${ds.bands.length > 8 ? '...' : ''}` : '';
+                                const depTag = deprecated ? ' ⚠️ [OBSOLETO]' : '';
 
-                                this.consoleView.append(`  ${icon} ${ds.id} (${ds.type})${dateStr}`);
+                                this.consoleView.append(`  ${icon} ${ds.id}${depTag} (${ds.type})${dateStr}`);
                                 this.consoleView.append(`     ${ds.title}${bandsStr}`);
+                                if (deprecated && replacement) {
+                                    this.consoleView.append(`     🔄 Reemplazo recomendado: ${replacement}`);
+                                }
                                 this.consoleView.append(`     Snippet: ${this.catalogManager.generateSnippet(ds, 'javascript')}`);
                                 if (idx < results.length - 1) {
                                     this.consoleView.append(`     ---`);

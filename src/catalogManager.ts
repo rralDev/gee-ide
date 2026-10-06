@@ -16,6 +16,19 @@ export class CatalogManager {
     private catalog: CatalogDataset[] = [];
     private isLoaded: boolean = false;
 
+    // Common recommendations for widely used deprecated collections
+    private static KNOWN_REPLACEMENTS: Record<string, string> = {
+        'COPERNICUS/S2': 'COPERNICUS/S2_HARMONIZED (o COPERNICUS/S2_SR_HARMONIZED para Level-2A)',
+        'LANDSAT/LC08/C01/T1_SR': 'LANDSAT/LC08/C02/T1_L2 (Collection 2 Tier 1)',
+        'LANDSAT/LC08/C01/T1_TOA': 'LANDSAT/LC08/C02/T1_TOA (Collection 2 Tier 1)',
+        'LANDSAT/LE07/C01/T1_SR': 'LANDSAT/LE07/C02/T1_L2 (Collection 2 Tier 1)',
+        'LANDSAT/LT05/C01/T1_SR': 'LANDSAT/LT05/C02/T1_L2 (Collection 2 Tier 1)',
+        'MODIS/006/MOD13Q1': 'MODIS/061/MOD13Q1 (MODIS v061)',
+        'MODIS/006/MOD09GA': 'MODIS/061/MOD09GA (MODIS v061)',
+        'MODIS/006/MCD12Q1': 'MODIS/061/MCD12Q1 (MODIS v061)',
+        'USGS/SRTMGL1_003': 'CGIAR/SRTM90_V4 (o NASA/NASADEM_HGT/001)'
+    };
+
     constructor(private context: vscode.ExtensionContext) {
         this.loadCatalog();
     }
@@ -23,7 +36,6 @@ export class CatalogManager {
     private loadCatalog() {
         if (this.isLoaded) return;
         try {
-            // Check in extension context directory (data/ee_catalog.json)
             const dataPath = path.join(this.context.extensionPath, 'data', 'ee_catalog.json');
             if (fs.existsSync(dataPath)) {
                 const raw = fs.readFileSync(dataPath, 'utf8');
@@ -41,6 +53,25 @@ export class CatalogManager {
 
     public getAllDatasets(): CatalogDataset[] {
         return this.catalog;
+    }
+
+    public isDeprecated(dataset: CatalogDataset): boolean {
+        const titleLower = (dataset.title || '').toLowerCase();
+        const idLower = (dataset.id || '').toLowerCase();
+        const hasTag = (dataset.tags || []).some(t => t.toLowerCase() === 'deprecated');
+        return titleLower.includes('deprecated') || idLower.includes('deprecated') || hasTag;
+    }
+
+    public getReplacementSuggestion(id: string): string | null {
+        if (CatalogManager.KNOWN_REPLACEMENTS[id]) {
+            return CatalogManager.KNOWN_REPLACEMENTS[id];
+        }
+        for (const [key, repl] of Object.entries(CatalogManager.KNOWN_REPLACEMENTS)) {
+            if (id.startsWith(key)) {
+                return repl;
+            }
+        }
+        return null;
     }
 
     public search(query: string, typeFilter?: string, limit: number = 25): CatalogDataset[] {
@@ -61,15 +92,20 @@ export class CatalogManager {
         }
 
         if (terms.length === 0) {
-            return filtered.slice(0, limit);
+            // Put non-deprecated first even on empty query
+            return filtered
+                .slice()
+                .sort((a, b) => (this.isDeprecated(a) ? 1 : 0) - (this.isDeprecated(b) ? 1 : 0))
+                .slice(0, limit);
         }
 
-        // Score results based on match quality
+        // Score results based on match quality + deprecation penalty
         const scored = filtered.map(item => {
             const idLower = item.id.toLowerCase();
             const titleLower = (item.title || '').toLowerCase();
             const tagsLower = (item.tags || []).map(t => t.toLowerCase());
             const bandsLower = (item.bands || []).map(b => b.toLowerCase());
+            const deprecated = this.isDeprecated(item);
 
             let score = 0;
             let allTermsMatched = true;
@@ -107,11 +143,21 @@ export class CatalogManager {
                 }
             }
 
+            // Big penalty for deprecated datasets so active ones always rank first
+            if (deprecated) {
+                score -= 80;
+            }
+
+            // Small boost for modern harmonized or Level-2A/Collection-2 products
+            if (idLower.includes('harmonized') || idLower.includes('c02') || idLower.includes('sr_harmonized')) {
+                score += 30;
+            }
+
             return { item, score, allTermsMatched };
         });
 
         return scored
-            .filter(s => s.allTermsMatched && s.score > 0)
+            .filter(s => s.allTermsMatched && s.score > -200)
             .sort((a, b) => b.score - a.score)
             .map(s => s.item)
             .slice(0, limit);
@@ -162,14 +208,23 @@ export class CatalogManager {
             qp.items = datasets.map(d => {
                 const isColl = d.type === 'image_collection' || d.type === 'collection';
                 const isTab = d.type === 'table';
-                const icon = isColl ? '$(layers)' : (isTab ? '$(table)' : '$(file-media)');
+                const deprecated = this.isDeprecated(d);
+                const replacement = this.getReplacementSuggestion(d.id);
+
+                let icon = isColl ? '$(layers)' : (isTab ? '$(table)' : '$(file-media)');
+                if (deprecated) {
+                    icon = '$(warning)';
+                }
+
                 const dateStr = d.start ? ` [${d.start} - ${d.end || 'present'}]` : '';
                 const bandsStr = d.bands && d.bands.length > 0 ? ` • Bandas: ${d.bands.slice(0, 6).join(', ')}${d.bands.length > 6 ? '...' : ''}` : '';
+                const statusTag = deprecated ? ' ⚠️ [OBSOLETO / DEPRECATED]' : '';
+                const replText = (deprecated && replacement) ? ` ➔ Usar: ${replacement}` : '';
 
                 return {
-                    label: `${icon} ${d.id}`,
+                    label: `${icon} ${d.id}${statusTag}`,
                     description: d.title,
-                    detail: `Tipo: ${d.type}${dateStr}${bandsStr}`,
+                    detail: `Tipo: ${d.type}${dateStr}${bandsStr}${replText}`,
                     dataset: d
                 } as vscode.QuickPickItem & { dataset: CatalogDataset };
             });
@@ -198,10 +253,19 @@ export class CatalogManager {
                 const editor = vscode.window.activeTextEditor;
                 const lang = editor ? editor.document.languageId : 'javascript';
                 const snippet = this.generateSnippet(ds, lang);
+                const deprecated = this.isDeprecated(ds);
+                const replacement = this.getReplacementSuggestion(ds.id);
+
+                let header = `🛰️ ${ds.id}`;
+                let messageBody = `${ds.title}\n\nSnippet: ${snippet}`;
+                if (deprecated) {
+                    header = `⚠️ [OBSOLETO] ${ds.id}`;
+                    messageBody = `⚠️ ADVERTENCIA: Este dataset está marcado como OBSOLETO (deprecated) por Earth Engine.\n${replacement ? `Se recomienda usar: ${replacement}\n\n` : '\n'}Snippet: ${snippet}`;
+                }
 
                 const action = await vscode.window.showInformationMessage(
-                    `🛰️ ${ds.id}`,
-                    { detail: `${ds.title}\n\nSnippet: ${snippet}` },
+                    header,
+                    { detail: messageBody },
                     'Insertar en Editor',
                     'Copiar Snippet',
                     'Abrir en Earth Engine Catalog'
@@ -212,6 +276,9 @@ export class CatalogManager {
                         editor.edit(editBuilder => {
                             editBuilder.insert(editor.selection.active, snippet);
                         });
+                        if (deprecated) {
+                            vscode.window.showWarningMessage(`⚠️ Has insertado '${ds.id}', que está obsoleto.${replacement ? ` Considera actualizar a: ${replacement}` : ''}`);
+                        }
                     } else {
                         await vscode.env.clipboard.writeText(snippet);
                         vscode.window.showInformationMessage(`📋 Snippet copiado: ${snippet}`);
