@@ -1405,7 +1405,16 @@ export class MapView {
 
                     // Pixel Inspector: Send coordinates only on Alt/Cmd/Ctrl + Click
                     map.on('click', (e) => {
-                        if (e.originalEvent.altKey || e.originalEvent.metaKey || e.originalEvent.ctrlKey) {
+                        const evt = e.originalEvent;
+                        if ((evt.metaKey || evt.ctrlKey) && evt.shiftKey) {
+                            // Cmd + Shift + Click -> Fly to Google Earth
+                            vscode.postMessage({
+                                command: 'flyToGoogleEarth',
+                                lat: e.latlng.lat,
+                                lng: e.latlng.lng
+                            });
+                        } else if (evt.altKey || evt.metaKey || evt.ctrlKey) {
+                            // Standard Modifier + Click -> Inspect Pixel
                             vscode.postMessage({
                                 command: 'mapClicked',
                                 lat: e.latlng.lat,

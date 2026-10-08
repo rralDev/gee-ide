@@ -409,6 +409,7 @@ Click anywhere on the Map Viewer to instantly inspect the pixel values of all cu
 * **Smart Concurrency:** Automatically fetches values concurrently for `ee.Image` and `ee.ImageCollection` layers present on the map.
 * **Ergonomic UI:** Generates an interactive, dark-themed Leaflet popup. Layers are organized into collapsible accordions to keep the UI compact regardless of how many bands are loaded.
 * **Export & Copy:** Quickly copy the raw coordinate `[lon, lat]` or click **"📋 Copiar Todo (JSON)"** to copy the entire pixel dataset to your clipboard.
+* **Fly to Google Earth Pro:** `Cmd + Shift + Click` (macOS) or `Ctrl + Shift + Click` (Windows/Linux) directly on the map to instantly open Google Earth Desktop and automatically fly the 3D camera to that precise coordinate.
 * **Console History:** Every inspected point is automatically logged into the `gee>` Console (Quadrant 2), creating a persistent history of your analysis without cluttering your workspace tabs.
 * **Quick Close:** Press `Esc` at any time to immediately close the inspector popup.
 

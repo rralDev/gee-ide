@@ -293,6 +293,35 @@ export function activate(context: vscode.ExtensionContext) {
         } else if (message.command === 'copyToClipboard') {
             await vscode.env.clipboard.writeText(message.text);
             vscode.window.showInformationMessage('📋 Copiado al portapapeles');
+        } else if (message.command === 'flyToGoogleEarth') {
+            const kmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>GEE IDE FlyTo</name>
+    <Placemark>
+      <name>Inspector Point</name>
+      <LookAt>
+        <longitude>${message.lng}</longitude>
+        <latitude>${message.lat}</latitude>
+        <altitude>0</altitude>
+        <heading>0</heading>
+        <tilt>0</tilt>
+        <range>5000</range>
+        <altitudeMode>relativeToGround</altitudeMode>
+      </LookAt>
+      <Point>
+        <coordinates>${message.lng},${message.lat},0</coordinates>
+      </Point>
+    </Placemark>
+  </Document>
+</kml>`;
+            const path = require('path');
+            const os = require('os');
+            const fs = require('fs');
+            const tempKmlPath = path.join(os.tmpdir(), 'gee_ide_flyto.kml');
+            fs.writeFileSync(tempKmlPath, kmlContent, 'utf8');
+            vscode.env.openExternal(vscode.Uri.file(tempKmlPath));
+            vscode.window.showInformationMessage(`🌍 GEE IDE: Abriendo en Google Earth Pro Desktop...`);
         } else if (message.command === 'webviewError') {
             logStep(`MAP WEBVIEW ERROR: ${message.message} | ${message.stack}`);
             if (consoleView) consoleView.append(`[Map Error] ${message.message}`);
