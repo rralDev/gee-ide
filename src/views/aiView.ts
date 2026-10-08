@@ -18,7 +18,7 @@ export class AIView {
 
             this.panel = vscode.window.createWebviewPanel(
                 'geeAI',
-                'GEE AI Assistant',
+                'GEE Tools',
                 { viewColumn: column, preserveFocus },
                 {
                     enableScripts: true,

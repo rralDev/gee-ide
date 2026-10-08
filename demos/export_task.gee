@@ -1,0 +1,35 @@
+// js
+// ==============================================================================
+// 🌍 GEE IDE: Demostración de Gestor de Tareas (Export.image.toDrive)
+// ==============================================================================
+// Este script lanza una tarea de exportación de una imagen Sentinel-2 a tu
+// Google Drive. Sirve para probar el nuevo panel de "Tasks" (GEE Tools).
+
+var roi = ee.Geometry.Point([-69.95, -12.95]).buffer(2000);
+Map.centerObject(roi, 14);
+
+var s2 = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+  .filterBounds(roi)
+  .filterDate('2023-01-01', '2023-12-31')
+  .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 10))
+  .median()
+  .clip(roi);
+
+// Visualización en mapa para saber qué estamos exportando
+Map.addLayer(s2, {bands: ['B4', 'B3', 'B2'], min: 0, max: 3000}, 'Sentinel-2 (True Color)');
+
+// Lanzamos la tarea de exportación a Google Drive
+// (A diferencia del Code Editor web, aquí la tarea arranca automáticamente en los servidores)
+Export.image.toDrive({
+  image: s2.select(['B4', 'B3', 'B2']), // Exportamos solo RGB
+  description: 'Demostracion_GEE_IDE_Sentinel2',
+  folder: 'GEE_Exports', // Se creará esta carpeta en tu Drive
+  region: roi,
+  scale: 10,
+  maxPixels: 1e9
+});
+
+print("✅ Tarea de exportación enviada exitosamente a los servidores de Google.");
+print("👉 Revisa la pestaña '⏳ Tasks' en el panel 'GEE Tools' (abajo a la izquierda).");
+print("Deberías ver la tarea 'Demostracion_GEE_IDE_Sentinel2' con estado READY o RUNNING.");
+print("Si deseas detenerla, pasa el mouse por encima de la tarea y presiona 'Cancel'.");

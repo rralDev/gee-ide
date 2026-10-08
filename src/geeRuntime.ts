@@ -151,10 +151,50 @@ export class GEERuntime {
             },
             Export: {
                 image: {
-                    toDrive: (params: any) => { this.consoleView.append(`[Export]: Task created for Drive export - ${params.description || 'unnamed'}`); }
+                    toDrive: (params: any) => { 
+                        try {
+                            const task = getEE().batch.Export.image.toDrive(params);
+                            task.start(() => {
+                                this.consoleView.append(`✅ [Export Task Started]: Image to Drive - ${params.description || 'unnamed'}`);
+                            }, (err: any) => {
+                                this.consoleView.append(`❌ [Export Task Error]: ${err}`);
+                            });
+                        } catch (e: any) {
+                            this.consoleView.append(`❌ [Export Task Error]: ${e.message}`);
+                        }
+                    },
+                    toAsset: (params: any) => {
+                        try {
+                            const task = getEE().batch.Export.image.toAsset(params);
+                            task.start(() => {
+                                this.consoleView.append(`✅ [Export Task Started]: Image to Asset - ${params.description || 'unnamed'}`);
+                            });
+                        } catch (e: any) {
+                            this.consoleView.append(`❌ [Export Task Error]: ${e.message}`);
+                        }
+                    }
                 },
                 table: {
-                    toDrive: (params: any) => { this.consoleView.append(`[Export]: Task created for Drive table export`); }
+                    toDrive: (params: any) => {
+                        try {
+                            const task = getEE().batch.Export.table.toDrive(params);
+                            task.start(() => {
+                                this.consoleView.append(`✅ [Export Task Started]: Table to Drive - ${params.description || 'unnamed'}`);
+                            });
+                        } catch (e: any) {
+                            this.consoleView.append(`❌ [Export Task Error]: ${e.message}`);
+                        }
+                    },
+                    toAsset: (params: any) => {
+                        try {
+                            const task = getEE().batch.Export.table.toAsset(params);
+                            task.start(() => {
+                                this.consoleView.append(`✅ [Export Task Started]: Table to Asset - ${params.description || 'unnamed'}`);
+                            });
+                        } catch (e: any) {
+                            this.consoleView.append(`❌ [Export Task Error]: ${e.message}`);
+                        }
+                    }
                 }
             }
         };
