@@ -178,7 +178,7 @@ export class AIView {
                 <div id="tasks" class="content active">
                     <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
                         <span style="font-size: 14px; font-weight: bold;">Export Tasks</span>
-                        <button onclick="refreshTasks()" style="background: #333; border: 1px solid #555; padding: 4px 8px; font-size: 11px;">🔄 Refresh</button>
+                        <button onclick="refreshTasks()" style="background: var(--vscode-button-secondaryBackground, #333); color: var(--vscode-button-secondaryForeground, #fff); border: 1px solid var(--vscode-contrastBorder, #555); padding: 4px 8px; font-size: 11px; border-radius: 3px; cursor: pointer;">🔄 Refresh</button>
                     </div>
                     <div class="task-list" id="task-list">
                         <div style="color: #888; font-size: 12px; font-style: italic;">Loading tasks...</div>
@@ -188,8 +188,9 @@ export class AIView {
                 <div id="assets" class="content">
                     <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
                         <span style="font-size: 14px; font-weight: bold;">Assets Manager</span>
-                        <div>
-                            <button onclick="refreshAssets()" style="background: #333; border: 1px solid #555; padding: 4px 8px; font-size: 11px;">🔄 Refresh</button>
+                        <div style="display: flex; gap: 6px;">
+                            <button onclick="vscode.postMessage({command: 'createFolder'})" style="background: var(--vscode-button-secondaryBackground, #333); color: var(--vscode-button-secondaryForeground, #fff); border: 1px solid var(--vscode-contrastBorder, #555); padding: 4px 8px; font-size: 11px; border-radius: 3px; cursor: pointer;" title="Nueva Carpeta">📁+</button>
+                            <button onclick="refreshAssets()" style="background: var(--vscode-button-secondaryBackground, #333); color: var(--vscode-button-secondaryForeground, #fff); border: 1px solid var(--vscode-contrastBorder, #555); padding: 4px 8px; font-size: 11px; border-radius: 3px; cursor: pointer;">🔄 Refresh</button>
                         </div>
                     </div>
                     <div class="task-list" id="assets-list">
@@ -239,15 +240,29 @@ export class AIView {
                         setTimeout(refreshTasks, 1000);
                     }
 
+                                        function copyText(text) {
+                        vscode.postMessage({ command: 'copyToClipboard', text: text });
+                    }
+                    function insertText(text) {
+                        vscode.postMessage({ command: 'insertInEditor', text: text });
+                    }
+                    function openUrl(url) {
+                        vscode.postMessage({ command: 'openExternal', url: url });
+                    }
+
+                    function cancelTask(taskId) {
+                        vscode.postMessage({ command: 'cancelTask', taskId: taskId });
+                    }
+
                     function renderTasks(tasksData) {
                         const list = document.getElementById('task-list');
                         list.innerHTML = '';
                         
                         if (tasksData && tasksData.error) {
                             if (tasksData.error === 'not_initialized') {
-                                list.innerHTML = '<div style="color: #cca700; font-size: 12px; padding: 10px; border: 1px solid #cca700; background: rgba(204,167,0,0.1); border-radius: 4px;">⚠️ GEE no está inicializado. Por favor corre un script o inicia el Workspace primero para ver tus tareas.</div>';
+                                list.innerHTML = '<div style="color: var(--vscode-charts-yellow); font-size: 12px; padding: 10px; border: 1px solid var(--vscode-charts-yellow); background: var(--vscode-editorWidget-background); border-radius: 4px;">⚠️ GEE no está inicializado. Por favor corre un script o inicia el Workspace primero para ver tus tareas.</div>';
                             } else {
-                                list.innerHTML = \`<div style="color: #f14c4c; font-size: 12px;">Error: \${tasksData.error}</div>\`;
+                                list.innerHTML = '<div style="color: var(--vscode-charts-red); font-size: 12px; padding: 4px 10px;">Error: ' + tasksData.error + '</div>';
                             }
                             return;
                         }
@@ -258,67 +273,65 @@ export class AIView {
                         }
 
                         if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
-                            list.innerHTML = '<div style="color: #888; font-size: 12px; font-style: italic;">No recent tasks found.</div>';
+                            list.innerHTML = '<div style="color: var(--vscode-descriptionForeground); font-size: 12px; font-style: italic; padding: 2px 20px;">No recent tasks found.</div>';
                             return;
                         }
                         
-                        // Render top 30 tasks
+                        // Render top 30 tasks in compact tree-item style
                         tasks.slice(0, 30).forEach(t => {
                             const div = document.createElement('div');
-                            let stateClass = '';
-                            let stateColor = '#888';
-                            if (t.state === 'RUNNING') { stateClass = 'running'; stateColor = '#007acc'; }
-                            else if (t.state === 'COMPLETED') { stateClass = 'completed'; stateColor = '#4ec9b0'; }
-                            else if (t.state === 'FAILED') { stateClass = 'failed'; stateColor = '#f14c4c'; }
-                            else if (t.state === 'READY') { stateClass = 'ready'; stateColor = '#cca700'; }
+                            div.className = 'tree-item';
+                            div.tabIndex = 0;
                             
-                            div.className = 'task-item ' + stateClass;
+                            let stateColor = 'var(--vscode-descriptionForeground)';
+                            let icon = '⏳';
+                            if (t.state === 'RUNNING') { stateColor = 'var(--vscode-charts-blue)'; icon = '🔄'; }
+                            else if (t.state === 'COMPLETED') { stateColor = 'var(--vscode-charts-green)'; icon = '✅'; }
+                            else if (t.state === 'FAILED') { stateColor = 'var(--vscode-charts-red)'; icon = '❌'; }
+                            else if (t.state === 'READY') { stateColor = 'var(--vscode-charts-yellow)'; icon = '⏳'; }
                             
-                            let desc = t.description || t.id;
+                            const desc = String(t.description || t.id || 'Task');
                             let duration = '';
                             if (t.update_timestamp_ms && t.creation_timestamp_ms) {
                                 let min = Math.round((t.update_timestamp_ms - t.creation_timestamp_ms) / 60000);
                                 if (t.state === 'RUNNING') {
                                     min = Math.round((Date.now() - t.creation_timestamp_ms) / 60000);
                                 }
-                                duration = min > 0 ? \` (\${min}m)\` : ' (<1m)';
+                                duration = min > 0 ? (' (' + min + 'm)') : ' (<1m)';
                             }
 
                             let actionsHTML = '';
                             if (t.state === 'RUNNING' || t.state === 'READY') {
-                                actionsHTML = \`<button class="task-action-btn cancel-btn" onclick="cancelTask('\${t.id}')">Cancel</button>\`;
-                            } else if (t.state === 'COMPLETED') {
-                                const searchUrl = \`https://drive.google.com/drive/search?q=\${encodeURIComponent(desc)}\`;
-                                actionsHTML = \`
-                                    <button class="task-action-btn" title="Buscar en Google Drive" onclick="vscode.postMessage({command: 'openExternal', url: '\${searchUrl}'})">📁 Drive</button>
-                                    <button class="task-action-btn" title="Copiar nombre de Tarea/Asset" onclick="vscode.postMessage({command: 'copyToClipboard', text: '\${desc}'})">📋 Copiar Nombre</button>
-                                \`;
-                            } else if (t.state === 'FAILED') {
-                                const errorMsg = (t.error_message || 'Error desconocido').replace(/'/g, "\\\\'");
-                                actionsHTML = \`<button class="task-action-btn" title="\${t.error_message}" onclick="vscode.postMessage({command: 'copyToClipboard', text: '\${errorMsg}'})">⚠️ Copiar Error</button>\`;
+                                actionsHTML += '<button class="task-action-btn cancel-btn" title="Cancelar Tarea" onclick="event.preventDefault(); event.stopPropagation(); cancelTask(&apos;' + t.id + '&apos;)">🛑</button>';
+                            }
+                            if (t.state === 'COMPLETED' && t.task_type === 'EXPORT_IMAGE') {
+                                const searchUrl = 'https://drive.google.com/drive/search?q=' + encodeURIComponent(desc);
+                                actionsHTML += '<button class="task-action-btn" title="Buscar en Google Drive" onclick="event.preventDefault(); event.stopPropagation(); openUrl(&apos;' + searchUrl + '&apos;)">📁</button>';
+                            }
+                            actionsHTML += '<button class="task-action-btn" title="Copiar ID" onclick="event.preventDefault(); event.stopPropagation(); copyText(&apos;' + t.id + '&apos;)">📋</button>';
+                            
+                            if (t.state === 'FAILED' && t.error_message) {
+                                const errorMsg = String(t.error_message).replace(/[\r\n]+/g, ' ').replace(/["']/g, '');
+                                actionsHTML += '<button class="task-action-btn" title="Copiar Error" onclick="event.preventDefault(); event.stopPropagation(); copyText(&apos;' + errorMsg + '&apos;)">⚠️</button>';
                             }
 
-                            div.innerHTML = \`
-                                <div class="task-title">
-                                    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%;" title="\${desc}">\${desc}</span> 
-                                    <span style="color: \${stateColor}; flex-shrink: 0; font-size: 10px;">\${t.state}\${duration}</span>
-                                </div>
-                                <div class="task-meta" style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
-                                    <span>Type: \${t.task_type}</span>
-                                    <div class="task-actions" style="display: flex; gap: 6px;">
-                                        \${actionsHTML}
-                                    </div>
-                                </div>
-                            \`;
+                            div.innerHTML = 
+                                '<div class="tree-title">' +
+                                    '<span class="tree-icon">' + icon + '</span>' +
+                                    '<span title="' + desc + ' (' + t.id + ')">' + desc + '</span>' +
+                                '</div>' +
+                                '<div class="tree-meta">' +
+                                    '<span class="tree-type" style="color: ' + stateColor + '">' + t.state + duration + '</span>' +
+                                    actionsHTML +
+                                '</div>';
                             list.appendChild(div);
                         });
                     }
 
-
                     // --- ASSETS LOGIC ---
                     function refreshAssets() {
                         const list = document.getElementById("assets-list");
-                        list.innerHTML = '<div style="color: #888; font-size: 12px; font-style: italic;">Loading assets...</div>';
+                        list.innerHTML = '<div style="color: var(--vscode-descriptionForeground); font-size: 12px; font-style: italic; padding: 4px 10px;">Loading assets...</div>';
                         vscode.postMessage({ command: "getAssets", parent: "~" });
                     }
 
@@ -331,13 +344,11 @@ export class AIView {
                             detailsEl.dataset.loaded = "true";
                             vscode.postMessage({ command: "getAssets", parent: path });
                         }
-                        
-
                     }
 
                     function renderAssets(message) {
                         const isRoot = !message.parent || message.parent === '~';
-                        const safeParentId = isRoot ? '' : message.parent.replace(/[^a-zA-Z0-9_-]/g, '-');
+                        const safeParentId = isRoot ? '' : String(message.parent).replace(/[^a-zA-Z0-9_-]/g, '-');
                         const containerId = isRoot ? 'assets-list' : 'content-' + safeParentId;
                         const container = document.getElementById(containerId);
                         if (!container) return;
@@ -346,7 +357,7 @@ export class AIView {
                             if (message.error === 'not_initialized') {
                                 container.innerHTML = '<div style="color: var(--vscode-charts-yellow); font-size: 12px; padding: 10px; border: 1px solid var(--vscode-charts-yellow); background: var(--vscode-editorWidget-background); border-radius: 4px;">⚠️ GEE no está inicializado. Por favor corre un script o inicia el Workspace primero para ver tus assets.</div>';
                             } else {
-                                container.innerHTML = '<div style="color: var(--vscode-errorForeground); font-size: 12px;">Error: ' + message.error + '</div>';
+                                container.innerHTML = '<div style="color: var(--vscode-errorForeground); font-size: 12px; padding: 4px 10px;">Error: ' + message.error + '</div>';
                             }
                             return;
                         }
@@ -359,62 +370,66 @@ export class AIView {
 
                         let html = '';
                         try {
-                        assets.sort((a, b) => {
-                            const aIsFolder = (a.type === 'FOLDER' || a.type === 'FOLDER_ROOT' || a.type === 'IMAGE_COLLECTION');
-                            const bIsFolder = (b.type === 'FOLDER' || b.type === 'FOLDER_ROOT' || b.type === 'IMAGE_COLLECTION');
-                            if (aIsFolder && !bIsFolder) return -1;
-                            if (!aIsFolder && bIsFolder) return 1;
-                            return (a.name || a.id || '').localeCompare(b.name || b.id || '');
-                        }).forEach(a => {
-                            let icon = '📄';
-                            const isFolder = (a.type === 'FOLDER' || a.type === 'FOLDER_ROOT' || a.type === 'IMAGE_COLLECTION' || a.isRoot);
-                            if (isFolder) icon = '📁';
-                            else if (a.type === 'IMAGE') icon = '🖼️';
-                            else if (a.type === 'TABLE') icon = '📊';
+                            assets.sort((a, b) => {
+                                const aIsFolder = (a.type === 'FOLDER' || a.type === 'FOLDER_ROOT' || a.type === 'IMAGE_COLLECTION');
+                                const bIsFolder = (b.type === 'FOLDER' || b.type === 'FOLDER_ROOT' || b.type === 'IMAGE_COLLECTION');
+                                if (aIsFolder && !bIsFolder) return -1;
+                                if (!aIsFolder && bIsFolder) return 1;
+                                const nameA = String(a.name || a.id || '');
+                                const nameB = String(b.name || b.id || '');
+                                return nameA.localeCompare(nameB);
+                            }).forEach(a => {
+                                let icon = '📄';
+                                const isFolder = (a.type === 'FOLDER' || a.type === 'FOLDER_ROOT' || a.type === 'IMAGE_COLLECTION' || a.isRoot);
+                                if (isFolder) icon = '📁';
+                                else if (a.type === 'IMAGE') icon = '🖼️';
+                                else if (a.type === 'TABLE') icon = '📊';
 
-                            let typeColor = 'var(--vscode-descriptionForeground)';
-                            if (a.type === 'IMAGE') typeColor = 'var(--vscode-charts-green)';
-                            else if (a.type === 'TABLE') typeColor = 'var(--vscode-charts-yellow)';
+                                let typeColor = 'var(--vscode-descriptionForeground)';
+                                if (a.type === 'IMAGE') typeColor = 'var(--vscode-charts-green)';
+                                else if (a.type === 'TABLE') typeColor = 'var(--vscode-charts-yellow)';
 
-                            const safeId = (a.id || a.name).replace(/[^a-zA-Z0-9_-]/g, '-');
-                            
-                            const deleteBtn = (!a.isRoot) ? '<button class="task-action-btn cancel-btn" title="Eliminar Asset" onclick="event.preventDefault(); event.stopPropagation(); deleteAsset(\\\'' + a.id + '\\\')">❌</button>' : '';
-                            const copyBtn = '<button class="task-action-btn" title="Copiar ID" onclick="event.preventDefault(); event.stopPropagation(); vscode.postMessage({command: \\\'copyToClipboard\\\', text: \\\'\' + a.id + \'\\\'})">📋</button>';
-                            const insertBtn = (!isFolder) ? '<button class="task-action-btn" title="Insertar en Editor" onclick="event.preventDefault(); event.stopPropagation(); vscode.postMessage({command: \\\'insertInEditor\\\', text: \\\'\' + a.id + \'\\\'})">➕</button>' : '';
-                            
-                            const cardContent = 
-                                '<div class="tree-title">' +
-                                    '<span class="folder-chevron">' + (isFolder ? '▶' : '') + '</span>' +
-                                    '<span class="tree-icon">' + icon + '</span>' +
-                                    '<span title="' + (a.id || a.name) + '">' + (a.name ? a.name.split('/').pop() : (a.id || a.name).split('/').pop()) + '</span>' +
-                                '</div>' +
-                                '<div class="tree-meta">' +
-                                    '<span class="tree-type" style="color: ' + typeColor + '">' + (a.type || 'Unknown') + '</span>' +
-                                    insertBtn + copyBtn + deleteBtn +
-                                '</div>';
-
-                            if (isFolder) {
-                                html += '<details class="asset-details" id="details-' + safeId + '" ontoggle="onFolderToggle(this, \\\'' + a.id + '\\\')">' +
-                                    '<summary class="tree-item">' +
-                                        cardContent +
-                                    '</summary>' +
-                                    '<div class="folder-content" id="content-' + safeId + '" style="padding-left: 14px; border-left: 1px solid var(--vscode-tree-indentGuidesStroke, #444); margin-left: 6px;">' +
-                                        '<div style="color: var(--vscode-descriptionForeground); font-size: 11px; font-style: italic; padding: 2px 10px;">Loading...</div>' +
+                                const assetId = String(a.id || a.name || '');
+                                const assetName = String(a.name || a.id || '').split('/').pop() || assetId || 'unnamed';
+                                const safeId = (assetId || 'item-' + Math.random().toString(36).substring(2, 6)).replace(/[^a-zA-Z0-9_-]/g, '-');
+                                
+                                const deleteBtn = (!a.isRoot) ? '<button class="task-action-btn cancel-btn" title="Eliminar Asset" onclick="event.preventDefault(); event.stopPropagation(); deleteAsset(&apos;' + assetId + '&apos;)">❌</button>' : '';
+                                const copyBtn = '<button class="task-action-btn" title="Copiar ID" onclick="event.preventDefault(); event.stopPropagation(); copyText(&apos;' + assetId + '&apos;)">📋</button>';
+                                const insertBtn = (!isFolder) ? '<button class="task-action-btn" title="Insertar en Editor" onclick="event.preventDefault(); event.stopPropagation(); insertText(&apos;' + assetId + '&apos;)">➕</button>' : '';
+                                
+                                const cardContent = 
+                                    '<div class="tree-title">' +
+                                        '<span class="folder-chevron">' + (isFolder ? '▶' : '') + '</span>' +
+                                        '<span class="tree-icon">' + icon + '</span>' +
+                                        '<span title="' + assetId + '">' + assetName + '</span>' +
                                     '</div>' +
-                                '</details>';
-                            } else {
-                                html += '<div class="tree-item">' +
-                                    cardContent +
-                                '</div>';
-                            }
-                        });
+                                    '<div class="tree-meta">' +
+                                        '<span class="tree-type" style="color: ' + typeColor + '">' + (a.type || 'Unknown') + '</span>' +
+                                        insertBtn + copyBtn + deleteBtn +
+                                    '</div>';
 
-                        container.innerHTML = html;
+                                if (isFolder) {
+                                    html += '<details class="asset-details" id="details-' + safeId + '" ontoggle="onFolderToggle(this, &apos;' + assetId + '&apos;)">' +
+                                        '<summary class="tree-item">' +
+                                            cardContent +
+                                        '</summary>' +
+                                        '<div class="folder-content" id="content-' + safeId + '" style="padding-left: 14px; border-left: 1px solid var(--vscode-tree-indentGuidesStroke, #444); margin-left: 6px;">' +
+                                            '<div style="color: var(--vscode-descriptionForeground); font-size: 11px; font-style: italic; padding: 2px 10px;">Loading...</div>' +
+                                        '</div>' +
+                                    '</details>';
+                                } else {
+                                    html += '<div class="tree-item">' +
+                                        cardContent +
+                                    '</div>';
+                                }
+                            });
+
+                            container.innerHTML = html;
                         } catch (err) {
                             container.innerHTML = '<div style="color: red; font-size: 11px; padding: 10px; word-break: break-all;">RENDER ERROR: ' + err.message + '<br/>' + err.stack + '</div>';
                         }
                     }
-                    // --- AI LOGIC ---
+// --- AI LOGIC ---
                     const chat = document.getElementById('chat');
                     const input = document.getElementById('input');
                     const send = document.getElementById('send');

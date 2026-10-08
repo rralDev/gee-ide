@@ -1521,7 +1521,24 @@ export class GEERuntime {
                         ee.data.listAssets(parentFolder, {}, (res: any, err: any) => {
                             try {
                                 if (err) return reject(new Error(typeof err === 'string' ? err : JSON.stringify(err)));
-                                resolve((res && res.assets) || []);
+                                const rawList = (res && res.assets) || [];
+                                const normalized = rawList.map((item: any) => {
+                                    if (typeof item === 'string') {
+                                        return {
+                                            id: item,
+                                            name: item.split('/').pop() || item,
+                                            type: 'UNKNOWN'
+                                        };
+                                    }
+                                    const fullId = item.id || item.name || '';
+                                    const short = item.name && !item.name.includes('/') ? item.name : (fullId.split('/').pop() || fullId);
+                                    return {
+                                        id: fullId,
+                                        name: short,
+                                        type: (item.type || 'UNKNOWN').toUpperCase()
+                                    };
+                                });
+                                resolve(normalized);
                             } catch (e: any) {
                                 reject(e);
                             }
