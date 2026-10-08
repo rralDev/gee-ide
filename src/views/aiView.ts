@@ -364,7 +364,7 @@ export class AIView {
                             const bIsFolder = (b.type === 'FOLDER' || b.type === 'FOLDER_ROOT' || b.type === 'IMAGE_COLLECTION');
                             if (aIsFolder && !bIsFolder) return -1;
                             if (!aIsFolder && bIsFolder) return 1;
-                            return a.name.localeCompare(b.name);
+                            return (a.name || a.id || '').localeCompare(b.name || b.id || '');
                         }).forEach(a => {
                             let icon = '📄';
                             const isFolder = (a.type === 'FOLDER' || a.type === 'FOLDER_ROOT' || a.type === 'IMAGE_COLLECTION' || a.isRoot);
