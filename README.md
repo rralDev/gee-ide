@@ -419,16 +419,23 @@ Click anywhere on the Map Viewer to instantly inspect the pixel values of all cu
 * **Console History:** Every inspected point is automatically logged into the `gee>` Console (Quadrant 2), creating a persistent history of your analysis without cluttering your workspace tabs.
 * **Quick Close:** Press `Esc` at any time to immediately close the inspector popup.
 
-### 8. Cloud Tasks Manager (Gestor de Tareas)
-Monitor, cancel, and interact with long-running Earth Engine export tasks (to Google Drive, Google Cloud Storage, or Earth Engine Assets) directly from the IDE's Quadrant 4 **"GEE Tools"** panel.
-* **Auto-Execution:** Calling `Export.image.toDrive()` or `toAsset()` immediately triggers execution on Google's cloud servers without requiring intermediate dialog popups.
-* **Smart Parameter Resolution:** Mimics web Code Editor syntactic sugar by automatically populating missing `fileNamePrefix` or `assetId` values using the `description` parameter.
-* **Live Status:** View task durations, precise task types (e.g. `EXPORT_IMAGE`, `EXPORT_TABLE`), and real-time state (`READY`, `RUNNING`, `COMPLETED`, `FAILED`).
-* **Contextual Actions:** 
-  * Hover over `RUNNING` tasks to quickly **Cancel** them.
-  * Hover over `COMPLETED` tasks to open the exported file in **Google Drive**, or instantly copy the Asset ID / Task Name to your clipboard.
-  * Copy complete error logs from `FAILED` tasks with one click to paste to the AI Assistant for debugging.
+### 8. Advanced GEE Tools Panel (Tasks & Assets)
+Manage your cloud resources and monitor long-running processes directly from the IDE's Quadrant 4 without ever opening a browser.
 
+**Cloud Tasks Manager:**
+* **Live Status:** View task durations, types (e.g. `EXPORT_IMAGE`), and real-time state (`READY`, `RUNNING`, `COMPLETED`, `FAILED`).
+* **Contextual Actions:** Cancel running tasks, copy error logs from failed tasks, or open exported Drive files with a single click.
+
+**Cloud Asset Manager:**
+* **Persistent Accordion Tree:** An elegant, native-feeling file tree that remembers which folders you left open between script executions and workspace reloads.
+* **Pro Keyboard Navigation:** 
+  * Use `Up`/`Down` arrows to navigate your assets.
+  * `Right`/`Left` arrows to expand or collapse folders.
+  * `Cmd+C` / `Ctrl+C` to instantly copy an asset's ID to your clipboard.
+  * `Enter` to instantly insert the asset's path into your active code editor.
+* **Asset Details Modal:** Double-click any image or table to open a clean overlay modal displaying its full cloud metadata, bands, properties, and creation details (identical to the official Web Editor).
+* **Create Folders:** Press `Cmd+Shift+N` (or `Ctrl+Shift+N`) globally, or click the `📁+` icon to instantly create new cloud folders directly from the UI.
+* **Insert in Editor:** Click the `➕` button on any file to automatically type its path exactly where your cursor is located in your `.gee` script.
 ---
 
 ## ⌨️ Keyboard Shortcuts Cheat Sheet
