@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 
 export class AIView {
+    public get isCreated(): boolean { return !!this.panel; }
     private panel: vscode.WebviewPanel | undefined;
-    public get isCreated(): boolean { return this.panel !== undefined; }
     private messageCallback: ((message: any) => void) | undefined;
 
     constructor(private context: vscode.ExtensionContext) {}
@@ -11,17 +11,16 @@ export class AIView {
         this.messageCallback = callback;
     }
 
-    public async show(column?: vscode.ViewColumn, preserveFocus: boolean = true) {
-        const targetColumn = column || vscode.ViewColumn.Four;
+    public async show(column: vscode.ViewColumn = vscode.ViewColumn.Four, preserveFocus: boolean = true) {
         if (this.panel) {
-            this.panel.reveal(column !== undefined ? column : this.panel.viewColumn, preserveFocus);
+            this.panel.reveal(column, preserveFocus);
         } else {
             await this.closeExistingTabs();
 
             this.panel = vscode.window.createWebviewPanel(
                 'geeAI',
                 'GEE Tools',
-                { viewColumn: targetColumn, preserveFocus },
+                { viewColumn: column, preserveFocus },
                 {
                     enableScripts: true,
                     retainContextWhenHidden: true
@@ -167,17 +166,7 @@ export class AIView {
                     
                     .folder-chevron { display: inline-block; width: 14px; font-size: 10px; color: var(--vscode-icon-foreground); text-align: center; }
                     details.asset-details[open] > summary .folder-chevron { transform: rotate(90deg); }
-                
-                    /* Modal styles */
-                    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
-                    .modal-overlay.active { display: flex; }
-                    .modal-content { background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border); padding: 20px; border-radius: 6px; width: 90%; max-width: 400px; max-height: 90vh; overflow-y: auto; position: relative; }
-                    .modal-close { position: absolute; top: 10px; right: 10px; cursor: pointer; background: transparent; color: var(--vscode-icon-foreground); border: none; font-size: 16px; }
-                    .modal-close:hover { color: var(--vscode-errorForeground); }
-                    .modal-title { font-size: 14px; font-weight: bold; margin-bottom: 10px; word-break: break-all; }
-                    .modal-body pre { background: var(--vscode-textCodeBlock-background); padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 11px; white-space: pre-wrap; word-break: break-all; }
-                    .tree-item:focus { outline: 1px solid var(--vscode-focusBorder); background-color: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
-</style>
+                </style>
             </head>
             <body>
                 <div class="tabs">
@@ -200,7 +189,6 @@ export class AIView {
                     <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
                         <span style="font-size: 14px; font-weight: bold;">Assets Manager</span>
                         <div>
-                            <button onclick="vscode.postMessage({command: 'createFolder', activePath: (document.activeElement && document.activeElement.dataset.path) || ''})" style="background: transparent; border: 1px solid var(--vscode-button-secondaryBorder, #555); padding: 4px; font-size: 11px; cursor: pointer; color: var(--vscode-foreground);" title="New Folder (Cmd+Shift+N)">📁+</button>
                             <button onclick="refreshAssets()" style="background: #333; border: 1px solid #555; padding: 4px 8px; font-size: 11px;">🔄 Refresh</button>
                         </div>
                     </div>
@@ -223,14 +211,6 @@ export class AIView {
                     </div>
                 </div>
 
-                
-                <div class="modal-overlay" id="asset-modal">
-                    <div class="modal-content">
-                        <button class="modal-close" onclick="closeModal()">×</button>
-                        <div class="modal-title" id="modal-title">Asset Details</div>
-                        <div class="modal-body" id="modal-body">Loading...</div>
-                    </div>
-                </div>
                 <script>
                     let vscode;
                     try {
@@ -259,15 +239,15 @@ export class AIView {
                         setTimeout(refreshTasks, 1000);
                     }
 
-                                                                                function renderTasks(tasksData) {
+                    function renderTasks(tasksData) {
                         const list = document.getElementById('task-list');
                         list.innerHTML = '';
                         
                         if (tasksData && tasksData.error) {
                             if (tasksData.error === 'not_initialized') {
-                                list.innerHTML = '<div style="color: var(--vscode-charts-yellow); font-size: 12px; padding: 10px; border: 1px solid var(--vscode-charts-yellow); background: var(--vscode-editorWidget-background); border-radius: 4px;">⚠️ GEE no está inicializado. Por favor corre un script o inicia el Workspace primero para ver tus tareas.</div>';
+                                list.innerHTML = '<div style="color: #cca700; font-size: 12px; padding: 10px; border: 1px solid #cca700; background: rgba(204,167,0,0.1); border-radius: 4px;">⚠️ GEE no está inicializado. Por favor corre un script o inicia el Workspace primero para ver tus tareas.</div>';
                             } else {
-                                list.innerHTML = \`<div style="color: var(--vscode-charts-red); font-size: 12px;">Error: \${tasksData.error}</div>\`;
+                                list.innerHTML = \`<div style="color: #f14c4c; font-size: 12px;">Error: \${tasksData.error}</div>\`;
                             }
                             return;
                         }
@@ -276,9 +256,9 @@ export class AIView {
                         if (tasksData && Array.isArray(tasksData.tasks)) {
                             tasks = tasksData.tasks;
                         }
-                        
+
                         if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
-                            list.innerHTML = '<div style="color: var(--vscode-descriptionForeground); font-size: 12px; font-style: italic; padding: 2px 20px;">No recent tasks found.</div>';
+                            list.innerHTML = '<div style="color: #888; font-size: 12px; font-style: italic;">No recent tasks found.</div>';
                             return;
                         }
                         
@@ -287,15 +267,12 @@ export class AIView {
                             const div = document.createElement('div');
                             let stateClass = '';
                             let stateColor = '#888';
-                            if (t.state === 'RUNNING') { stateClass = 'running'; stateColor = 'var(--vscode-charts-blue)'; }
-                            else if (t.state === 'COMPLETED') { stateClass = 'completed'; stateColor = 'var(--vscode-charts-green)'; }
-                            else if (t.state === 'FAILED') { stateClass = 'failed'; stateColor = 'var(--vscode-charts-red)'; }
-                            else if (t.state === 'READY') { stateClass = 'ready'; stateColor = 'var(--vscode-charts-yellow)'; }
+                            if (t.state === 'RUNNING') { stateClass = 'running'; stateColor = '#007acc'; }
+                            else if (t.state === 'COMPLETED') { stateClass = 'completed'; stateColor = '#4ec9b0'; }
+                            else if (t.state === 'FAILED') { stateClass = 'failed'; stateColor = '#f14c4c'; }
+                            else if (t.state === 'READY') { stateClass = 'ready'; stateColor = '#cca700'; }
                             
-                            div.className = 'tree-item';
-                            div.tabIndex = 0;
-                            div.dataset.path = t.id;
-                            div.dataset.type = t.task_type;
+                            div.className = 'task-item ' + stateClass;
                             
                             let desc = t.description || t.id;
                             let duration = '';
@@ -307,68 +284,55 @@ export class AIView {
                                 duration = min > 0 ? \` (\${min}m)\` : ' (<1m)';
                             }
 
-                            let icon = '⏳';
-                            if (t.state === 'COMPLETED') icon = '✅';
-                            else if (t.state === 'FAILED') icon = '❌';
-                            else if (t.state === 'RUNNING') icon = '🔄';
-
                             let actionsHTML = '';
                             if (t.state === 'RUNNING' || t.state === 'READY') {
-                                actionsHTML += \`<button class="task-action-btn cancel-btn" title="Cancelar Tarea" onclick="event.preventDefault(); event.stopPropagation(); cancelTask('\${t.id}')">🛑</button>\`;
-                            }
-                            if (t.state === 'COMPLETED' && t.task_type === 'EXPORT_IMAGE') {
+                                actionsHTML = \`<button class="task-action-btn cancel-btn" onclick="cancelTask('\${t.id}')">Cancel</button>\`;
+                            } else if (t.state === 'COMPLETED') {
                                 const searchUrl = \`https://drive.google.com/drive/search?q=\${encodeURIComponent(desc)}\`;
-                                actionsHTML += \`<button class="task-action-btn" title="Buscar en Google Drive" onclick="event.preventDefault(); event.stopPropagation(); vscode.postMessage({command: 'openExternal', url: '\${searchUrl}'})">📁</button>\`;
-                            }
-                            actionsHTML += \`<button class="task-action-btn" title="Copiar ID" onclick="event.preventDefault(); event.stopPropagation(); vscode.postMessage({command: 'copyToClipboard', text: '\${t.id}'})">📋</button>\`;
-                            
-                            if (t.state === 'FAILED' && t.error_message) {
-                                const errorMsg = t.error_message.replace(/'/g, "\\\\\\'").replace(/\\n/g, ' ');
-                                actionsHTML += \`<button class="task-action-btn" title="Copiar Error" onclick="event.preventDefault(); event.stopPropagation(); vscode.postMessage({command: 'copyToClipboard', text: '\${errorMsg}'})">⚠️</button>\`;
+                                actionsHTML = \`
+                                    <button class="task-action-btn" title="Buscar en Google Drive" onclick="vscode.postMessage({command: 'openExternal', url: '\${searchUrl}'})">📁 Drive</button>
+                                    <button class="task-action-btn" title="Copiar nombre de Tarea/Asset" onclick="vscode.postMessage({command: 'copyToClipboard', text: '\${desc}'})">📋 Copiar Nombre</button>
+                                \`;
+                            } else if (t.state === 'FAILED') {
+                                const errorMsg = (t.error_message || 'Error desconocido').replace(/'/g, "\\\\'");
+                                actionsHTML = \`<button class="task-action-btn" title="\${t.error_message}" onclick="vscode.postMessage({command: 'copyToClipboard', text: '\${errorMsg}'})">⚠️ Copiar Error</button>\`;
                             }
 
                             div.innerHTML = \`
-                                <div class="tree-title">
-                                    <span class="tree-icon">\${icon}</span>
-                                    <span title="\${t.id}">\${desc}</span>
+                                <div class="task-title">
+                                    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%;" title="\${desc}">\${desc}</span> 
+                                    <span style="color: \${stateColor}; flex-shrink: 0; font-size: 10px;">\${t.state}\${duration}</span>
                                 </div>
-                                <div class="tree-meta">
-                                    <span class="tree-type" style="color: \${stateColor}">\${t.state}\${duration}</span>
-                                    \${actionsHTML}
+                                <div class="task-meta" style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+                                    <span>Type: \${t.task_type}</span>
+                                    <div class="task-actions" style="display: flex; gap: 6px;">
+                                        \${actionsHTML}
+                                    </div>
                                 </div>
                             \`;
                             list.appendChild(div);
                         });
                     }
-const openFolders = new Set();
+
+
+                    // --- ASSETS LOGIC ---
                     function refreshAssets() {
                         const list = document.getElementById("assets-list");
-                        list.innerHTML = '<div style="color: var(--vscode-descriptionForeground); font-size: 12px; font-style: italic;">Loading assets...</div>';
+                        list.innerHTML = '<div style="color: #888; font-size: 12px; font-style: italic;">Loading assets...</div>';
                         vscode.postMessage({ command: "getAssets", parent: "~" });
                     }
-function deleteAsset(id) {
+
+                    function deleteAsset(id) {
                         vscode.postMessage({ command: "deleteAsset", assetId: id });
                     }
 
-                    function toggleFolder(treeItemEl) {
-                        const path = treeItemEl.dataset.path;
-                        const content = treeItemEl.nextElementSibling;
-                        const chevron = treeItemEl.querySelector('.folder-chevron');
-                        
-                        if (content.style.display === 'none') {
-                            content.style.display = 'block';
-                            if (chevron) chevron.innerText = '▼';
-                            openFolders.add(path);
-                            
-                            if (!content.dataset.loaded) {
-                                content.dataset.loaded = "true";
-                                vscode.postMessage({ command: "getAssets", parent: path });
-                            }
-                        } else {
-                            content.style.display = 'none';
-                            if (chevron) chevron.innerText = '▶';
-                            openFolders.delete(path);
+                    function onFolderToggle(detailsEl, path) {
+                        if (detailsEl.open && !detailsEl.dataset.loaded) {
+                            detailsEl.dataset.loaded = "true";
+                            vscode.postMessage({ command: "getAssets", parent: path });
                         }
+                        
+
                     }
 
                     function renderAssets(message) {
@@ -411,19 +375,17 @@ function deleteAsset(id) {
                             if (a.type === 'IMAGE') typeColor = 'var(--vscode-charts-green)';
                             else if (a.type === 'TABLE') typeColor = 'var(--vscode-charts-yellow)';
 
-                            const assetId = a.id || a.name;
-                            const assetName = a.name ? a.name.split('/').pop() : assetId.split('/').pop();
-                            const safeId = assetId.replace(/[^a-zA-Z0-9_-]/g, '-');
-                            const isOpen = openFolders.has(assetId) ? 'open' : '';
+                            const safeId = (a.id || a.name).replace(/[^a-zA-Z0-9_-]/g, '-');
                             
-                            const deleteBtn = (!a.isRoot) ? '<button class="task-action-btn cancel-btn" title="Eliminar Asset" onclick="event.preventDefault(); event.stopPropagation(); deleteAsset(\\\'' + assetId + '\\\')">❌</button>' : '';
-                            const copyBtn = '<button class="task-action-btn" title="Copiar ID" onclick="event.preventDefault(); event.stopPropagation(); vscode.postMessage({command: \\\'copyToClipboard\\\', text: \\\'' + assetId + '\\\'})">📋</button>';
-                            const insertBtn = (!isFolder) ? '<button class="task-action-btn" title="Insertar en Editor" onclick="event.preventDefault(); event.stopPropagation(); vscode.postMessage({command: \\\'insertInEditor\\\', text: \\\'' + assetId + '\\\'})">➕</button>' : '';
+                            const deleteBtn = (!a.isRoot) ? '<button class="task-action-btn cancel-btn" title="Eliminar Asset" onclick="event.preventDefault(); event.stopPropagation(); deleteAsset(\\\'' + a.id + '\\\')">❌</button>' : '';
+                            const copyBtn = '<button class="task-action-btn" title="Copiar ID" onclick="event.preventDefault(); event.stopPropagation(); vscode.postMessage({command: \\\'copyToClipboard\\\', text: \\\'\' + a.id + \'\\\'})">📋</button>';
+                            const insertBtn = (!isFolder) ? '<button class="task-action-btn" title="Insertar en Editor" onclick="event.preventDefault(); event.stopPropagation(); vscode.postMessage({command: \\\'insertInEditor\\\', text: \\\'\' + a.id + \'\\\'})">➕</button>' : '';
+                            
                             const cardContent = 
                                 '<div class="tree-title">' +
-                                    '<span class="folder-chevron">' + (isFolder ? (isOpen ? '▼' : '▶') : '') + '</span>' +
+                                    '<span class="folder-chevron">' + (isFolder ? '▶' : '') + '</span>' +
                                     '<span class="tree-icon">' + icon + '</span>' +
-                                    '<span title="' + assetId + '">' + assetName + '</span>' +
+                                    '<span title="' + (a.id || a.name) + '">' + (a.name ? a.name.split('/').pop() : (a.id || a.name).split('/').pop()) + '</span>' +
                                 '</div>' +
                                 '<div class="tree-meta">' +
                                     '<span class="tree-type" style="color: ' + typeColor + '">' + (a.type || 'Unknown') + '</span>' +
@@ -431,37 +393,22 @@ function deleteAsset(id) {
                                 '</div>';
 
                             if (isFolder) {
-                                const display = isOpen ? 'block' : 'none';
-                                html += '<div class="asset-folder-container" id="container-' + safeId + '">' +
-                                    '<div class="tree-item" tabindex="0" data-path="' + assetId + '" data-type="' + a.type + '" onclick="toggleFolder(this)">' +
+                                html += '<details class="asset-details" id="details-' + safeId + '" ontoggle="onFolderToggle(this, \\\'' + a.id + '\\\')">' +
+                                    '<summary class="tree-item">' +
                                         cardContent +
-                                    '</div>' +
-                                    '<div class="folder-content" id="content-' + safeId + '" style="display: ' + display + '; padding-left: 14px; border-left: 1px solid var(--vscode-tree-indentGuidesStroke, #444); margin-left: 6px;">' +
+                                    '</summary>' +
+                                    '<div class="folder-content" id="content-' + safeId + '" style="padding-left: 14px; border-left: 1px solid var(--vscode-tree-indentGuidesStroke, #444); margin-left: 6px;">' +
                                         '<div style="color: var(--vscode-descriptionForeground); font-size: 11px; font-style: italic; padding: 2px 10px;">Loading...</div>' +
                                     '</div>' +
-                                '</div>';
+                                '</details>';
                             } else {
-                                html += '<div class="tree-item" tabindex="0" data-path="' + assetId + '" data-type="' + a.type + '" ondblclick="showAssetModal(this.dataset.path)">' +
+                                html += '<div class="tree-item">' +
                                     cardContent +
                                 '</div>';
                             }
                         });
 
-                        } catch (err) {
-                            container.innerHTML = '<div style="color: red; font-size: 11px; padding: 10px; word-break: break-all;">RENDER ERROR: ' + err.message + '<br/>' + err.stack + '</div>';
-                            return;
-                        }
-
                         container.innerHTML = html;
-                        
-                        // Auto-fetch children for folders that were restored as open
-                        Array.from(container.querySelectorAll('.folder-content')).forEach(contentEl => {
-                            if (contentEl.style.display !== 'none' && !contentEl.dataset.loaded) {
-                                contentEl.dataset.loaded = "true";
-                                const path = contentEl.previousElementSibling.dataset.path;
-                                vscode.postMessage({ command: "getAssets", parent: path });
-                            }
-                        });
                     }
                     // --- AI LOGIC ---
                     const chat = document.getElementById('chat');
@@ -498,71 +445,9 @@ function deleteAsset(id) {
                     });
 
                     // --- MESSAGES FROM EXTENSION ---
-                    
-                    function showAssetModal(id) {
-                        document.getElementById('modal-title').innerText = id;
-                        document.getElementById('modal-body').innerHTML = '<div style="color: var(--vscode-descriptionForeground); font-size: 11px;">Loading details...</div>';
-                        document.getElementById('asset-modal').classList.add('active');
-                        vscode.postMessage({ command: 'getAssetDetails', assetId: id });
-                    }
-                    function closeModal() {
-                        document.getElementById('asset-modal').classList.remove('active');
-                    }
-                    
-                    document.addEventListener('keydown', (e) => {
-                        // Global create folder
-                        if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'n') {
-                            vscode.postMessage({ command: 'createFolder', activePath: (document.activeElement && document.activeElement.dataset.path) || '' });
-                            return;
-                        }
-                        
-                        const active = document.activeElement;
-                        if (!active || !active.classList.contains('tree-item')) return;
-                        
-                        const path = active.dataset.path;
-                        const type = active.dataset.type;
-                        
-                        if (e.key === 'ArrowRight') {
-                            const content = active.nextElementSibling;
-                            if (content && content.classList.contains('folder-content') && content.style.display === 'none') {
-                                toggleFolder(active);
-                            }
-                        } else if (e.key === 'ArrowLeft') {
-                            const content = active.nextElementSibling;
-                            if (content && content.classList.contains('folder-content') && content.style.display !== 'none') {
-                                toggleFolder(active);
-                            }
-                        } else if (e.key === 'ArrowDown') {
-                            e.preventDefault();
-                            const items = Array.from(document.querySelectorAll('.tree-item:visible, details[open] > summary.tree-item, details[open] > .folder-content > details > summary.tree-item, details[open] > .folder-content > .tree-item, #assets-list > details > summary.tree-item, #assets-list > .tree-item'));
-                            // Simplified next visible element focus:
-                            const allFocusable = Array.from(document.querySelectorAll('.tree-item'));
-                            const visibleFocusable = allFocusable.filter(el => el.offsetWidth > 0 && el.offsetHeight > 0);
-                            const idx = visibleFocusable.indexOf(active);
-                            if (idx >= 0 && idx < visibleFocusable.length - 1) visibleFocusable[idx+1].focus();
-                        } else if (e.key === 'ArrowUp') {
-                            e.preventDefault();
-                            const allFocusable = Array.from(document.querySelectorAll('.tree-item'));
-                            const visibleFocusable = allFocusable.filter(el => el.offsetWidth > 0 && el.offsetHeight > 0);
-                            const idx = visibleFocusable.indexOf(active);
-                            if (idx > 0) visibleFocusable[idx-1].focus();
-                        } else if (e.key === 'Enter') {
-                            const content = active.nextElementSibling;
-                            if (content && content.classList.contains('folder-content')) {
-                                toggleFolder(active);
-                            } else {
-                                vscode.postMessage({ command: 'insertInEditor', text: path });
-                            }
-                        } else if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
-                            vscode.postMessage({ command: 'copyToClipboard', text: path });
-                        }
-                    });
-                    
                     window.addEventListener('message', (event) => {
                         const message = event.data;
-                        if (message.command === 'assetDetailsData') {
-                            document.getElementById('modal-body').innerHTML = '<pre>' + JSON.stringify(message.details, null, 2) + '</pre>';
-                        } else if (message.command === 'focus') {
+                        if (message.command === 'focus') {
                             const inp = document.getElementById('input');
                             if (inp) {
                                 inp.focus();
