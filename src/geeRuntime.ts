@@ -1350,8 +1350,8 @@ export class GEERuntime {
                 }
                 const touchPath = this.resolvePath(touchTarget);
                 this.consoleView.append(`⏳ Creating empty ImageCollection: ${touchPath}...`);
-                ee.data.createAsset({ type: 'IMAGE_COLLECTION' }, touchPath, (res: any, err: any) => {
-                    if (err) this.consoleView.append(`[Error]: ${err}`);
+                ee.data.createAsset({ type: 'ImageCollection' }, touchPath, false, undefined, (res: any, err: any) => {
+                    if (err) this.consoleView.append(`[Error]: ${err.message || err}`);
                     else this.consoleView.append(`✨ Collection created: ${touchPath}`);
                 });
                 break;
