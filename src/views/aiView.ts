@@ -200,7 +200,7 @@ export class AIView {
                     <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
                         <span style="font-size: 14px; font-weight: bold;">Assets Manager</span>
                         <div>
-                            <button onclick="vscode.postMessage({command: 'createFolder'})" style="background: transparent; border: 1px solid var(--vscode-button-secondaryBorder, #555); padding: 4px; font-size: 11px; cursor: pointer;" title="New Folder (Cmd+Shift+N)">📁+</button>
+                            <button onclick="vscode.postMessage({command: 'createFolder', activePath: (document.activeElement && document.activeElement.dataset.path) || ''})" style="background: transparent; border: 1px solid var(--vscode-button-secondaryBorder, #555); padding: 4px; font-size: 11px; cursor: pointer; color: var(--vscode-foreground);" title="New Folder (Cmd+Shift+N)">📁+</button>
                             <button onclick="refreshAssets()" style="background: #333; border: 1px solid #555; padding: 4px 8px; font-size: 11px;">🔄 Refresh</button>
                         </div>
                     </div>
@@ -437,6 +437,15 @@ function deleteAsset(id) {
                         });
 
                         container.innerHTML = html;
+                        
+                        // Auto-fetch children for folders that were restored as open
+                        Array.from(container.querySelectorAll('details[open]')).forEach(detailsEl => {
+                            if (!detailsEl.dataset.loaded) {
+                                detailsEl.dataset.loaded = "true";
+                                const path = detailsEl.querySelector('summary').dataset.path;
+                                vscode.postMessage({ command: "getAssets", parent: path });
+                            }
+                        });
                     }
                     // --- AI LOGIC ---
                     const chat = document.getElementById('chat');
@@ -487,7 +496,7 @@ function deleteAsset(id) {
                     document.addEventListener('keydown', (e) => {
                         // Global create folder
                         if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'n') {
-                            vscode.postMessage({ command: 'createFolder' });
+                            vscode.postMessage({ command: 'createFolder', activePath: (document.activeElement && document.activeElement.dataset.path) || '' });
                             return;
                         }
                         

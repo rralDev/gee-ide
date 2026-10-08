@@ -383,13 +383,40 @@ export function activate(context: vscode.ExtensionContext) {
                 vscode.window.showInformationMessage(`Copiado al portapapeles (no hay editor activo).`);
             }
         } else if (message.command === 'openExternal') {
+            vscode.env.openExternal(vscode.Uri.parse(message.url));
         } else if (message.command === 'createFolder') {
             if (runtime && runtime.isInitialized) {
-                vscode.window.showInputBox({ prompt: 'Nombre del nuevo folder (ej. projects/ee-robles/assets/mi_carpeta)' }).then(async val => {
+                let defaultPath = '';
+                if (message.activePath) {
+                    defaultPath = message.activePath + '/nueva_carpeta';
+                } else {
+                    const roots = runtime.getAssetRootsList();
+                    const projectId = runtime.getProjectId() || '';
+                    const validRoots = roots.filter(r => 
+                        (projectId && r.id.includes(projectId)) || 
+                        (!r.id.includes('earthengine-public') && !r.id.includes('earthengine-legacy'))
+                    );
+                    if (validRoots && validRoots.length > 0) {
+                        defaultPath = validRoots[0].id + '/nueva_carpeta';
+                    } else if (roots && roots.length > 0) {
+                        defaultPath = roots[0].id + '/nueva_carpeta';
+                    }
+                }
+                
+                vscode.window.showInputBox({ 
+                    prompt: 'Ruta completa de la nueva carpeta', 
+                    value: defaultPath,
+                    valueSelection: defaultPath ? [defaultPath.lastIndexOf('/') + 1, defaultPath.length] : undefined
+                }).then(async val => {
                     if (val) {
                         try {
-                            await runtime!.createFolderApi(val);
-                            vscode.window.showInformationMessage(`Carpeta ${val} creada exitosamente.`);
+                            // If user types just a name without a path, but defaultPath had a path, we should auto-prefix
+                            let finalVal = val;
+                            if (!val.includes('/') && defaultPath) {
+                                finalVal = defaultPath.substring(0, defaultPath.lastIndexOf('/')) + '/' + val;
+                            }
+                            await runtime!.createFolderApi(finalVal);
+                            vscode.window.showInformationMessage(`Carpeta ${finalVal} creada exitosamente.`);
                             aiView.sendMessage({ command: 'assetDeleted' }); // Reuses refresh
                         } catch (e: any) {
                             vscode.window.showErrorMessage('Error al crear folder: ' + e.message);
@@ -406,7 +433,6 @@ export function activate(context: vscode.ExtensionContext) {
                     vscode.window.showErrorMessage('Error al obtener detalles: ' + e.message);
                 }
             }
-            vscode.env.openExternal(vscode.Uri.parse(message.url));
         } else if (message.command === 'getAssets') {
             if (runtime && runtime.isInitialized) {
                 try {
