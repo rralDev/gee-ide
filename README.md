@@ -76,6 +76,10 @@ Unlike rigid editor layouts, GEE IDE provides full workspace sovereignty:
 
 ## 🌐 Unified Polyglot Support: `.gee` Files
 
+> ⚠️ **Important Notice on Language Support:**
+> All IDE features, map interactions, REPL evaluations, and cloud tool integrations in GEE IDE are primarily developed, continuously benchmarked, and **fully production-stable in JavaScript (`// js`)**. 
+> Support for **Python (`# py`)** and **R (`# r`)** is currently in active experimental development. Some language-specific bridge features may encounter unexpected behaviors while these two engines are being finalized.
+
 GEE IDE introduces the **`.gee`** file specification. A single project can orchestrate scripts across the three major remote sensing languages using **shebang routing** on the first line:
 
 ### 1. JavaScript (`// js`)
@@ -420,22 +424,24 @@ Click anywhere on the Map Viewer to instantly inspect the pixel values of all cu
 * **Quick Close:** Press `Esc` at any time to immediately close the inspector popup.
 
 ### 8. Advanced GEE Tools Panel (Tasks & Assets)
-Manage your cloud resources and monitor long-running processes directly from the IDE's Quadrant 4 without ever opening a browser.
+Manage your cloud resources and monitor long-running processes directly from Quadrant 4 without ever switching to a web browser.
 
-**Cloud Tasks Manager:**
-* **Live Status:** View task durations, types (e.g. `EXPORT_IMAGE`), and real-time state (`READY`, `RUNNING`, `COMPLETED`, `FAILED`).
-* **Contextual Actions:** Cancel running tasks, copy error logs from failed tasks, or open exported Drive files with a single click.
+**Cloud Tasks Manager (Minimalist Tree UI):**
+* **Compact Tree Design:** Seamlessly matches the Asset Manager's `.tree-item` layout, left-aligned and dynamically styled for dark and light VS Code themes.
+* **Live Status & Duration:** View task execution durations (e.g. `(1m)`), types (`EXPORT_IMAGE`, `EXPORT_TABLE`), and real-time states (`READY`, `RUNNING`, `COMPLETED`, `FAILED`).
+* **1-Click Contextual Actions:**
+  * 🛑 **Cancel Task:** Immediately abort running or queued tasks.
+  * 📁 **Google Drive Search:** Instantly opens a filtered search in Google Drive for exported image files.
+  * 📋 **Copy Task ID:** Copies the unique cloud task identifier to the clipboard.
+  * ⚠️ **Copy Error:** Copies sanitized, multi-line error traces from failed operations.
 
 **Cloud Asset Manager:**
-* **Persistent Accordion Tree:** An elegant, native-feeling file tree that remembers which folders you left open between script executions and workspace reloads.
-* **Pro Keyboard Navigation:** 
-  * Use `Up`/`Down` arrows to navigate your assets.
-  * `Right`/`Left` arrows to expand or collapse folders.
-  * `Cmd+C` / `Ctrl+C` to instantly copy an asset's ID to your clipboard.
-  * `Enter` to instantly insert the asset's path into your active code editor.
-* **Asset Details Modal:** Double-click any image or table to open a clean overlay modal displaying its full cloud metadata, bands, properties, and creation details (identical to the official Web Editor).
-* **Create Folders:** Press `Cmd+Shift+N` (or `Ctrl+Shift+N`) globally, or click the `📁+` icon to instantly create new cloud folders directly from the UI.
-* **Insert in Editor:** Click the `➕` button on any file to automatically type its path exactly where your cursor is located in your `.gee` script.
+* **Persistent Tree View:** An elegant, native-feeling hierarchical directory tree that remembers open folders across workspace reloads and script executions.
+* **Two-Step Secure Folder Creation:** Click the `📁+` button in the header (or press `Cmd+Shift+N` / `Ctrl+Shift+N`) to trigger an interactive workflow: first select the parent project via a native `QuickPick` dropdown, then specify the new folder name. This prevents accidental creation attempts on read-only public catalogs.
+* **Asset Details Modal:** Double-click any image or table to open an overlay modal displaying its complete cloud metadata, bands, properties, and dimensions.
+* **Insert in Editor:** Click the `➕` button on any asset to insert its cloud identifier directly at your cursor in the `.gee` script.
+* **Copy & Delete:** Quick-action buttons to copy the asset ID (`📋`) or safely delete assets (`❌`) directly from the panel.
+* **Robust Cloud v1 API Normalization:** Built-in payload adaptation ensuring full compatibility with both legacy (`users/*`) and modern Google Cloud projects (`projects/*/assets`).
 ---
 
 ## ⌨️ Keyboard Shortcuts Cheat Sheet
