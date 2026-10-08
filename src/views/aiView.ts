@@ -209,6 +209,15 @@ export class AIView {
                         const list = document.getElementById('task-list');
                         list.innerHTML = '';
                         
+                        if (tasksData && tasksData.error) {
+                            if (tasksData.error === 'not_initialized') {
+                                list.innerHTML = '<div style="color: #cca700; font-size: 12px; padding: 10px; border: 1px solid #cca700; background: rgba(204,167,0,0.1); border-radius: 4px;">⚠️ GEE no está inicializado. Por favor corre un script o inicia el Workspace primero para ver tus tareas.</div>';
+                            } else {
+                                list.innerHTML = \`<div style="color: #f14c4c; font-size: 12px;">Error: \${tasksData.error}</div>\`;
+                            }
+                            return;
+                        }
+
                         let tasks = tasksData;
                         if (tasksData && Array.isArray(tasksData.tasks)) {
                             tasks = tasksData.tasks;

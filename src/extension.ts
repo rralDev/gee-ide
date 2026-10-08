@@ -354,9 +354,10 @@ export function activate(context: vscode.ExtensionContext) {
                     aiView.sendMessage({ command: 'tasksData', tasks: tasks });
                 } catch (e: any) {
                     vscode.window.showErrorMessage('Error al obtener tareas: ' + e.message);
+                    aiView.sendMessage({ command: 'tasksData', error: e.message });
                 }
             } else {
-                aiView.sendMessage({ command: 'tasksData', tasks: [] });
+                aiView.sendMessage({ command: 'tasksData', error: 'not_initialized' });
             }
         } else if (message.command === 'cancelTask') {
             if (runtime && runtime.isInitialized) {
