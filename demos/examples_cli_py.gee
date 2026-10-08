@@ -10,6 +10,7 @@ DEMO: Automatización de Assets y Comandos CLI en GEE IDE (Python)
    sin comillas ni paréntesis (ej: ls, cd robles, find test_*, rm -r test_*).
 """
 
+# from gee_pro_shim import *
 # 1. Ver ruta actual y listar contenido
 pwd()
 ls()

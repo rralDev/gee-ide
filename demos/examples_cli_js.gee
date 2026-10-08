@@ -10,6 +10,31 @@
  *    sin comillas ni paréntesis (ej: ls, cd robles, find test_*, rm -r test_*).
  */
 
+// js
+// 1. Navegación e información
+pwd();
+ls();
+cd('robles');
+
+// 2. Bucle para crear 5 carpetas
+for (var i = 1; i <= 5; i++) {
+    mkdir('test_temporada_' + i);
+}
+
+// 3. Crear colección vacía
+touch('test_coleccion_2024_test01');
+
+// 4. Listar y buscar con comodines
+ls('test_*');
+find('test_*');
+
+// 5. Eliminar por patrón recursivo (true = -r)
+rm('test_*', true);
+// O también: cli('rm -r test_*');
+
+
+// recursivo
+
 // 1. Ver ruta actual y listar contenido
 pwd();
 ls();
