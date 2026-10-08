@@ -23,4 +23,4 @@ Map.addLayer(elevation, {
     palette: ['#1a9850', '#91cf60', '#d9ef8b', '#fee08b', '#fc8d59', '#d73027']
 }, 'Relieve SRTM (Amazonía)');
 
-print('🛰️ ¡Bienvenido a GEE IDE! Mapa interactivo centrado en la Amazonía (Madre de Dios, Perú).');
+print('¡Bienvenido a GEE IDE! Mapa interactivo centrado en la Amazonía (Madre de Dios, Perú).');

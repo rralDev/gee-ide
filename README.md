@@ -345,18 +345,53 @@ Earth Engine authentication across heterogeneous language runtimes is traditiona
 ## 📂 Cloud Assets Explorer & Virtual CLI Filesystem
 
 Manage cloud storage assets directly from your editor workspace:
-* **Visual Sidebar Tree:** Browse user roots (`users/...`) and Google Cloud storage assets (`projects/...`).
-* **Interactive CLI Filesystem:**
-  * `find`: Recursive asset discovery with glob matching and type filtering:
-    * `find -name "*ndvi*"`: Search all assets matching a pattern across all roots.
-    * `find users/mi_usuario -name "*2023*" -type image`: Search images specifically.
-    * `find -type folder -maxdepth 2`: Search subfolders up to a specific recursion depth.
-  * `ls` / `dir`: List collections, rasters, and tables (supports glob patterns like `ls *landsat*`).
-  * `cd`: Change active asset directory.
-  * `pwd`: Print working directory.
-  * `mkdir`: Create new Earth Engine asset folders (`mkdir [-p] nombre`).
-  * `rm`: Delete assets (supports `-r` recursive removal for folders and collections).
-  * `cp` / `mv`: Copy or rename/move assets across folders or projects.
+* **Visual Sidebar Tree:** Browse user roots (`users/...`) and Google Cloud storage assets (`projects/...`) with double-click inspection and 1-click editor code insertion (`➕`).
+* **Interactive Virtual CLI Filesystem:** Execute terminal-grade filesystem operations directly against Google Earth Engine servers.
+
+### ⚡ 3 Ways to Execute CLI Commands
+
+1. **Directly from the Code Editor (`Cmd + Enter` / `Ctrl + Enter`):**
+   Type any CLI command directly on any line of your `.gee` script (e.g. `ls`, `du`, `pwd`, `find *`) and press `Cmd + Enter`. GEE IDE intelligently detects the command and runs it in the `gee>` Console without throwing syntax errors.
+2. **Bash-Style `!` Prefix in Scripts:**
+   Prefix lines with `!` to execute terminal commands seamlessly within your scripts:
+   ```javascript
+   // js
+   !mkdir seasonal_analysis_2024
+   !touch seasonal_analysis_2024/cloud_masks
+   !ls seasonal_analysis_2024
+   ```
+3. **Programmatic Automation in JavaScript (Loops & Batch Operations):**
+   Automate large-scale asset creation or deletion using native helper functions (`cli()`, `mkdir()`, `rm()`, `ls()`, `touch()`, `du()`, `mv()`, `cp()`, `find()`):
+   ```javascript
+   // Create 5 recurring directories programmatically
+   for (var i = 1; i <= 5; i++) {
+       mkdir('test_season_' + i);
+   }
+
+   // Batch recursive delete with wildcards in 1 line
+   rm('test_season_*', true); // true = recursive (-r)
+   ```
+
+---
+
+### 🛠️ Complete CLI Command Reference & Examples
+
+| Command | Syntax / Flags | Description | Example |
+| :--- | :--- | :--- | :--- |
+| **`ls` / `dir`** | `ls [path] [pattern]` | Lists contents of the current or specified directory. Supports glob patterns (`*`, `?`). `ls ~` lists all project roots. | `ls`<br>`ls ~`<br>`ls users/mi_usuario`<br>`ls *sentinel*` |
+| **`pwd`** | `pwd` | Prints current working directory in Earth Engine assets hierarchy. | `pwd` |
+| **`cd`** | `cd [path]` | Changes active working directory. Supports relative (`..`) and absolute paths (`~`, `users/...`, `projects/...`). | `cd mi_carpeta`<br>`cd ..`<br>`cd ~` |
+| **`mkdir`** | `mkdir [-p] <path>` | Creates a new cloud asset folder. Flag `-p` creates parent folders recursively. | `mkdir temporada_2024`<br>`mkdir -p proyectos/2024/ndvi` |
+| **`touch`** | `touch <name>` | Creates an empty `ImageCollection` container in Earth Engine. | `touch s2_composites_2024` |
+| **`rm` / `rmdir`** | `rm [-r/-rf] <target>` | Deletes an asset. Flag `-r` enables recursive folder deletion. **Supports wildcard patterns** (`*`, `?`) for bulk cleanup! | `rm old_image`<br>`rm -r old_folder`<br>`rm -r temp_*` |
+| **`mv`** | `mv <source> <dest>` | Renames or moves an asset in the cloud. | `mv test_v1 test_v2`<br>`mv temp/raster final/raster` |
+| **`cp`** | `cp <source> <dest>` | Copies an asset from source to destination. | `cp backup_image working_image` |
+| **`du` / `quota`** | `du [path]` | Displays storage usage and quota in megabytes and asset count. `du ~` inspects all project roots. | `du`<br>`du ~`<br>`du users/mi_usuario` |
+| **`find`** | `find [path] [-name pat] [-type typ] [-maxdepth n]` | Recursively searches assets with advanced filters (`-type FOLDER\|IMAGE\|TABLE\|IMAGE_COLLECTION`). | `find *landsat*`<br>`find -type IMAGE`<br>`find users/foo -name *2024* -maxdepth 3` |
+| **`catalog` / `search`** | `catalog <query>` | Searches the global Google Earth Engine public data catalog (+1,100 datasets). | `catalog sentinel 2`<br>`search modis ndvi`<br>`find -c elevation` |
+| **`vars` / `whos`** | `vars` | Inspects all in-memory variables and their Earth Engine types (RStudio/MATLAB UX). | `vars` |
+| **`history`** | `history [n]` | Displays command history stored in `.gee_history`. Use `!15` to re-execute event #15. | `history`<br>`history 10`<br>`!5` |
+| **`clear` / `cls`** | `clear` | Clears the interactive console screen canvas. | `clear` |
 
 ---
 
