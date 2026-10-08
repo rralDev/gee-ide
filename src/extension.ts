@@ -371,6 +371,17 @@ export function activate(context: vscode.ExtensionContext) {
         } else if (message.command === 'copyToClipboard') {
             vscode.env.clipboard.writeText(message.text);
             vscode.window.showInformationMessage(`Copiado al portapapeles: ${message.text}`);
+        } else if (message.command === 'insertInEditor') {
+            const editor = vscode.window.activeTextEditor;
+            if (editor) {
+                editor.edit(editBuilder => {
+                    editBuilder.insert(editor.selection.active, `'${message.text}'`);
+                });
+                vscode.window.showInformationMessage(`Asset insertado en el editor.`);
+            } else {
+                vscode.env.clipboard.writeText(`'${message.text}'`);
+                vscode.window.showInformationMessage(`Copiado al portapapeles (no hay editor activo).`);
+            }
         } else if (message.command === 'openExternal') {
             vscode.env.openExternal(vscode.Uri.parse(message.url));
         } else if (message.command === 'getAssets') {
@@ -622,7 +633,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     let startCommand = vscode.commands.registerCommand('gee-pro.start', async () => {
-        const customLayoutSaved = context.workspaceState.get<boolean>('gee-pro.customLayoutSaved', false);
+        let customLayoutSaved = context.workspaceState.get<boolean>('gee-pro.customLayoutSaved', false);
         if (!customLayoutSaved) {
             // Close any existing/dormant tabs from prior sessions to avoid duplicate panels
             await closeAllGeeWebviewTabs();
@@ -635,6 +646,10 @@ export function activate(context: vscode.ExtensionContext) {
                     { groups: [{}, {}], size: 0.5 }
                 ]
             });
+            
+            // Auto-save so we NEVER override the user's manual dragging/resizing again.
+            await context.workspaceState.update('gee-pro.customLayoutSaved', true);
+            customLayoutSaved = true;
         }
 
         // 2. Open the demo script on the Top-Left (Column One)

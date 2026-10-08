@@ -378,6 +378,7 @@ export class AIView {
                             
                             const deleteBtn = (!a.isRoot) ? '<button class="task-action-btn cancel-btn" title="Eliminar Asset" onclick="event.preventDefault(); event.stopPropagation(); deleteAsset(\\\'' + a.id + '\\\')">❌</button>' : '';
                             const copyBtn = '<button class="task-action-btn" title="Copiar ID" onclick="event.preventDefault(); event.stopPropagation(); vscode.postMessage({command: \\\'copyToClipboard\\\', text: \\\'\' + a.id + \'\\\'})">📋</button>';
+                            const insertBtn = (!isFolder) ? '<button class="task-action-btn" title="Insertar en Editor" onclick="event.preventDefault(); event.stopPropagation(); vscode.postMessage({command: \\\'insertInEditor\\\', text: \\\'\' + a.id + \'\\\'})">➕</button>' : '';
                             
                             const cardContent = 
                                 '<div class="tree-title">' +
@@ -387,7 +388,7 @@ export class AIView {
                                 '</div>' +
                                 '<div class="tree-meta">' +
                                     '<span class="tree-type" style="color: ' + typeColor + '">' + (a.type || 'Unknown') + '</span>' +
-                                    copyBtn + deleteBtn +
+                                    insertBtn + copyBtn + deleteBtn +
                                 '</div>';
 
                             if (isFolder) {

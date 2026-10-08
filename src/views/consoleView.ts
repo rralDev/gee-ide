@@ -348,14 +348,14 @@ export class ConsoleView {
             white-space: pre-wrap;
         }
         .log-code {
-            color: #9cdcfe;
+            color: var(--vscode-charts-blue, #007acc);
             font-weight: 500;
             white-space: pre-wrap;
         }
         .log-code .prompt {
             display: inline-block;
             width: 2ch;
-            color: #4ec9b0;
+            color: var(--vscode-charts-green, #4ec9b0);
             font-weight: bold;
             user-select: none;
         }
@@ -365,18 +365,18 @@ export class ConsoleView {
             user-select: none;
         }
         .log-output {
-            color: #d4d4d4;
+            color: var(--vscode-editor-foreground, #d4d4d4);
             padding-left: 14px;
         }
         .log-success {
-            color: #4ec9b0;
+            color: var(--vscode-charts-green, #4ec9b0);
             font-weight: 500;
         }
         .log-layer {
-            color: #dcdcaa;
+            color: var(--vscode-charts-yellow, #dcdcaa);
         }
         .log-error {
-            color: #f48771;
+            color: var(--vscode-charts-red, #f48771);
             background: rgba(244, 135, 113, 0.08);
             border-left: 2px solid #f48771;
             padding-left: 8px;
@@ -456,25 +456,25 @@ export class ConsoleView {
             margin: 6px 0 3px 0;
         }
         .script-title {
-            color: #d4d4d4;
+            color: var(--vscode-editor-foreground, #d4d4d4);
             font-weight: normal;
         }
         .log-cli-cmd {
             margin: 5px 0 2px 0;
         }
         .cli-prompt {
-            color: #4ec9b0;
+            color: var(--vscode-charts-green, #4ec9b0);
             font-weight: bold;
         }
         .cli-path {
-            color: #9cdcfe;
+            color: var(--vscode-charts-blue, #007acc);
         }
         .cli-text {
             color: #ffffff;
             font-weight: 500;
         }
         .log-stderr {
-            color: #dcdcaa;
+            color: var(--vscode-charts-yellow, #dcdcaa);
         }
         .tagged-text {
             vertical-align: baseline;
@@ -492,7 +492,7 @@ export class ConsoleView {
             box-shadow: 0 -3px 10px rgba(0,0,0,0.25);
         }
         .input-prompt { 
-            color: #4ec9b0; 
+            color: var(--vscode-charts-green, #4ec9b0); 
             font-weight: bold; 
             margin-right: 8px;
             user-select: none;
