@@ -1233,7 +1233,23 @@ export function activate(context: vscode.ExtensionContext) {
             }
 
             const trimmedCode = code.trim();
-            if (trimmedCode.startsWith('?') || trimmedCode.startsWith('help ') || trimmedCode === 'help') {
+            const firstWord = trimmedCode.replace(/^!|^gee>\s*/, '').trim().split(/\s+/)[0];
+            const isKnownCli = ['ls', 'dir', 'pwd', 'cd', 'mkdir', 'rm', 'rmdir', 'cp', 'mv', 'find', 'catalog', 'search', 'du', 'quota', 'history', 'clear', 'cls', 'touch', 'vars', 'objects', 'snippets'].includes(firstWord);
+            const isExplicitCli = trimmedCode.startsWith('!') || trimmedCode.startsWith('gee>') || (trimmedCode.startsWith('/') && !trimmedCode.startsWith('//') && !trimmedCode.startsWith('/*'));
+
+            if (isExplicitCli || (isKnownCli && !trimmedCode.includes(';') && !trimmedCode.includes('=') && !trimmedCode.includes('('))) {
+                if (!runtime) {
+                    const { GEERuntime } = require('./geeRuntime');
+                    runtime = new GEERuntime(consoleView, mapView);
+                    runtime!.setSnippetsManager(snippetsManager);
+                }
+                if (!runtime!.isInitialized) {
+                    await ensureRuntimeInitialized();
+                }
+                const cliCmd = trimmedCode.replace(/^!|^gee>\s*|^\//, (m) => m === '/' ? '/' : '').trim();
+                await runtime!.handleCommand(cliCmd);
+                if (consoleView) consoleView.append('gee> ');
+            } else if (trimmedCode.startsWith('?') || trimmedCode.startsWith('help ') || trimmedCode === 'help') {
                 if (!runtime) {
                     const { GEERuntime } = require('./geeRuntime');
                     runtime = new GEERuntime(consoleView, mapView);

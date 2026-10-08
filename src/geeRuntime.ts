@@ -67,6 +67,33 @@ export class GEERuntime {
                     return typeof a === 'object' ? JSON.stringify(a, null, 2) : a;
                 }).join(' '));
             },
+            cli: async (cmdStr: string) => {
+                await this.handleCommand(cmdStr);
+            },
+            mkdir: async (folderName: string, isParents: boolean = false) => {
+                await this.handleCommand(`mkdir ${isParents ? '-p ' : ''}${folderName}`);
+            },
+            rm: async (assetName: string, isRecursive: boolean = false) => {
+                await this.handleCommand(`rm ${isRecursive ? '-r ' : ''}${assetName}`);
+            },
+            ls: async (targetPath: string = '') => {
+                await this.handleCommand(`ls ${targetPath}`);
+            },
+            touch: async (collectionName: string) => {
+                await this.handleCommand(`touch ${collectionName}`);
+            },
+            du: async (targetPath: string = '') => {
+                await this.handleCommand(`du ${targetPath}`);
+            },
+            mv: async (src: string, dest: string) => {
+                await this.handleCommand(`mv ${src} ${dest}`);
+            },
+            cp: async (src: string, dest: string) => {
+                await this.handleCommand(`cp ${src} ${dest}`);
+            },
+            find: async (patternOrFlag: string = '') => {
+                await this.handleCommand(`find ${patternOrFlag}`);
+            },
             Map: {
                 addLayer: async (element: any, visParams?: any, name?: string, shown: boolean = true, opacity: number = 1.0) => {
                     const layerName = name || 'unnamed';
@@ -256,6 +283,15 @@ export class GEERuntime {
                 if (cleanCode.startsWith('# js') || cleanCode.startsWith('#js') || cleanCode.startsWith('#!')) {
                     cleanCode = '//' + cleanCode.substring(1);
                 }
+                // Convert !command lines into cli("command") calls
+                cleanCode = cleanCode.split('\n').map(line => {
+                    const trimmedLine = line.trim();
+                    if (trimmedLine.startsWith('!')) {
+                        const cmdText = trimmedLine.substring(1).trim().replace(/"/g, '\\"');
+                        return `cli("${cmdText}");`;
+                    }
+                    return line;
+                }).join('\n');
                 if (cleanCode) {
                     const result = vm.runInContext(cleanCode, this.context);
                     // RStudio UX: If the executed line/selection is an expression that yields a value, print it
@@ -1219,6 +1255,52 @@ export class GEERuntime {
                     this.consoleView.append(`Usage: ${cmd} [-r] [asset_name]`);
                     return;
                 }
+                if (targetName.includes('*') || targetName.includes('?')) {
+                    // Pattern-based batch deletion
+                    let folder = (!this.cwd || this.cwd === '~') ? '~' : this.cwd;
+                    let pattern = targetName;
+                    if (targetName.includes('/')) {
+                        const lastSlash = targetName.lastIndexOf('/');
+                        folder = this.resolvePath(targetName.substring(0, lastSlash));
+                        pattern = targetName.substring(lastSlash + 1);
+                    }
+                    this.consoleView.append(`🔍 Buscando assets que coincidan con '${pattern}' en '${folder}'...`);
+                    const regexStr = '^' + pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.') + '$';
+                    const regex = new RegExp(regexStr, 'i');
+                    ee.data.listAssets(folder, {}, async (res: any, err: any) => {
+                        if (err) {
+                            this.consoleView.append(`[Error]: ${err}`);
+                            return;
+                        }
+                        const assets = res.assets || [];
+                        const matches = assets.filter((a: any) => {
+                            const name = a.id ? a.id.split('/').pop() : a.name.split('/').pop();
+                            return regex.test(name) || regex.test(a.id || a.name || '');
+                        });
+                        if (matches.length === 0) {
+                            this.consoleView.append(`  (no assets matching pattern '${pattern}')`);
+                            return;
+                        }
+                        this.consoleView.append(`🗑️ Eliminando ${matches.length} asset(s) coincidentes...`);
+                        for (const m of matches) {
+                            const id = m.id || m.name;
+                            const short = id.split('/').pop();
+                            const isFolder = m.type === 'FOLDER' || m.type === 'IMAGE_COLLECTION';
+                            if (isFolder && isRecursive) {
+                                await this.deleteAssetRecursively(id);
+                                this.consoleView.append(`  🗑️ Carpeta eliminada recursivamente: ${short}`);
+                            } else {
+                                await new Promise((resDel) => {
+                                    ee.data.deleteAsset(id, () => resDel(true));
+                                });
+                                this.consoleView.append(`  🗑️ Asset eliminado: ${short}`);
+                            }
+                        }
+                        this.consoleView.append(`✅ Eliminación por patrón completada.`);
+                    });
+                    break;
+                }
+
                 const rmTarget = this.resolvePath(targetName);
                 if (isRecursive) {
                     this.consoleView.append(`⏳ Recursively deleting '${targetName}'...`);
@@ -1259,6 +1341,51 @@ export class GEERuntime {
                     if (err) this.consoleView.append(`[Error]: ${err}`);
                     else this.consoleView.append(`📦 Moved to: ${args[1]}`);
                 });
+                break;
+            case 'touch':
+                const touchTarget = args[0];
+                if (!touchTarget) {
+                    this.consoleView.append('Usage: touch [image_collection_name]');
+                    return;
+                }
+                const touchPath = this.resolvePath(touchTarget);
+                this.consoleView.append(`⏳ Creating empty ImageCollection: ${touchPath}...`);
+                ee.data.createAsset({ type: 'IMAGE_COLLECTION' }, touchPath, (res: any, err: any) => {
+                    if (err) this.consoleView.append(`[Error]: ${err}`);
+                    else this.consoleView.append(`✨ Collection created: ${touchPath}`);
+                });
+                break;
+            case 'du':
+            case 'quota':
+                const duTarget = args[0] ? this.resolvePath(args[0]) : ((!this.cwd || this.cwd === '~') ? '~' : this.cwd);
+                if (duTarget === '~') {
+                    if (this.assetRoots.length === 0) await this.loadAssetRoots();
+                    this.consoleView.append(`📊 Cuota de almacenamiento en raíces de assets (${this.assetRoots.length}):`);
+                    for (const r of this.assetRoots) {
+                        ee.data.getAssetRootQuota(r.id, (q: any, err: any) => {
+                            if (!err && q) {
+                                const usedMb = ((q.asset_size && q.asset_size.usage) || 0) / (1024 * 1024);
+                                const maxMb = ((q.asset_size && q.asset_size.limit) || 0) / (1024 * 1024);
+                                const count = (q.asset_count && q.asset_count.usage) || 0;
+                                const maxCount = (q.asset_count && q.asset_count.limit) || 0;
+                                const maxStr = maxMb > 0 ? `${maxMb.toFixed(0)} MB` : 'Ilimitado';
+                                this.consoleView.append(`  🔹 [${r.shortName}]: ${usedMb.toFixed(2)} MB / ${maxStr} (${count} assets)`);
+                            }
+                        });
+                    }
+                } else {
+                    ee.data.getAssetRootQuota(duTarget, (q: any, err: any) => {
+                        if (err) {
+                            this.consoleView.append(`[Error]: ${err}`);
+                        } else if (q) {
+                            const usedMb = ((q.asset_size && q.asset_size.usage) || 0) / (1024 * 1024);
+                            const maxMb = ((q.asset_size && q.asset_size.limit) || 0) / (1024 * 1024);
+                            const count = (q.asset_count && q.asset_count.usage) || 0;
+                            const maxStr = maxMb > 0 ? `${maxMb.toFixed(0)} MB` : 'Ilimitado';
+                            this.consoleView.append(`📊 Cuota [${duTarget}]: ${usedMb.toFixed(2)} MB / ${maxStr} (${count} assets)`);
+                        }
+                    });
+                }
                 break;
             case 'clear':
             case 'cls':
