@@ -706,7 +706,25 @@ export function activate(context: vscode.ExtensionContext) {
             });
         }
 
-        // 2. Open the demo script on the Top-Left (Column One)
+        // Close any duplicate demo tabs located outside Column One
+        try {
+            const demoTabsToClose: vscode.Tab[] = [];
+            for (const group of vscode.window.tabGroups.all) {
+                if (group.viewColumn !== vscode.ViewColumn.One) {
+                    for (const tab of group.tabs) {
+                        if (tab.input instanceof vscode.TabInputText && 
+                            tab.input.uri.fsPath.endsWith('welcome_to_gee_ide.gee')) {
+                            demoTabsToClose.push(tab);
+                        }
+                    }
+                }
+            }
+            if (demoTabsToClose.length > 0) {
+                await vscode.window.tabGroups.close(demoTabsToClose);
+            }
+        } catch (e) {}
+
+        // 2. Open the demo script strictly on Top-Left (Column One)
         const demoPath = vscode.Uri.file(context.asAbsolutePath('demos/welcome_to_gee_ide.gee'));
         const doc = await vscode.workspace.openTextDocument(demoPath);
         await detectAndSetGeeLanguage(doc);
@@ -717,7 +735,7 @@ export function activate(context: vscode.ExtensionContext) {
             mapView.show(vscode.ViewColumn.Three);
             aiView.show(vscode.ViewColumn.Four);
         } else {
-            await vscode.window.showTextDocument(doc, { preview: false });
+            await vscode.window.showTextDocument(doc, { preview: false, viewColumn: vscode.ViewColumn.One });
             consoleView.show();
             mapView.show();
             aiView.show();
