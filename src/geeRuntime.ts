@@ -1510,26 +1510,19 @@ export class GEERuntime {
                         await this.loadAssetRoots();
                     }
                     resolve(this.assetRoots.map(r => ({
+                        type: 'FOLDER_ROOT',
                         id: r.id,
-                        name: r.shortName,
-                        type: 'FOLDER',
+                        name: r.id.split('/').pop(),
                         isRoot: true
                     })));
                 } else {
-                    getEE().data.listAssets(parentFolder, {}, (res: any, err: any) => {
-                        if (err) {
-                            reject(new Error(err));
-                        } else {
-                            const assets = res.assets || [];
-                            resolve(assets.map((a: any) => ({
-                                id: a.id || a.name,
-                                name: (a.id || a.name).split('/').pop(),
-                                type: a.type
-                            })));
-                        }
+                    const ee = require('@google/earthengine');
+                    ee.data.listAssets(parentFolder, {}, (res: any, err: string) => {
+                        if (err) return reject(new Error(err));
+                        resolve(res.assets || []);
                     });
                 }
-            } catch (e: any) {
+            } catch (e) {
                 reject(e);
             }
         });
@@ -1537,20 +1530,34 @@ export class GEERuntime {
 
     public async deleteAssetApi(assetId: string): Promise<void> {
         return new Promise((resolve, reject) => {
-            if (!this.isInitialized) {
-                return reject(new Error('GEE no está inicializado.'));
-            }
-            try {
-                getEE().data.deleteAsset(assetId, (_: any, err: any) => {
-                    if (err) {
-                        reject(new Error(err));
-                    } else {
-                        resolve();
-                    }
-                });
-            } catch (e: any) {
-                reject(e);
-            }
+            if (!this.isInitialized) return reject(new Error('GEE no está inicializado.'));
+            const ee = require('@google/earthengine');
+            ee.data.deleteAsset(assetId, (res: any, err: string) => {
+                if (err) return reject(new Error(err));
+                resolve();
+            });
+        });
+    }
+
+    public async createFolderApi(path: string): Promise<void> {
+        return new Promise((resolve, reject) => {
+            if (!this.isInitialized) return reject(new Error('GEE no está inicializado.'));
+            const ee = require('@google/earthengine');
+            ee.data.createFolder(path, false, (res: any, err: string) => {
+                if (err) return reject(new Error(err));
+                resolve();
+            });
+        });
+    }
+
+    public async getAssetDetailsApi(id: string): Promise<any> {
+        return new Promise((resolve, reject) => {
+            if (!this.isInitialized) return reject(new Error('GEE no está inicializado.'));
+            const ee = require('@google/earthengine');
+            ee.data.getAsset(id, (res: any, err: string) => {
+                if (err) return reject(new Error(err));
+                resolve(res);
+            });
         });
     }
 }

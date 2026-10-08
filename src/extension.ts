@@ -383,6 +383,29 @@ export function activate(context: vscode.ExtensionContext) {
                 vscode.window.showInformationMessage(`Copiado al portapapeles (no hay editor activo).`);
             }
         } else if (message.command === 'openExternal') {
+        } else if (message.command === 'createFolder') {
+            if (runtime && runtime.isInitialized) {
+                vscode.window.showInputBox({ prompt: 'Nombre del nuevo folder (ej. projects/ee-robles/assets/mi_carpeta)' }).then(async val => {
+                    if (val) {
+                        try {
+                            await runtime!.createFolderApi(val);
+                            vscode.window.showInformationMessage(`Carpeta ${val} creada exitosamente.`);
+                            aiView.sendMessage({ command: 'assetDeleted' }); // Reuses refresh
+                        } catch (e: any) {
+                            vscode.window.showErrorMessage('Error al crear folder: ' + e.message);
+                        }
+                    }
+                });
+            }
+        } else if (message.command === 'getAssetDetails') {
+            if (runtime && runtime.isInitialized) {
+                try {
+                    const details = await runtime.getAssetDetailsApi(message.assetId);
+                    aiView.sendMessage({ command: 'assetDetailsData', details, assetId: message.assetId });
+                } catch (e: any) {
+                    vscode.window.showErrorMessage('Error al obtener detalles: ' + e.message);
+                }
+            }
             vscode.env.openExternal(vscode.Uri.parse(message.url));
         } else if (message.command === 'getAssets') {
             if (runtime && runtime.isInitialized) {
