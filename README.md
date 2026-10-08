@@ -376,22 +376,22 @@ Manage cloud storage assets directly from your editor workspace:
 
 ### 🛠️ Complete CLI Command Reference & Examples
 
-| Command | Syntax / Flags | Description | Example |
+| Command | Official GEE API Equivalent (`ee.data.*`) | Syntax / Flags | Description & Practical Examples |
 | :--- | :--- | :--- | :--- |
-| **`ls` / `dir`** | `ls [path] [pattern]` | Lists contents of the current or specified directory. Supports glob patterns (`*`, `?`). `ls ~` lists all project roots. | `ls`<br>`ls ~`<br>`ls users/mi_usuario`<br>`ls *sentinel*` |
-| **`pwd`** | `pwd` | Prints current working directory in Earth Engine assets hierarchy. | `pwd` |
-| **`cd`** | `cd [path]` | Changes active working directory. Supports relative (`..`) and absolute paths (`~`, `users/...`, `projects/...`). | `cd mi_carpeta`<br>`cd ..`<br>`cd ~` |
-| **`mkdir`** | `mkdir [-p] <path>` | Creates a new cloud asset folder. Flag `-p` creates parent folders recursively. | `mkdir temporada_2024`<br>`mkdir -p proyectos/2024/ndvi` |
-| **`touch`** | `touch <name>` | Creates an empty `ImageCollection` container in Earth Engine. | `touch s2_composites_2024` |
-| **`rm` / `rmdir`** | `rm [-r/-rf] <target>` | Deletes an asset. Flag `-r` enables recursive folder deletion. **Supports wildcard patterns** (`*`, `?`) for bulk cleanup! | `rm old_image`<br>`rm -r old_folder`<br>`rm -r temp_*` |
-| **`mv`** | `mv <source> <dest>` | Renames or moves an asset in the cloud. | `mv test_v1 test_v2`<br>`mv temp/raster final/raster` |
-| **`cp`** | `cp <source> <dest>` | Copies an asset from source to destination. | `cp backup_image working_image` |
-| **`du` / `quota`** | `du [path]` | Displays storage usage and quota in megabytes and asset count. `du ~` inspects all project roots. | `du`<br>`du ~`<br>`du users/mi_usuario` |
-| **`find`** | `find [path] [-name pat] [-type typ] [-maxdepth n]` | Recursively searches assets with advanced filters (`-type FOLDER\|IMAGE\|TABLE\|IMAGE_COLLECTION`). | `find *landsat*`<br>`find -type IMAGE`<br>`find users/foo -name *2024* -maxdepth 3` |
-| **`catalog` / `search`** | `catalog <query>` | Searches the global Google Earth Engine public data catalog (+1,100 datasets). | `catalog sentinel 2`<br>`search modis ndvi`<br>`find -c elevation` |
-| **`vars` / `whos`** | `vars` | Inspects all in-memory variables and their Earth Engine types (RStudio/MATLAB UX). | `vars` |
-| **`history`** | `history [n]` | Displays command history stored in `.gee_history`. Use `!15` to re-execute event #15. | `history`<br>`history 10`<br>`!5` |
-| **`clear` / `cls`** | `clear` | Clears the interactive console screen canvas. | `clear` |
+| **`ls` / `dir`** | `ee.data.listAssets(path)` | `ls [path] [pattern]` | Lists folder or collection contents. Supports glob matching (`*`, `?`). `ls ~` lists all project roots.<br>• *Examples:* `ls`, `ls ~`, `ls users/mi_usuario`, `ls *sentinel*` |
+| **`pwd`** | *(Virtual Shell Context)* | `pwd` | Prints current working directory in Earth Engine assets hierarchy.<br>• *Example:* `pwd` |
+| **`cd`** | *(Virtual Shell Context)* | `cd [path]` | Changes active working directory. Supports relative (`..`) and absolute paths (`~`, `users/...`, `projects/...`).<br>• *Examples:* `cd mi_carpeta`, `cd ..`, `cd ~` |
+| **`mkdir`** | `ee.data.createFolder(path)` | `mkdir [-p] <path>` | Creates a new cloud asset folder. Flag `-p` creates parent folders recursively.<br>• *Examples:* `mkdir temporada_2024`, `mkdir -p proyectos/2024/ndvi` |
+| **`touch`** | `ee.data.createAsset({type: 'ImageCollection'})` | `touch <name>` | Creates an empty `ImageCollection` container in Earth Engine.<br>• *Example:* `touch s2_composites_2024` |
+| **`rm` / `rmdir`** | `ee.data.deleteAsset(id)` | `rm [-r/-rf] <target>` | Deletes assets. Flag `-r` enables recursive folder deletion. **Supports wildcard patterns (`*`, `?`)** for bulk cleanup!<br>• *Examples:* `rm old_image`, `rm -r old_folder`, `rm -r temp_*` |
+| **`mv`** | `ee.data.renameAsset(src, dest)` | `mv <source> <dest>` | Renames or moves an asset across cloud folders or projects.<br>• *Examples:* `mv test_v1 test_v2`, `mv temp/raster final/raster` |
+| **`cp`** | `ee.data.copyAsset(src, dest)` | `cp <source> <dest>` | Copies an asset from source to destination.<br>• *Example:* `cp backup_image working_image` |
+| **`du` / `quota`** | `ee.data.getAssetRootQuota(root)` | `du [path]` | Displays storage usage and quota in megabytes and asset count. `du ~` inspects all project roots.<br>• *Examples:* `du`, `du ~`, `du users/mi_usuario` |
+| **`find`** | `ee.data.listAssets(...)` *(recursive)* | `find [path] [-name pat] [-type typ] [-maxdepth n]` | Recursively searches assets with advanced filters (`-type FOLDER\|IMAGE\|TABLE\|IMAGE_COLLECTION`).<br>• *Examples:* `find *landsat*`, `find -type IMAGE`, `find -maxdepth 2` |
+| **`catalog` / `search`** | *(Earth Engine Discovery REST API)* | `catalog <query>` | Searches the global Google Earth Engine public data catalog (+1,100 datasets) and generates runnable snippets.<br>• *Examples:* `catalog sentinel 2`, `search modis ndvi`, `find -c elevation` |
+| **`vars` / `whos`** | *(In-Memory Scope Inspector)* | `vars` | Inspects all in-memory variables and their Earth Engine types (RStudio/MATLAB UX).<br>• *Example:* `vars` |
+| **`history`** | *(Persistent .gee_history Log)* | `history [n]` | Displays command history stored in `.gee_history`. Use `!15` to re-execute event #15.<br>• *Examples:* `history`, `history 10`, `!5` |
+| **`clear` / `cls`** | `console.clear()` | `clear` | Clears the interactive console screen canvas (`Cmd + L` / `Ctrl + L`).<br>• *Example:* `clear` |
 
 ---
 
