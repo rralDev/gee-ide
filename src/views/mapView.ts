@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 
 export class MapView {
     private panel: vscode.WebviewPanel | undefined;
+    public get isCreated(): boolean { return this.panel !== undefined; }
     private messageCallback: ((message: any) => void) | undefined;
     private isReady: boolean = false;
     private messageQueue: any[] = [];
@@ -12,16 +13,17 @@ export class MapView {
         this.messageCallback = callback;
     }
 
-    public async show(column: vscode.ViewColumn = vscode.ViewColumn.Three, preserveFocus: boolean = true) {
+    public async show(column?: vscode.ViewColumn, preserveFocus: boolean = true) {
+        const targetColumn = column || vscode.ViewColumn.Three;
         if (this.panel) {
-            this.panel.reveal(column, preserveFocus);
+            this.panel.reveal(column !== undefined ? column : this.panel.viewColumn, preserveFocus);
         } else {
             await this.closeExistingTabs();
 
             this.panel = vscode.window.createWebviewPanel(
                 'geeMap',
                 'GEE Map',
-                { viewColumn: column, preserveFocus },
+                { viewColumn: targetColumn, preserveFocus },
                 {
                     enableScripts: true,
                     retainContextWhenHidden: true

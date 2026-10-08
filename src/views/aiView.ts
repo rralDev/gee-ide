@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 
 export class AIView {
     private panel: vscode.WebviewPanel | undefined;
+    public get isCreated(): boolean { return this.panel !== undefined; }
     private messageCallback: ((message: any) => void) | undefined;
 
     constructor(private context: vscode.ExtensionContext) {}
@@ -10,16 +11,17 @@ export class AIView {
         this.messageCallback = callback;
     }
 
-    public async show(column: vscode.ViewColumn = vscode.ViewColumn.Four, preserveFocus: boolean = true) {
+    public async show(column?: vscode.ViewColumn, preserveFocus: boolean = true) {
+        const targetColumn = column || vscode.ViewColumn.Four;
         if (this.panel) {
-            this.panel.reveal(column, preserveFocus);
+            this.panel.reveal(column !== undefined ? column : this.panel.viewColumn, preserveFocus);
         } else {
             await this.closeExistingTabs();
 
             this.panel = vscode.window.createWebviewPanel(
                 'geeAI',
                 'GEE Tools',
-                { viewColumn: column, preserveFocus },
+                { viewColumn: targetColumn, preserveFocus },
                 {
                     enableScripts: true,
                     retainContextWhenHidden: true
@@ -257,15 +259,15 @@ export class AIView {
                         setTimeout(refreshTasks, 1000);
                     }
 
-                    function renderTasks(tasksData) {
+                                                                                function renderTasks(tasksData) {
                         const list = document.getElementById('task-list');
                         list.innerHTML = '';
                         
                         if (tasksData && tasksData.error) {
                             if (tasksData.error === 'not_initialized') {
-                                list.innerHTML = '<div style="color: #cca700; font-size: 12px; padding: 10px; border: 1px solid #cca700; background: rgba(204,167,0,0.1); border-radius: 4px;">⚠️ GEE no está inicializado. Por favor corre un script o inicia el Workspace primero para ver tus tareas.</div>';
+                                list.innerHTML = '<div style="color: var(--vscode-charts-yellow); font-size: 12px; padding: 10px; border: 1px solid var(--vscode-charts-yellow); background: var(--vscode-editorWidget-background); border-radius: 4px;">⚠️ GEE no está inicializado. Por favor corre un script o inicia el Workspace primero para ver tus tareas.</div>';
                             } else {
-                                list.innerHTML = \`<div style="color: #f14c4c; font-size: 12px;">Error: \${tasksData.error}</div>\`;
+                                list.innerHTML = \`<div style="color: var(--vscode-charts-red); font-size: 12px;">Error: \${tasksData.error}</div>\`;
                             }
                             return;
                         }
@@ -274,9 +276,9 @@ export class AIView {
                         if (tasksData && Array.isArray(tasksData.tasks)) {
                             tasks = tasksData.tasks;
                         }
-
+                        
                         if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
-                            list.innerHTML = '<div style="color: #888; font-size: 12px; font-style: italic;">No recent tasks found.</div>';
+                            list.innerHTML = '<div style="color: var(--vscode-descriptionForeground); font-size: 12px; font-style: italic; padding: 2px 20px;">No recent tasks found.</div>';
                             return;
                         }
                         
@@ -285,12 +287,15 @@ export class AIView {
                             const div = document.createElement('div');
                             let stateClass = '';
                             let stateColor = '#888';
-                            if (t.state === 'RUNNING') { stateClass = 'running'; stateColor = '#007acc'; }
-                            else if (t.state === 'COMPLETED') { stateClass = 'completed'; stateColor = '#4ec9b0'; }
-                            else if (t.state === 'FAILED') { stateClass = 'failed'; stateColor = '#f14c4c'; }
-                            else if (t.state === 'READY') { stateClass = 'ready'; stateColor = '#cca700'; }
+                            if (t.state === 'RUNNING') { stateClass = 'running'; stateColor = 'var(--vscode-charts-blue)'; }
+                            else if (t.state === 'COMPLETED') { stateClass = 'completed'; stateColor = 'var(--vscode-charts-green)'; }
+                            else if (t.state === 'FAILED') { stateClass = 'failed'; stateColor = 'var(--vscode-charts-red)'; }
+                            else if (t.state === 'READY') { stateClass = 'ready'; stateColor = 'var(--vscode-charts-yellow)'; }
                             
-                            div.className = 'task-item ' + stateClass;
+                            div.className = 'tree-item';
+                            div.tabIndex = 0;
+                            div.dataset.path = t.id;
+                            div.dataset.type = t.task_type;
                             
                             let desc = t.description || t.id;
                             let duration = '';
@@ -302,40 +307,40 @@ export class AIView {
                                 duration = min > 0 ? \` (\${min}m)\` : ' (<1m)';
                             }
 
+                            let icon = '⏳';
+                            if (t.state === 'COMPLETED') icon = '✅';
+                            else if (t.state === 'FAILED') icon = '❌';
+                            else if (t.state === 'RUNNING') icon = '🔄';
+
                             let actionsHTML = '';
                             if (t.state === 'RUNNING' || t.state === 'READY') {
-                                actionsHTML = \`<button class="task-action-btn cancel-btn" onclick="cancelTask('\${t.id}')">Cancel</button>\`;
-                            } else if (t.state === 'COMPLETED') {
+                                actionsHTML += \`<button class="task-action-btn cancel-btn" title="Cancelar Tarea" onclick="event.preventDefault(); event.stopPropagation(); cancelTask('\${t.id}')">🛑</button>\`;
+                            }
+                            if (t.state === 'COMPLETED' && t.task_type === 'EXPORT_IMAGE') {
                                 const searchUrl = \`https://drive.google.com/drive/search?q=\${encodeURIComponent(desc)}\`;
-                                actionsHTML = \`
-                                    <button class="task-action-btn" title="Buscar en Google Drive" onclick="vscode.postMessage({command: 'openExternal', url: '\${searchUrl}'})">📁 Drive</button>
-                                    <button class="task-action-btn" title="Copiar nombre de Tarea/Asset" onclick="vscode.postMessage({command: 'copyToClipboard', text: '\${desc}'})">📋 Copiar Nombre</button>
-                                \`;
-                            } else if (t.state === 'FAILED') {
-                                const errorMsg = (t.error_message || 'Error desconocido').replace(/'/g, "\\\\'");
-                                actionsHTML = \`<button class="task-action-btn" title="\${t.error_message}" onclick="vscode.postMessage({command: 'copyToClipboard', text: '\${errorMsg}'})">⚠️ Copiar Error</button>\`;
+                                actionsHTML += \`<button class="task-action-btn" title="Buscar en Google Drive" onclick="event.preventDefault(); event.stopPropagation(); vscode.postMessage({command: 'openExternal', url: '\${searchUrl}'})">📁</button>\`;
+                            }
+                            actionsHTML += \`<button class="task-action-btn" title="Copiar ID" onclick="event.preventDefault(); event.stopPropagation(); vscode.postMessage({command: 'copyToClipboard', text: '\${t.id}'})">📋</button>\`;
+                            
+                            if (t.state === 'FAILED' && t.error_message) {
+                                const errorMsg = t.error_message.replace(/'/g, "\\\\\\'").replace(/\\n/g, ' ');
+                                actionsHTML += \`<button class="task-action-btn" title="Copiar Error" onclick="event.preventDefault(); event.stopPropagation(); vscode.postMessage({command: 'copyToClipboard', text: '\${errorMsg}'})">⚠️</button>\`;
                             }
 
                             div.innerHTML = \`
-                                <div class="task-title">
-                                    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%;" title="\${desc}">\${desc}</span> 
-                                    <span style="color: \${stateColor}; flex-shrink: 0; font-size: 10px;">\${t.state}\${duration}</span>
+                                <div class="tree-title">
+                                    <span class="tree-icon">\${icon}</span>
+                                    <span title="\${t.id}">\${desc}</span>
                                 </div>
-                                <div class="task-meta" style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
-                                    <span>Type: \${t.task_type}</span>
-                                    <div class="task-actions" style="display: flex; gap: 6px;">
-                                        \${actionsHTML}
-                                    </div>
+                                <div class="tree-meta">
+                                    <span class="tree-type" style="color: \${stateColor}">\${t.state}\${duration}</span>
+                                    \${actionsHTML}
                                 </div>
                             \`;
                             list.appendChild(div);
                         });
                     }
-
-
-                    // --- ASSETS LOGIC ---
-                    
-                    const openFolders = new Set();
+const openFolders = new Set();
                     function refreshAssets() {
                         const list = document.getElementById("assets-list");
                         list.innerHTML = '<div style="color: var(--vscode-descriptionForeground); font-size: 12px; font-style: italic;">Loading assets...</div>';

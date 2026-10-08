@@ -605,6 +605,7 @@ export function activate(context: vscode.ExtensionContext) {
                     });
                     await displaySessionBanner(consoleView, creds, rt);
                     logStep(`GEE runtime fully initialized with project '${activeProject || 'none'}' & banner displayed`);
+                    if (aiView.isCreated) { aiView.sendMessage({ command: 'assetDeleted' }); }
                     return true;
                 } else {
                     logStep('No credentials stored, prompt user to login');
@@ -656,9 +657,10 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     let startCommand = vscode.commands.registerCommand('gee-pro.start', async () => {
-        let customLayoutSaved = context.workspaceState.get<boolean>('gee-pro.customLayoutSaved', false);
-        if (!customLayoutSaved) {
-            // Close any existing/dormant tabs from prior sessions to avoid duplicate panels
+        const panelsExist = consoleView.isCreated || mapView.isCreated || aiView.isCreated;
+        
+        if (!panelsExist) {
+            // Close any dormant tabs just in case
             await closeAllGeeWebviewTabs();
 
             // 1. Force the professional 2x2 grid layout
@@ -669,24 +671,20 @@ export function activate(context: vscode.ExtensionContext) {
                     { groups: [{}, {}], size: 0.5 }
                 ]
             });
-            
-            // Auto-save so we NEVER override the user's manual dragging/resizing again.
-            await context.workspaceState.update('gee-pro.customLayoutSaved', true);
-            customLayoutSaved = true;
         }
 
         // 2. Open the demo script on the Top-Left (Column One)
         const demoPath = vscode.Uri.file(context.asAbsolutePath('demos/welcome_to_gee_ide.gee'));
         const doc = await vscode.workspace.openTextDocument(demoPath);
         await detectAndSetGeeLanguage(doc);
-        await vscode.window.showTextDocument(doc, { preview: false, viewColumn: customLayoutSaved ? undefined : vscode.ViewColumn.One });
-
-        // 3. Show views in their respective grid positions
-        if (!customLayoutSaved) {
+        
+        if (!panelsExist) {
+            await vscode.window.showTextDocument(doc, { preview: false, viewColumn: vscode.ViewColumn.One });
             consoleView.show(vscode.ViewColumn.Two);
             mapView.show(vscode.ViewColumn.Three);
             aiView.show(vscode.ViewColumn.Four);
         } else {
+            await vscode.window.showTextDocument(doc, { preview: false });
             consoleView.show();
             mapView.show();
             aiView.show();

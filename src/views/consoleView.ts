@@ -117,6 +117,7 @@ function formatLogEntry(text: string): { className: string; innerHtml: string } 
 
 export class ConsoleView {
     private panel: vscode.WebviewPanel | undefined;
+    public get isCreated(): boolean { return this.panel !== undefined; }
     private messageCallback: ((message: any) => void) | undefined;
     private logs: string[] = [];
     private knownCompletions: Set<string> = new Set([
@@ -133,16 +134,17 @@ export class ConsoleView {
         this.messageCallback = callback;
     }
 
-    public async show(column: vscode.ViewColumn = vscode.ViewColumn.Two, preserveFocus: boolean = true) {
+    public async show(column?: vscode.ViewColumn, preserveFocus: boolean = true) {
+        const targetColumn = column || vscode.ViewColumn.Two;
         if (this.panel) {
-            this.panel.reveal(column, preserveFocus);
+            this.panel.reveal(column !== undefined ? column : this.panel.viewColumn, preserveFocus);
         } else {
             await this.closeExistingTabs();
 
             this.panel = vscode.window.createWebviewPanel(
                 'geeConsole',
                 'GEE Console',
-                { viewColumn: column, preserveFocus },
+                { viewColumn: targetColumn, preserveFocus },
                 {
                     enableScripts: true,
                     retainContextWhenHidden: true
