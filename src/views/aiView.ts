@@ -202,10 +202,16 @@ export class AIView {
                         setTimeout(refreshTasks, 1000);
                     }
 
-                    function renderTasks(tasks) {
+                    function renderTasks(tasksData) {
                         const list = document.getElementById('task-list');
                         list.innerHTML = '';
-                        if (!tasks || tasks.length === 0) {
+                        
+                        let tasks = tasksData;
+                        if (tasksData && Array.isArray(tasksData.tasks)) {
+                            tasks = tasksData.tasks;
+                        }
+
+                        if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
                             list.innerHTML = '<div style="color: #888; font-size: 12px; font-style: italic;">No recent tasks found.</div>';
                             return;
                         }
