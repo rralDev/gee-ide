@@ -2146,8 +2146,21 @@ export class MapView {
                         const divider = document.getElementById('swipe-divider');
                         const icon = document.getElementById('swipe-icon');
 
+                        const mapSize = map.getSize();
+                        const nw = map.containerPointToLayerPoint([0, 0]);
+                        const se = map.containerPointToLayerPoint([mapSize.x, mapSize.y]);
+                        
+                        let clipX = mapSize.x * (swipeValue / 100);
+                        let clipY = mapSize.y * (swipeValue / 100);
+                        
+                        let layerClipX = map.containerPointToLayerPoint([clipX, 0]).x;
+                        let layerClipY = map.containerPointToLayerPoint([0, clipY]).y;
+
                         if (swipeOrientation === 'vertical') {
-                            container.style.clipPath = \`polygon(0 0, \${swipeValue}% 0, \${swipeValue}% 100%, 0 100%)\`;
+                            // clip: rect(top, right, bottom, left)
+                            container.style.clip = \`rect(\${nw.y}px, \${layerClipX}px, \${se.y}px, \${nw.x}px)\`;
+                            container.style.clipPath = ''; // clear old just in case
+                            
                             divider.style.left = \`\${swipeValue}%\`;
                             divider.style.top = '0';
                             divider.style.bottom = '0';
@@ -2156,7 +2169,9 @@ export class MapView {
                             divider.style.cursor = 'col-resize';
                             icon.style.transform = 'rotate(90deg)';
                         } else {
-                            container.style.clipPath = \`polygon(0 0, 100% 0, 100% \${swipeValue}%, 0 \${swipeValue}%)\`;
+                            container.style.clip = \`rect(\${nw.y}px, \${se.x}px, \${layerClipY}px, \${nw.x}px)\`;
+                            container.style.clipPath = '';
+                            
                             divider.style.top = \`\${swipeValue}%\`;
                             divider.style.left = '0';
                             divider.style.right = '0';
@@ -2166,6 +2181,10 @@ export class MapView {
                             icon.style.transform = 'rotate(0deg)';
                         }
                     }
+
+                    map.on('move', updateSwipeClip);
+                    map.on('zoom', updateSwipeClip);
+                    map.on('resize', updateSwipeClip);
 
                     window.toggleSwipeMode = function() {
                         swipeMode = !swipeMode;
@@ -2189,6 +2208,7 @@ export class MapView {
                         } else {
                             if (topSwipeLayer && topSwipeLayer.getContainer()) {
                                 topSwipeLayer.getContainer().style.clipPath = '';
+                                topSwipeLayer.getContainer().style.clip = '';
                             }
                             topSwipeLayer = null;
                             divider.style.display = 'none';
