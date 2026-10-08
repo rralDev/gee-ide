@@ -157,10 +157,17 @@ export class AIView {
                 </div>
 
                 <div id="assets" class="content">
-                    <div style="margin-bottom: 10px;">
+                    <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
                         <span style="font-size: 14px; font-weight: bold;">Assets Manager</span>
+                        <div>
+                            <button onclick="navigateAssets('~')" style="background: #333; border: 1px solid #555; padding: 4px 8px; font-size: 11px;" title="Go Home">🏠</button>
+                            <button onclick="refreshAssets()" style="background: #333; border: 1px solid #555; padding: 4px 8px; font-size: 11px;">🔄 Refresh</button>
+                        </div>
                     </div>
-                    <div style="color: #888; font-size: 12px; font-style: italic;">Assets Manager coming soon in our Core Productivity roadmap!</div>
+                    <div id="assets-path" style="font-size: 11px; color: #007acc; margin-bottom: 8px; word-break: break-all;"></div>
+                    <div class="task-list" id="assets-list">
+                        <div style="color: #888; font-size: 12px; font-style: italic;">Click Refresh to load assets...</div>
+                    </div>
                 </div>
 
                 <div id="ai" class="content">
@@ -280,6 +287,101 @@ export class AIView {
                         });
                     }
 
+                    // --- ASSETS LOGIC ---
+                    let currentAssetPath = '~';
+
+                    function navigateAssets(path) {
+                        currentAssetPath = path;
+                        refreshAssets();
+                    }
+
+                    function refreshAssets() {
+                        const list = document.getElementById('assets-list');
+                        list.innerHTML = '<div style="color: #888; font-size: 12px; font-style: italic;">Loading assets...</div>';
+                        document.getElementById('assets-path').innerText = currentAssetPath;
+                        vscode.postMessage({ command: 'getAssets', parent: currentAssetPath });
+                    }
+
+                    function deleteAsset(id) {
+                        vscode.postMessage({ command: 'deleteAsset', assetId: id });
+                    }
+
+                    function renderAssets(message) {
+                        const list = document.getElementById('assets-list');
+                        list.innerHTML = '';
+                        
+                        if (message && message.error) {
+                            if (message.error === 'not_initialized') {
+                                list.innerHTML = '<div style="color: #cca700; font-size: 12px; padding: 10px; border: 1px solid #cca700; background: rgba(204,167,0,0.1); border-radius: 4px;">⚠️ GEE no está inicializado. Por favor corre un script o inicia el Workspace primero para ver tus assets.</div>';
+                            } else {
+                                list.innerHTML = \`<div style="color: #f14c4c; font-size: 12px;">Error: \${message.error}</div>\`;
+                            }
+                            return;
+                        }
+
+                        let assets = message.assets || [];
+                        if (assets.length === 0) {
+                            list.innerHTML = '<div style="color: #888; font-size: 12px; font-style: italic;">(Empty folder)</div>';
+                            return;
+                        }
+
+                        // Add ".." back button if not root
+                        if (currentAssetPath !== '~') {
+                            const parentParts = currentAssetPath.split('/');
+                            parentParts.pop();
+                            const parentPath = parentParts.length > 0 ? parentParts.join('/') : '~';
+                            const div = document.createElement('div');
+                            div.className = 'task-item';
+                            div.style.cursor = 'pointer';
+                            div.innerHTML = \`<div class="task-title"><span>🔙 ..</span></div>\`;
+                            div.onclick = () => navigateAssets(parentPath);
+                            list.appendChild(div);
+                        }
+
+                        assets.sort((a, b) => {
+                            if (a.type === 'FOLDER' && b.type !== 'FOLDER') return -1;
+                            if (a.type !== 'FOLDER' && b.type === 'FOLDER') return 1;
+                            return a.name.localeCompare(b.name);
+                        }).forEach(a => {
+                            const div = document.createElement('div');
+                            div.className = 'task-item';
+                            
+                            let icon = '📄';
+                            if (a.type === 'FOLDER' || a.type === 'FOLDER_ROOT' || a.isRoot) icon = '📁';
+                            else if (a.type === 'IMAGE') icon = '🖼️';
+                            else if (a.type === 'IMAGE_COLLECTION') icon = '📚';
+                            else if (a.type === 'TABLE') icon = '📊';
+
+                            let typeColor = '#888';
+                            if (a.type === 'IMAGE') typeColor = '#4ec9b0';
+                            else if (a.type === 'TABLE') typeColor = '#cca700';
+
+                            div.innerHTML = \`
+                                <div class="task-title">
+                                    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 70%;" title="\${a.id}">
+                                        \${icon} \${a.name}
+                                    </span>
+                                </div>
+                                <div class="task-meta" style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+                                    <span style="color: \${typeColor}">\${a.type || 'Unknown'}</span>
+                                    <div class="task-actions" style="display: flex; gap: 6px;">
+                                        <button class="task-action-btn" title="Copiar ID" onclick="event.stopPropagation(); vscode.postMessage({command: 'copyToClipboard', text: '\${a.id}'})">📋</button>
+                                        \${(!a.isRoot) ? \`<button class="task-action-btn cancel-btn" title="Eliminar Asset" onclick="event.stopPropagation(); deleteAsset('\${a.id}')">❌</button>\` : ''}
+                                    </div>
+                                </div>
+                            \`;
+
+                            if (a.type === 'FOLDER' || a.type === 'FOLDER_ROOT' || a.type === 'IMAGE_COLLECTION' || a.isRoot) {
+                                div.style.cursor = 'pointer';
+                                div.onclick = () => navigateAssets(a.id);
+                                div.classList.add('ready'); // use ready class for hover highlight
+                            }
+
+                            list.appendChild(div);
+                        });
+                    }
+
+
                     // --- AI LOGIC ---
                     const chat = document.getElementById('chat');
                     const input = document.getElementById('input');
@@ -324,12 +426,17 @@ export class AIView {
                                 inp.select();
                             }
                         } else if (message.command === 'tasksData') {
-                            renderTasks(message.tasks);
+                            renderTasks(message.tasks || message);
+                        } else if (message.command === 'assetsData') {
+                            renderAssets(message);
+                        } else if (message.command === 'assetDeleted') {
+                            refreshAssets();
                         }
                     });
 
                     // Initial fetch
                     refreshTasks();
+                    refreshAssets();
                 </script>
             </body>
             </html>

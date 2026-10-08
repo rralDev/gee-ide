@@ -373,6 +373,32 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.window.showInformationMessage(`Copiado al portapapeles: ${message.text}`);
         } else if (message.command === 'openExternal') {
             vscode.env.openExternal(vscode.Uri.parse(message.url));
+        } else if (message.command === 'getAssets') {
+            if (runtime && runtime.isInitialized) {
+                try {
+                    const assets = await runtime.getAssetsApi(message.parent || '~');
+                    aiView.sendMessage({ command: 'assetsData', assets, parent: message.parent || '~' });
+                } catch (e: any) {
+                    vscode.window.showErrorMessage('Error al obtener assets: ' + e.message);
+                    aiView.sendMessage({ command: 'assetsData', error: e.message });
+                }
+            } else {
+                aiView.sendMessage({ command: 'assetsData', error: 'not_initialized' });
+            }
+        } else if (message.command === 'deleteAsset') {
+            if (runtime && runtime.isInitialized) {
+                vscode.window.showWarningMessage(`¿Estás seguro de eliminar el asset '${message.assetId}' de Earth Engine permanentemente?`, 'Sí, Eliminar', 'Cancelar').then(async selection => {
+                    if (selection === 'Sí, Eliminar') {
+                        try {
+                            await runtime!.deleteAssetApi(message.assetId);
+                            vscode.window.showInformationMessage(`Asset eliminado: ${message.assetId}`);
+                            aiView.sendMessage({ command: 'assetDeleted' });
+                        } catch (e: any) {
+                            vscode.window.showErrorMessage('Error al eliminar asset: ' + e.message);
+                        }
+                    }
+                });
+            }
         }
     });
 

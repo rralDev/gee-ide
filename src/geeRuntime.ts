@@ -1498,4 +1498,59 @@ export class GEERuntime {
         
         this.mapView.showInspectorPopup(lat, lon, resultsHtml);
     }
+
+    public async getAssetsApi(parentFolder: string = '~'): Promise<any[]> {
+        return new Promise(async (resolve, reject) => {
+            if (!this.isInitialized) {
+                return reject(new Error('GEE no está inicializado.'));
+            }
+            try {
+                if (parentFolder === '~') {
+                    if (this.assetRoots.length === 0) {
+                        await this.loadAssetRoots();
+                    }
+                    resolve(this.assetRoots.map(r => ({
+                        id: r.id,
+                        name: r.shortName,
+                        type: 'FOLDER',
+                        isRoot: true
+                    })));
+                } else {
+                    getEE().data.listAssets(parentFolder, {}, (res: any, err: any) => {
+                        if (err) {
+                            reject(new Error(err));
+                        } else {
+                            const assets = res.assets || [];
+                            resolve(assets.map((a: any) => ({
+                                id: a.id || a.name,
+                                name: (a.id || a.name).split('/').pop(),
+                                type: a.type
+                            })));
+                        }
+                    });
+                }
+            } catch (e: any) {
+                reject(e);
+            }
+        });
+    }
+
+    public async deleteAssetApi(assetId: string): Promise<void> {
+        return new Promise((resolve, reject) => {
+            if (!this.isInitialized) {
+                return reject(new Error('GEE no está inicializado.'));
+            }
+            try {
+                getEE().data.deleteAsset(assetId, (_: any, err: any) => {
+                    if (err) {
+                        reject(new Error(err));
+                    } else {
+                        resolve();
+                    }
+                });
+            } catch (e: any) {
+                reject(e);
+            }
+        });
+    }
 }
