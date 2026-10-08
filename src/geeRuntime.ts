@@ -68,7 +68,7 @@ export class GEERuntime {
                 }).join(' '));
             },
             Map: {
-                addLayer: async (element: any, visParams?: any, name?: string) => {
+                addLayer: async (element: any, visParams?: any, name?: string, shown: boolean = true, opacity: number = 1.0) => {
                     const layerName = name || 'unnamed';
                     this.consoleView.append(`Adding layer: ${layerName}...`);
                     this.activeLayers.set(layerName, element);
@@ -79,7 +79,7 @@ export class GEERuntime {
                                 else resolve(res);
                             });
                         });
-                        this.mapView.addLayer(mapId, name);
+                        this.mapView.addLayer(mapId, name, shown, opacity, visParams);
                     } catch (err: any) {
                         this.consoleView.append(`Error adding layer: ${err.message}`);
                     }

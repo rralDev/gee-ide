@@ -140,9 +140,9 @@ export class MapView {
         }
     }
 
-    public addLayer(mapIdOrUrl: any, name?: string, shown: boolean = true, opacity: number = 1.0) {
+    public addLayer(mapIdOrUrl: any, name?: string, shown: boolean = true, opacity: number = 1.0, visParams?: any) {
         const urlFormat = typeof mapIdOrUrl === 'string' ? mapIdOrUrl : (mapIdOrUrl?.urlFormat || mapIdOrUrl?.url);
-        this.sendMessage({ command: 'addLayer', mapId: { urlFormat }, name, shown, opacity });
+        this.sendMessage({ command: 'addLayer', mapId: { urlFormat }, name, shown, opacity, visParams });
     }
 
     public showInspectorPopup(lat: number, lon: number, htmlContent: string) {
@@ -795,8 +795,15 @@ export class MapView {
                     <button class="toolbar-toggle" onclick="showHelp()" title="Help & Shortcuts">❓</button>
                 </div>
 
-                <div class="toolbar-container" style="right: 20px; bottom: 20px; left: auto;">
+                <div class="toolbar-container" style="right: 20px; bottom: 20px; left: auto; display: flex; flex-direction: column; gap: 8px;">
+                    <button class="toolbar-toggle" id="btn-swipe" onclick="toggleSwipeMode()" title="Swipe Tool (Comparador Antes/Después) - Presiona Shift para modo Horizontal" style="font-size: 15px; border: 1px solid rgba(255, 255, 255, 0.1);">🔀</button>
                     <button class="toolbar-toggle" style="background: rgba(180, 40, 40, 0.9) !important; border: 1px solid rgba(255, 120, 120, 0.4) !important; font-size: 15px;" onclick="promptResetEnv()" title="Reset Environment & Map">🧹</button>
+                </div>
+
+                <div id="swipe-divider" style="display: none; position: absolute; top: 0; bottom: 0; left: 50%; width: 3px; background: #fff; z-index: 1000; cursor: col-resize; box-shadow: 0 0 10px rgba(0,0,0,0.6);">
+                    <div id="swipe-handle" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 14px; height: 36px; background: #fff; border-radius: 3px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 5px rgba(0,0,0,0.5);">
+                        <span id="swipe-icon" style="color: #666; font-size: 9px; font-weight: bold; transform: rotate(90deg);">=</span>
+                    </div>
                 </div>
 
                 <div id="resetConfirmModal" class="gee-snapshot-modal" style="display: none; width: 280px; z-index: 2100;">
@@ -1524,6 +1531,9 @@ export class MapView {
                     map.addControl(layerManagerControl);
 
                     function updateLayerManagerUI() {
+                        if (typeof swipeMode !== 'undefined' && swipeMode) {
+                            window.toggleSwipeMode();
+                        }
                         const listEl = document.getElementById('geeLayersList');
                         const countEl = document.getElementById('layerCount');
                         if (!listEl) return;
@@ -1594,13 +1604,38 @@ export class MapView {
                     function renderLayerItemHtml(x) {
                         const isVisible = map.hasLayer(x.item.layer);
                         const badge = x.keyShortcut ? ('<span class="gee-layer-badge" title="Atajo: ' + x.keyShortcut + ' o Alt+' + x.keyShortcut + '">[' + x.keyShortcut + ']</span>') : '';
-                        return '<div class="gee-layer-item">' +
-                            '<div class="gee-layer-left">' +
-                                '<input type="checkbox" id="chk_layer_' + x.idx + '" ' + (isVisible ? 'checked' : '') + ' />' +
-                                badge +
-                                '<span class="gee-layer-name" title="' + x.item.name + '">' + x.subName + '</span>' +
+                        
+                        let legendHtml = '';
+                        if (x.item.visParams && x.item.visParams.palette) {
+                            let palette = x.item.visParams.palette;
+                            if (typeof palette === 'string') {
+                                palette = palette.split(',');
+                            }
+                            palette = palette.map(c => c.trim().startsWith('#') || c.trim().match(/^[a-zA-Z]+$/) ? c.trim() : '#' + c.trim());
+                            const gradient = 'linear-gradient(to right, ' + palette.join(', ') + ')';
+                            const minVal = x.item.visParams.min !== undefined ? x.item.visParams.min : '';
+                            const maxVal = x.item.visParams.max !== undefined ? x.item.visParams.max : '';
+                            
+                            legendHtml = 
+                                '<div style="margin-top: 5px; padding-left: 20px;">' +
+                                    '<div style="height: 6px; width: 100%; border-radius: 2px; background: ' + gradient + '; border: 1px solid rgba(255,255,255,0.1);"></div>' +
+                                    '<div style="display: flex; justify-content: space-between; font-size: 8.5px; color: #888; margin-top: 2px; font-family: monospace;">' +
+                                        '<span>' + minVal + '</span>' +
+                                        '<span>' + maxVal + '</span>' +
+                                    '</div>' +
+                                '</div>';
+                        }
+                        
+                        return '<div class="gee-layer-item" style="flex-direction: column; align-items: stretch;">' +
+                            '<div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">' +
+                                '<div class="gee-layer-left">' +
+                                    '<input type="checkbox" id="chk_layer_' + x.idx + '" ' + (isVisible ? 'checked' : '') + ' />' +
+                                    badge +
+                                    '<span class="gee-layer-name" title="' + x.item.name + '">' + x.subName + '</span>' +
+                                '</div>' +
+                                '<input type="range" class="gee-layer-opacity" id="op_layer_' + x.idx + '" min="0" max="1" step="0.05" value="' + (x.item.opacity !== undefined ? x.item.opacity : 1) + '" title="Opacidad" />' +
                             '</div>' +
-                            '<input type="range" class="gee-layer-opacity" id="op_layer_' + x.idx + '" min="0" max="1" step="0.05" value="' + (x.item.opacity !== undefined ? x.item.opacity : 1) + '" title="Opacidad" />' +
+                            legendHtml +
                         '</div>';
                     }
 
@@ -1686,7 +1721,8 @@ export class MapView {
                                     layer,
                                     name: layerName,
                                     shown: message.shown !== false,
-                                    opacity: message.opacity !== undefined ? message.opacity : 1.0
+                                    opacity: message.opacity !== undefined ? message.opacity : 1.0,
+                                    visParams: message.visParams
                                 });
                                 updateLayerManagerUI();
                                 map.invalidateSize();
@@ -2096,6 +2132,110 @@ export class MapView {
                             showHud('❌ Error al capturar mapa: ' + (err.message || err));
                         }
                     };
+
+                    // --- SWIPE TOOL LOGIC ---
+                    let swipeMode = false;
+                    let swipeOrientation = 'vertical';
+                    let swipeValue = 50;
+                    let draggingSwipe = false;
+                    let topSwipeLayer = null;
+
+                    function updateSwipeClip() {
+                        if (!swipeMode || !topSwipeLayer || !topSwipeLayer.getContainer()) return;
+                        const container = topSwipeLayer.getContainer();
+                        const divider = document.getElementById('swipe-divider');
+                        const icon = document.getElementById('swipe-icon');
+
+                        if (swipeOrientation === 'vertical') {
+                            container.style.clipPath = \`polygon(0 0, \${swipeValue}% 0, \${swipeValue}% 100%, 0 100%)\`;
+                            divider.style.left = \`\${swipeValue}%\`;
+                            divider.style.top = '0';
+                            divider.style.bottom = '0';
+                            divider.style.width = '3px';
+                            divider.style.height = 'auto';
+                            divider.style.cursor = 'col-resize';
+                            icon.style.transform = 'rotate(90deg)';
+                        } else {
+                            container.style.clipPath = \`polygon(0 0, 100% 0, 100% \${swipeValue}%, 0 \${swipeValue}%)\`;
+                            divider.style.top = \`\${swipeValue}%\`;
+                            divider.style.left = '0';
+                            divider.style.right = '0';
+                            divider.style.height = '3px';
+                            divider.style.width = 'auto';
+                            divider.style.cursor = 'row-resize';
+                            icon.style.transform = 'rotate(0deg)';
+                        }
+                    }
+
+                    window.toggleSwipeMode = function() {
+                        swipeMode = !swipeMode;
+                        const divider = document.getElementById('swipe-divider');
+                        const btn = document.getElementById('btn-swipe');
+                        
+                        if (swipeMode) {
+                            const visibleLayers = geeLayers.filter(l => l.shown);
+                            if (visibleLayers.length < 2) {
+                                swipeMode = false;
+                                vscode.postMessage({command: 'webviewError', message: 'Swipe Tool requiere al menos 2 capas GEE visibles en el mapa.'});
+                                return;
+                            }
+                            // Top layer is the last one in the array
+                            topSwipeLayer = visibleLayers[visibleLayers.length - 1].layer;
+                            divider.style.display = 'block';
+                            btn.style.background = 'rgba(78, 201, 176, 0.4)';
+                            btn.style.borderColor = '#4ec9b0';
+                            swipeValue = 50;
+                            updateSwipeClip();
+                        } else {
+                            if (topSwipeLayer && topSwipeLayer.getContainer()) {
+                                topSwipeLayer.getContainer().style.clipPath = '';
+                            }
+                            topSwipeLayer = null;
+                            divider.style.display = 'none';
+                            btn.style.background = '';
+                            btn.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                        }
+                    };
+
+                    const dividerEl = document.getElementById('swipe-divider');
+                    dividerEl.addEventListener('mousedown', (e) => {
+                        draggingSwipe = true;
+                        e.preventDefault(); // prevent text selection
+                    });
+                    
+                    window.addEventListener('mousemove', (e) => {
+                        if (!draggingSwipe) return;
+                        if (swipeOrientation === 'vertical') {
+                            swipeValue = (e.clientX / window.innerWidth) * 100;
+                        } else {
+                            swipeValue = (e.clientY / window.innerHeight) * 100;
+                        }
+                        swipeValue = Math.max(0, Math.min(100, swipeValue));
+                        updateSwipeClip();
+                    });
+                    
+                    window.addEventListener('mouseup', () => {
+                        draggingSwipe = false;
+                    });
+
+                    // Add orientation toggle to the global keydown listener
+                    document.addEventListener('keydown', (e) => {
+                        if (swipeMode && (e.shiftKey || e.metaKey || e.ctrlKey)) {
+                            if (swipeOrientation !== 'horizontal') {
+                                swipeOrientation = 'horizontal';
+                                updateSwipeClip();
+                            }
+                        }
+                    });
+                    document.addEventListener('keyup', (e) => {
+                        if (swipeMode && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+                            if (swipeOrientation !== 'vertical') {
+                                swipeOrientation = 'vertical';
+                                updateSwipeClip();
+                            }
+                        }
+                    });
+                    // --- END SWIPE TOOL ---
 
                     // Notify extension that webview Leaflet map is fully initialized and ready
                     setTimeout(() => {
