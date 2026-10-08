@@ -417,6 +417,8 @@ function deleteAsset(id) {
                             const isOpen = openFolders.has(assetId) ? 'open' : '';
                             
                             const deleteBtn = (!a.isRoot) ? '<button class="task-action-btn cancel-btn" title="Eliminar Asset" onclick="event.preventDefault(); event.stopPropagation(); deleteAsset(\\\'' + assetId + '\\\')">❌</button>' : '';
+                            const copyBtn = '<button class="task-action-btn" title="Copiar ID" onclick="event.preventDefault(); event.stopPropagation(); vscode.postMessage({command: \\\'copyToClipboard\\\', text: \\\'' + assetId + '\\\'})">📋</button>';
+                            const insertBtn = (!isFolder) ? '<button class="task-action-btn" title="Insertar en Editor" onclick="event.preventDefault(); event.stopPropagation(); vscode.postMessage({command: \\\'insertInEditor\\\', text: \\\'' + assetId + '\\\'})">➕</button>' : '';
                             const cardContent = 
                                 '<div class="tree-title">' +
                                     '<span class="folder-chevron">' + (isFolder ? (isOpen ? '▼' : '▶') : '') + '</span>' +
