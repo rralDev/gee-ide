@@ -1,0 +1,36 @@
+// js
+/**
+ * DEMO: Automatización de Assets y Comandos CLI en GEE IDE
+ */
+
+// 1. Ejecución de comandos directos: sitúa el cursor aquí y pulsa Cmd + Enter
+ls
+du
+
+// 2. Bucle para CREAR 5 directorios recurrentes en tu cuenta
+pwd
+cd robles
+print('⏳ Creando directorios...');
+for (var i = 1; i <= 5; i++) {
+    mkdir('test_temporada_' + i);
+}
+
+// 3. Crear colecciones vacías con touch
+touch('test_coleccion_2024_test01');
+
+// 4. Ver los directorios recién creados
+ls test_*
+
+// 5. Búsqueda por patrón usando el comando find
+find test_*
+
+// 6. Bucle o comando para ELIMINAR por patrón todos los directorios creados
+// (Puedes hacerlo en 1 sola línea gracias al soporte de comodines):
+rm -r test_*
+
+// O si prefieres hacerlo dentro de un bucle for tradicional:
+// for (var j = 1; j <= 5; j++) {
+//     rm('test_temporada_' + j, true); // true = recursivo (-r)
+// }
+
+print('✅ Proceso completado.');
