@@ -289,8 +289,7 @@ export class AIView {
                     // --- ASSETS LOGIC ---
                     function refreshAssets() {
                         const list = document.getElementById("assets-list");
-                        list.innerHTML = "<div style=\"color: #888; font-size: 12px; font-style: italic;\">Loading assets...</div>";
-                        
+                        list.innerHTML = '<div style="color: #888; font-size: 12px; font-style: italic;">Loading assets...</div>';
                         vscode.postMessage({ command: "getAssets", parent: "~" });
                     }
 
@@ -312,77 +311,77 @@ export class AIView {
                     }
 
                     function renderAssets(message) {
-                        const isRoot = !message.parent || message.parent === "~";
-                        const safeParentId = isRoot ? "" : message.parent.replace(/[^a-zA-Z0-9_-]/g, "-");
-                        const containerId = isRoot ? "assets-list" : "content-" + safeParentId;
+                        const isRoot = !message.parent || message.parent === '~';
+                        const safeParentId = isRoot ? '' : message.parent.replace(/[^a-zA-Z0-9_-]/g, '-');
+                        const containerId = isRoot ? 'assets-list' : 'content-' + safeParentId;
                         const container = document.getElementById(containerId);
                         if (!container) return;
                         
                         if (message && message.error) {
-                            if (message.error === "not_initialized") {
-                                container.innerHTML = "<div style=\"color: #cca700; font-size: 12px; padding: 10px; border: 1px solid #cca700; background: rgba(204,167,0,0.1); border-radius: 4px;\">⚠️ GEE no está inicializado. Por favor corre un script o inicia el Workspace primero para ver tus assets.</div>";
+                            if (message.error === 'not_initialized') {
+                                container.innerHTML = '<div style="color: #cca700; font-size: 12px; padding: 10px; border: 1px solid #cca700; background: rgba(204,167,0,0.1); border-radius: 4px;">⚠️ GEE no está inicializado. Por favor corre un script o inicia el Workspace primero para ver tus assets.</div>';
                             } else {
-                                container.innerHTML = "<div style=\"color: #f14c4c; font-size: 12px;\">Error: " + message.error + "</div>";
+                                container.innerHTML = '<div style="color: #f14c4c; font-size: 12px;">Error: ' + message.error + '</div>';
                             }
                             return;
                         }
 
                         let assets = message.assets || [];
                         if (assets.length === 0) {
-                            container.innerHTML = "<div style=\"color: #888; font-size: 12px; font-style: italic; padding: 5px;\">(Empty folder)</div>";
+                            container.innerHTML = '<div style="color: #888; font-size: 12px; font-style: italic; padding: 5px;">(Empty folder)</div>';
                             return;
                         }
 
-                        let html = "";
+                        let html = '';
                         assets.sort((a, b) => {
-                            const aIsFolder = (a.type === "FOLDER" || a.type === "FOLDER_ROOT" || a.type === "IMAGE_COLLECTION");
-                            const bIsFolder = (b.type === "FOLDER" || b.type === "FOLDER_ROOT" || b.type === "IMAGE_COLLECTION");
+                            const aIsFolder = (a.type === 'FOLDER' || a.type === 'FOLDER_ROOT' || a.type === 'IMAGE_COLLECTION');
+                            const bIsFolder = (b.type === 'FOLDER' || b.type === 'FOLDER_ROOT' || b.type === 'IMAGE_COLLECTION');
                             if (aIsFolder && !bIsFolder) return -1;
                             if (!aIsFolder && bIsFolder) return 1;
                             return a.name.localeCompare(b.name);
                         }).forEach(a => {
-                            let icon = "📄";
-                            const isFolder = (a.type === "FOLDER" || a.type === "FOLDER_ROOT" || a.type === "IMAGE_COLLECTION" || a.isRoot);
-                            if (isFolder) icon = "📁";
-                            else if (a.type === "IMAGE") icon = "🖼️";
-                            else if (a.type === "TABLE") icon = "📊";
+                            let icon = '📄';
+                            const isFolder = (a.type === 'FOLDER' || a.type === 'FOLDER_ROOT' || a.type === 'IMAGE_COLLECTION' || a.isRoot);
+                            if (isFolder) icon = '📁';
+                            else if (a.type === 'IMAGE') icon = '🖼️';
+                            else if (a.type === 'TABLE') icon = '📊';
 
-                            let typeColor = "#888";
-                            if (a.type === "IMAGE") typeColor = "#4ec9b0";
-                            else if (a.type === "TABLE") typeColor = "#cca700";
+                            let typeColor = '#888';
+                            if (a.type === 'IMAGE') typeColor = '#4ec9b0';
+                            else if (a.type === 'TABLE') typeColor = '#cca700';
 
-                            const safeId = a.id.replace(/[^a-zA-Z0-9_-]/g, "-");
+                            const safeId = a.id.replace(/[^a-zA-Z0-9_-]/g, '-');
                             
-                            const deleteBtn = (!a.isRoot) ? "<button class=\"task-action-btn cancel-btn\" title=\"Eliminar Asset\" onclick=\"event.preventDefault(); event.stopPropagation(); deleteAsset(\ + a.id + \)\">❌</button>" : "";
-                            const copyBtn = "<button class=\"task-action-btn\" title=\"Copiar ID\" onclick=\"event.preventDefault(); event.stopPropagation(); vscode.postMessage({command: \copyToClipboard\, text: \ + a.id + \})\">📋</button>";
+                            const deleteBtn = (!a.isRoot) ? '<button class="task-action-btn cancel-btn" title="Eliminar Asset" onclick="event.preventDefault(); event.stopPropagation(); deleteAsset(\\\'' + a.id + '\\\')">❌</button>' : '';
+                            const copyBtn = '<button class="task-action-btn" title="Copiar ID" onclick="event.preventDefault(); event.stopPropagation(); vscode.postMessage({command: \\\'copyToClipboard\\\', text: \\\'\' + a.id + \'\\\'})">📋</button>';
                             
-                            const cardContent = "" +
-                                "<div class=\"task-title\" style=\"display: flex; align-items: center; gap: 4px;\">" +
-                                    (isFolder ? "<span class=\"folder-icon\" style=\"font-size: 8px;\">▶️</span>" : "") +
-                                    "<span style=\"overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%;\" title=\"" + a.id + "\">" +
-                                        icon + " " + a.name +
-                                    "</span>" +
-                                "</div>" +
-                                "<div class=\"task-meta\" style=\"display: flex; justify-content: space-between; align-items: center; margin-top: 6px; padding-left: " + (isFolder ? "15px" : "0") + ";\">" +
-                                    "<span style=\"color: " + typeColor + "\">" + (a.type || "Unknown") + "</span>" +
-                                    "<div class=\"task-actions\" style=\"display: flex; gap: 6px;\">" +
+                            const cardContent = 
+                                '<div class="task-title" style="display: flex; align-items: center; gap: 4px;">' +
+                                    (isFolder ? '<span class="folder-icon" style="font-size: 8px;">▶️</span>' : '') +
+                                    '<span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%;" title="' + a.id + '">' +
+                                        icon + ' ' + a.name +
+                                    '</span>' +
+                                '</div>' +
+                                '<div class="task-meta" style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; padding-left: ' + (isFolder ? '15px' : '0') + ';">' +
+                                    '<span style="color: ' + typeColor + '">' + (a.type || 'Unknown') + '</span>' +
+                                    '<div class="task-actions" style="display: flex; gap: 6px;">' +
                                         copyBtn + deleteBtn +
-                                    "</div>" +
-                                "</div>";
+                                    '</div>' +
+                                '</div>';
 
                             if (isFolder) {
-                                html += "<details class=\"asset-details\" id=\"details-" + safeId + "\" ontoggle=\"onFolderToggle(this, \ + a.id + \)\">" +
-                                    "<summary class=\"task-item ready\">" +
+                                html += '<details class="asset-details" id="details-' + safeId + '" ontoggle="onFolderToggle(this, \\\'' + a.id + '\\\')">' +
+                                    '<summary class="task-item ready">' +
                                         cardContent +
-                                    "</summary>" +
-                                    "<div class=\"folder-content\" id=\"content-" + safeId + "\" style=\"padding-left: 10px; margin-top: 5px; border-left: 1px solid #444; margin-left: 5px;\">" +
-                                        "<div style=\"color: #888; font-size: 11px; font-style: italic; padding: 5px;\">Loading...</div>" +
-                                    "</div>" +
-                                "</details>";
+                                    '</summary>' +
+                                    '<div class="folder-content" id="content-' + safeId + '" style="padding-left: 10px; margin-top: 5px; border-left: 1px solid #444; margin-left: 5px;">' +
+                                        '<div style="color: #888; font-size: 11px; font-style: italic; padding: 5px;">Loading...</div>' +
+                                    '</div>' +
+                                '</details>';
                             } else {
-                                html += "<div class=\"task-item\">" +
+                                html += '<div class="task-item">' +
                                     cardContent +
-                                "</div>";
+                                '</div>';
                             }
                         });
 
