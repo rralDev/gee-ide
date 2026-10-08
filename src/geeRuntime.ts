@@ -151,50 +151,12 @@ export class GEERuntime {
             },
             Export: {
                 image: {
-                    toDrive: (params: any) => { 
-                        try {
-                            const task = getEE().batch.Export.image.toDrive(params);
-                            task.start(() => {
-                                this.consoleView.append(`✅ [Export Task Started]: Image to Drive - ${params.description || 'unnamed'}`);
-                            }, (err: any) => {
-                                this.consoleView.append(`❌ [Export Task Error]: ${err}`);
-                            });
-                        } catch (e: any) {
-                            this.consoleView.append(`❌ [Export Task Error]: ${e.message}`);
-                        }
-                    },
-                    toAsset: (params: any) => {
-                        try {
-                            const task = getEE().batch.Export.image.toAsset(params);
-                            task.start(() => {
-                                this.consoleView.append(`✅ [Export Task Started]: Image to Asset - ${params.description || 'unnamed'}`);
-                            });
-                        } catch (e: any) {
-                            this.consoleView.append(`❌ [Export Task Error]: ${e.message}`);
-                        }
-                    }
+                    toDrive: (params: any) => this._startExportTask(params, getEE().batch.Export.image.toDrive, 'Image to Drive'),
+                    toAsset: (params: any) => this._startExportTask(params, getEE().batch.Export.image.toAsset, 'Image to Asset')
                 },
                 table: {
-                    toDrive: (params: any) => {
-                        try {
-                            const task = getEE().batch.Export.table.toDrive(params);
-                            task.start(() => {
-                                this.consoleView.append(`✅ [Export Task Started]: Table to Drive - ${params.description || 'unnamed'}`);
-                            });
-                        } catch (e: any) {
-                            this.consoleView.append(`❌ [Export Task Error]: ${e.message}`);
-                        }
-                    },
-                    toAsset: (params: any) => {
-                        try {
-                            const task = getEE().batch.Export.table.toAsset(params);
-                            task.start(() => {
-                                this.consoleView.append(`✅ [Export Task Started]: Table to Asset - ${params.description || 'unnamed'}`);
-                            });
-                        } catch (e: any) {
-                            this.consoleView.append(`❌ [Export Task Error]: ${e.message}`);
-                        }
-                    }
+                    toDrive: (params: any) => this._startExportTask(params, getEE().batch.Export.table.toDrive, 'Table to Drive'),
+                    toAsset: (params: any) => this._startExportTask(params, getEE().batch.Export.table.toAsset, 'Table to Asset')
                 }
             }
         };
@@ -1355,6 +1317,34 @@ export class GEERuntime {
         }
         } catch (err: any) {
             this.consoleView.append(`[Command Error]: ${err.message || err}`);
+        }
+    }
+
+    private _startExportTask(params: any, exportFunc: Function, label: string) {
+        const start = (p: any) => {
+            try {
+                const task = exportFunc(p);
+                task.start(() => {
+                    this.consoleView.append(`✅ [Export Task Started]: ${label} - ${p.description || 'unnamed'}`);
+                }, (err: any) => {
+                    this.consoleView.append(`❌ [Export Task Error]: ${err}`);
+                });
+            } catch (e: any) {
+                this.consoleView.append(`❌ [Export Task Error]: ${e.message}`);
+            }
+        };
+
+        if (params && params.region && typeof params.region.evaluate === 'function') {
+            params.region.evaluate((geom: any, err: any) => {
+                if (err) {
+                    this.consoleView.append(`❌ [Export Task Error]: No se pudo evaluar la región - ${err}`);
+                } else {
+                    params.region = geom;
+                    start(params);
+                }
+            });
+        } else {
+            start(params);
         }
     }
 
