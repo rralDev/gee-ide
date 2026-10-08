@@ -425,7 +425,7 @@ function deleteAsset(id) {
                                     '</div>' +
                                 '</details>';
                             } else {
-                                html += '<div class="tree-item" tabindex="0" data-path="' + a.id + '" data-type="' + a.type + '" ondblclick="showAssetModal(\'" + a.id + "\')">' +
+                                html += '<div class="tree-item" tabindex="0" data-path="' + a.id + '" data-type="' + a.type + '" ondblclick="showAssetModal(\\\'' + a.id + '\\\')">' +
                                     cardContent +
                                 '</div>';
                             }
@@ -532,10 +532,7 @@ function deleteAsset(id) {
                         const message = event.data;
                         if (message.command === 'assetDetailsData') {
                             document.getElementById('modal-body').innerHTML = '<pre>' + JSON.stringify(message.details, null, 2) + '</pre>';
-                        }
-                        if (message.command === 'focus') {
-                        const message = event.data;
-                        if (message.command === 'focus') {
+                        } else if (message.command === 'focus') {
                             const inp = document.getElementById('input');
                             if (inp) {
                                 inp.focus();
