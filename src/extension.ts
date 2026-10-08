@@ -318,7 +318,9 @@ export function activate(context: vscode.ExtensionContext) {
             const path = require('path');
             const os = require('os');
             const fs = require('fs');
-            const tempKmlPath = path.join(os.tmpdir(), 'gee_ide_flyto.kml');
+            // Generate a unique filename using timestamp to prevent GE "reload" prompts
+            const timestamp = Date.now();
+            const tempKmlPath = path.join(os.tmpdir(), `gee_ide_flyto_${timestamp}.kml`);
             fs.writeFileSync(tempKmlPath, kmlContent, 'utf8');
             vscode.env.openExternal(vscode.Uri.file(tempKmlPath));
             vscode.window.showInformationMessage(`🌍 GEE IDE: Abriendo en Google Earth Pro Desktop...`);
