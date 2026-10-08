@@ -1321,6 +1321,15 @@ export class GEERuntime {
     }
 
     private _startExportTask(params: any, exportFunc: Function, label: string) {
+        if (params && params.description) {
+            if (label.includes('Drive') && !params.fileNamePrefix && !params.filenamePrefix) {
+                params.fileNamePrefix = params.description;
+            }
+            if (label.includes('Asset') && !params.assetId) {
+                params.assetId = params.description;
+            }
+        }
+
         const start = (p: any) => {
             try {
                 const task = exportFunc(p);
