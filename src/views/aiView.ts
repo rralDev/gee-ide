@@ -132,8 +132,11 @@ export class AIView {
                     .task-item.ready { border-color: #cca700; }
                     .task-title { font-weight: bold; margin-bottom: 4px; display: flex; justify-content: space-between; }
                     .task-meta { color: #888; font-size: 11px; }
-                    .task-cancel { display: none; position: absolute; right: 10px; bottom: 8px; font-size: 11px; color: #f14c4c; cursor: pointer; background: transparent; border: 1px solid #f14c4c; padding: 2px 5px; }
-                    .task-item.running:hover .task-cancel, .task-item.ready:hover .task-cancel { display: block; }
+                    .task-action-btn { display: none; font-size: 10px; cursor: pointer; background: #333; color: #ccc; border: 1px solid #555; padding: 3px 6px; border-radius: 3px; }
+                    .task-action-btn:hover { background: #444; color: white; border-color: #777; }
+                    .cancel-btn { color: #f14c4c; border-color: #f14c4c; }
+                    .cancel-btn:hover { background: rgba(241, 76, 76, 0.1); border-color: #f14c4c; color: #f14c4c; }
+                    .task-item:hover .task-action-btn { display: block; }
                 </style>
             </head>
             <body>
@@ -238,13 +241,31 @@ export class AIView {
                                 duration = min > 0 ? \` (\${min}m)\` : ' (<1m)';
                             }
 
+                            let actionsHTML = '';
+                            if (t.state === 'RUNNING' || t.state === 'READY') {
+                                actionsHTML = \`<button class="task-action-btn cancel-btn" onclick="cancelTask('\${t.id}')">Cancel</button>\`;
+                            } else if (t.state === 'COMPLETED') {
+                                const searchUrl = \`https://drive.google.com/drive/search?q=\${encodeURIComponent(desc)}\`;
+                                actionsHTML = \`
+                                    <button class="task-action-btn" title="Buscar en Google Drive" onclick="vscode.postMessage({command: 'openExternal', url: '\${searchUrl}'})">📁 Drive</button>
+                                    <button class="task-action-btn" title="Copiar nombre de Tarea/Asset" onclick="vscode.postMessage({command: 'copyToClipboard', text: '\${desc}'})">📋 Copiar Nombre</button>
+                                \`;
+                            } else if (t.state === 'FAILED') {
+                                const errorMsg = (t.error_message || 'Error desconocido').replace(/'/g, "\\\\'");
+                                actionsHTML = \`<button class="task-action-btn" title="\${t.error_message}" onclick="vscode.postMessage({command: 'copyToClipboard', text: '\${errorMsg}'})">⚠️ Copiar Error</button>\`;
+                            }
+
                             div.innerHTML = \`
                                 <div class="task-title">
-                                    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 65%;" title="\${desc}">\${desc}</span> 
-                                    <span style="color: \${stateColor}; flex-shrink: 0;">\${t.state}\${duration}</span>
+                                    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%;" title="\${desc}">\${desc}</span> 
+                                    <span style="color: \${stateColor}; flex-shrink: 0; font-size: 10px;">\${t.state}\${duration}</span>
                                 </div>
-                                <div class="task-meta">Type: \${t.task_type}</div>
-                                \${(t.state === 'RUNNING' || t.state === 'READY') ? \`<button class="task-cancel" onclick="cancelTask('\${t.id}')">Cancel</button>\` : ''}
+                                <div class="task-meta" style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+                                    <span>Type: \${t.task_type}</span>
+                                    <div class="task-actions" style="display: flex; gap: 6px;">
+                                        \${actionsHTML}
+                                    </div>
+                                </div>
                             \`;
                             list.appendChild(div);
                         });

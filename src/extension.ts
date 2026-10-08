@@ -367,6 +367,11 @@ export function activate(context: vscode.ExtensionContext) {
                     vscode.window.showErrorMessage(`Error al cancelar tarea: ${e.message}`);
                 }
             }
+        } else if (message.command === 'copyToClipboard') {
+            vscode.env.clipboard.writeText(message.text);
+            vscode.window.showInformationMessage(`Copiado al portapapeles: ${message.text}`);
+        } else if (message.command === 'openExternal') {
+            vscode.env.openExternal(vscode.Uri.parse(message.url));
         }
     });
 
