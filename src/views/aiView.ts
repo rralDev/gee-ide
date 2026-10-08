@@ -358,6 +358,7 @@ export class AIView {
                         }
 
                         let html = '';
+                        try {
                         assets.sort((a, b) => {
                             const aIsFolder = (a.type === 'FOLDER' || a.type === 'FOLDER_ROOT' || a.type === 'IMAGE_COLLECTION');
                             const bIsFolder = (b.type === 'FOLDER' || b.type === 'FOLDER_ROOT' || b.type === 'IMAGE_COLLECTION');
@@ -409,6 +410,9 @@ export class AIView {
                         });
 
                         container.innerHTML = html;
+                        } catch (err) {
+                            container.innerHTML = '<div style="color: red; font-size: 11px; padding: 10px; word-break: break-all;">RENDER ERROR: ' + err.message + '<br/>' + err.stack + '</div>';
+                        }
                     }
                     // --- AI LOGIC ---
                     const chat = document.getElementById('chat');
