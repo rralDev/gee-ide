@@ -1,0 +1,36 @@
+# js
+// ==============================================================================
+// 🌍 GEE IDE: Demostración de Swipe Tool (Comparador Antes / Después)
+// ==============================================================================
+// Este script carga dos imágenes satelitales de diferentes años para comparar
+// los cambios en la cobertura forestal (Deforestación en La Pampa, Perú).
+
+var roi = ee.Geometry.Point([-69.95, -12.95]).buffer(6000);
+Map.centerObject(roi, 13);
+
+// Filtros base para Sentinel-2
+var s2 = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+  .filterBounds(roi)
+  .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 15));
+
+// 1. Imagen del "Antes" (Año 2019)
+var image2019 = s2.filterDate('2019-01-01', '2019-12-31').median().clip(roi);
+
+// 2. Imagen del "Después" (Año 2023)
+var image2023 = s2.filterDate('2023-01-01', '2023-12-31').median().clip(roi);
+
+// Parámetros de visualización (Color Natural)
+var visParams = {
+  bands: ['B4', 'B3', 'B2'],
+  min: 0,
+  max: 3000
+};
+
+// 3. Agregar capas al mapa
+// IMPORTANTE: Para usar el Swipe Tool, agrega la capa antigua primero y la nueva encima.
+Map.addLayer(image2019, visParams, '1. Sentinel-2 (2019) - Antes');
+Map.addLayer(image2023, visParams, '2. Sentinel-2 (2023) - Después');
+
+print("✅ Capas cargadas exitosamente.");
+print("Haz clic en el botón 🔀 (Swipe Tool) en el visor de mapas (abajo a la derecha).");
+print("💡 Tip: Mientras deslizas, presiona la tecla Shift para comparar de forma horizontal.");

@@ -1231,11 +1231,40 @@ export function activate(context: vscode.ExtensionContext) {
         await catalogManager.showCatalogQuickPick();
     });
 
+    let openDemosCommand = vscode.commands.registerCommand('gee-pro.openDemos', async () => {
+        const demosDir = path.join(context.extensionPath, 'demos');
+        if (!fs.existsSync(demosDir)) {
+            vscode.window.showErrorMessage('No se encontró la carpeta de demostraciones.');
+            return;
+        }
+        const files = fs.readdirSync(demosDir).filter(f => f.endsWith('.gee'));
+        if (files.length === 0) {
+            vscode.window.showInformationMessage('No hay demos disponibles en este momento.');
+            return;
+        }
+        
+        const fileItems = files.map(f => ({
+            label: `$(code) ${f}`,
+            description: 'GEE IDE Demo',
+            filename: f
+        }));
+        
+        const selected = await vscode.window.showQuickPick(fileItems, {
+            placeHolder: 'Selecciona un archivo de demostración para abrir...'
+        });
+        
+        if (selected) {
+            const filePath = path.join(demosDir, selected.filename);
+            const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
+            await vscode.window.showTextDocument(doc);
+        }
+    });
+
     context.subscriptions.push(
         startCommand, authCommand, loginCommand, logoutCommand, runCommand, runSelectionCommand, resetCommand, setProjectCommand,
         focusEditorCommand, focusConsoleCommand, focusMapCommand, focusAICommand,
         clearConsoleCommand, saveLayoutCommand, resetLayoutCommand, editSnippetsCommand, listSnippetsCommand,
-        searchCatalogCommand
+        searchCatalogCommand, openDemosCommand
     );
     logStep('>>> ACTIVATE() COMPLETED SUCCESSFULLY — All commands ready');
 }

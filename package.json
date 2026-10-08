@@ -41,6 +41,7 @@
     "onCommand:gee-pro.getLink",
     "onCommand:gee-pro.setProject",
     "onCommand:gee-pro.searchCatalog",
+    "onCommand:gee-pro.openDemos",
     "onWebviewPanel:geeMap",
     "onWebviewPanel:geeConsole",
     "onWebviewPanel:geeAI"
@@ -182,6 +183,11 @@
       {
         "command": "gee-pro.searchCatalog",
         "title": "Search Data Catalog",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.openDemos",
+        "title": "Open Demo Scripts",
         "category": "GEE IDE"
       }
     ],
