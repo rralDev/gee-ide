@@ -106,37 +106,65 @@ export class AIView {
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>GEE Tools</title>
                 <style>
-                    body { background: #1e1e1e; color: #d4d4d4; font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; margin: 0; padding: 0; box-sizing: border-box; }
-                    .tabs { display: flex; background: #252526; border-bottom: 1px solid #333; }
-                    .tab { padding: 10px 15px; cursor: pointer; color: #969696; border-bottom: 2px solid transparent; font-size: 13px; flex: 1; text-align: center; }
-                    .tab:hover { color: #d4d4d4; }
-                    .tab.active { color: #fff; border-bottom: 2px solid #007acc; }
+                    body { 
+                        background-color: var(--vscode-editor-background, #1e1e1e); 
+                        color: var(--vscode-editor-foreground, #d4d4d4); 
+                        font-family: var(--vscode-font-family, sans-serif); 
+                        display: flex; flex-direction: column; height: 100vh; margin: 0; padding: 0; box-sizing: border-box; 
+                    }
+                    .tabs { display: flex; background-color: var(--vscode-editorWidget-background, #252526); border-bottom: 1px solid var(--vscode-panel-border, #333); }
+                    .tab { padding: 8px 15px; cursor: pointer; color: var(--vscode-tab-inactiveForeground, #969696); border-bottom: 2px solid transparent; font-size: 13px; flex: 1; text-align: center; }
+                    .tab:hover { color: var(--vscode-tab-hoverForeground, #d4d4d4); background-color: var(--vscode-tab-hoverBackground, transparent); }
+                    .tab.active { color: var(--vscode-tab-activeForeground, #fff); border-bottom: 2px solid var(--vscode-panelTitle-activeBorder, #007acc); background-color: var(--vscode-tab-activeBackground, transparent); }
                     .content { flex: 1; overflow-y: auto; padding: 10px; display: none; }
                     .content.active { display: flex; flex-direction: column; }
                     
                     /* AI specific */
                     .chat-container { flex: 1; overflow-y: auto; margin-bottom: 10px; }
                     .input-container { display: flex; gap: 5px; }
-                    input[type="text"] { flex: 1; background: #333; border: 1px solid #555; color: white; padding: 8px; border-radius: 4px; }
-                    button { background: #007acc; color: white; border: none; padding: 8px 15px; cursor: pointer; border-radius: 4px; }
+                    input[type="text"] { flex: 1; background-color: var(--vscode-input-background, #333); border: 1px solid var(--vscode-input-border, #555); color: var(--vscode-input-foreground, white); padding: 8px; border-radius: 4px; }
+                    input[type="text"]:focus { outline: 1px solid var(--vscode-focusBorder, #007acc); }
+                    button { background-color: var(--vscode-button-background, #007acc); color: var(--vscode-button-foreground, white); border: none; padding: 8px 15px; cursor: pointer; border-radius: 4px; }
+                    button:hover { background-color: var(--vscode-button-hoverBackground, #005f9e); }
                     .msg { margin-bottom: 10px; padding: 8px; border-radius: 4px; font-size: 13px; }
-                    .ai { background: #2d2d2d; border-left: 3px solid #007acc; }
-                    .user { background: #3d3d3d; text-align: right; }
+                    .ai { background-color: var(--vscode-editorWidget-background, #2d2d2d); border-left: 3px solid var(--vscode-textLink-foreground, #007acc); }
+                    .user { background-color: var(--vscode-editorWidget-background, #3d3d3d); text-align: right; }
 
                     /* Tasks specific */
                     .task-list { display: flex; flex-direction: column; gap: 8px; }
-                    .task-item { background: #2d2d2d; border-left: 3px solid #555; padding: 8px 12px; border-radius: 4px; font-size: 12px; position: relative; }
-                    .task-item.running { border-color: #007acc; }
-                    .task-item.completed { border-color: #4ec9b0; }
-                    .task-item.failed { border-color: #f14c4c; }
-                    .task-item.ready { border-color: #cca700; }
+                    .task-item { background-color: var(--vscode-editorWidget-background, #2d2d2d); border-left: 3px solid var(--vscode-widget-border, #555); padding: 8px 12px; border-radius: 4px; font-size: 12px; position: relative; }
+                    .task-item.running { border-color: var(--vscode-charts-blue, #007acc); }
+                    .task-item.completed { border-color: var(--vscode-charts-green, #4ec9b0); }
+                    .task-item.failed { border-color: var(--vscode-charts-red, #f14c4c); }
+                    .task-item.ready { border-color: var(--vscode-charts-yellow, #cca700); }
                     .task-title { font-weight: bold; margin-bottom: 4px; display: flex; justify-content: space-between; }
-                    .task-meta { color: #888; font-size: 11px; }
-                    .task-action-btn { display: none; font-size: 10px; cursor: pointer; background: #333; color: #ccc; border: 1px solid #555; padding: 3px 6px; border-radius: 3px; }
-                    .task-action-btn:hover { background: #444; color: white; border-color: #777; }
-                    .cancel-btn { color: #f14c4c; border-color: #f14c4c; }
-                    .cancel-btn:hover { background: rgba(241, 76, 76, 0.1); border-color: #f14c4c; color: #f14c4c; }
+                    .task-meta { color: var(--vscode-descriptionForeground, #888); font-size: 11px; }
+                    .task-action-btn { display: none; font-size: 11px; cursor: pointer; background: transparent; color: var(--vscode-icon-foreground, #ccc); border: 1px solid var(--vscode-button-secondaryBorder, transparent); padding: 3px 6px; border-radius: 3px; }
+                    .task-action-btn:hover { background-color: var(--vscode-button-secondaryHoverBackground, #444); color: var(--vscode-button-secondaryForeground, white); border-color: var(--vscode-button-secondaryBorder, #777); }
+                    .cancel-btn:hover { background-color: var(--vscode-errorForeground, #f14c4c); color: white; }
                     .task-item:hover .task-action-btn { display: block; }
+                    
+                    /* Assets Tree specific */
+                    details.asset-details > summary { list-style: none; }
+                    details.asset-details > summary::-webkit-details-marker { display: none; }
+                    
+                    .tree-item { 
+                        display: flex; justify-content: space-between; align-items: center; 
+                        padding: 3px 4px; cursor: pointer; border-radius: 3px; 
+                        font-family: var(--vscode-editor-font-family, sans-serif);
+                        font-size: 13px;
+                        color: var(--vscode-editor-foreground);
+                        border: 1px solid transparent;
+                    }
+                    .tree-item:hover { background-color: var(--vscode-list-hoverBackground, rgba(90, 93, 94, 0.31)); }
+                    .tree-title { display: flex; align-items: center; gap: 6px; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+                    .tree-icon { font-size: 14px; width: 16px; text-align: center; }
+                    .tree-meta { display: flex; align-items: center; gap: 8px; }
+                    .tree-type { color: var(--vscode-descriptionForeground, #888); font-size: 10px; text-transform: uppercase; }
+                    .tree-item:hover .task-action-btn { display: block; }
+                    
+                    .folder-chevron { display: inline-block; width: 14px; font-size: 10px; color: var(--vscode-icon-foreground); text-align: center; }
+                    details.asset-details[open] > summary .folder-chevron { transform: rotate(90deg); }
                 </style>
             </head>
             <body>
@@ -303,11 +331,7 @@ export class AIView {
                             vscode.postMessage({ command: "getAssets", parent: path });
                         }
                         
-                        // Toggle arrow icon
-                        const arrow = detailsEl.querySelector(".folder-icon");
-                        if (arrow) {
-                            arrow.innerText = detailsEl.open ? "🔽" : "▶️";
-                        }
+
                     }
 
                     function renderAssets(message) {
@@ -319,16 +343,16 @@ export class AIView {
                         
                         if (message && message.error) {
                             if (message.error === 'not_initialized') {
-                                container.innerHTML = '<div style="color: #cca700; font-size: 12px; padding: 10px; border: 1px solid #cca700; background: rgba(204,167,0,0.1); border-radius: 4px;">⚠️ GEE no está inicializado. Por favor corre un script o inicia el Workspace primero para ver tus assets.</div>';
+                                container.innerHTML = '<div style="color: var(--vscode-charts-yellow); font-size: 12px; padding: 10px; border: 1px solid var(--vscode-charts-yellow); background: var(--vscode-editorWidget-background); border-radius: 4px;">⚠️ GEE no está inicializado. Por favor corre un script o inicia el Workspace primero para ver tus assets.</div>';
                             } else {
-                                container.innerHTML = '<div style="color: #f14c4c; font-size: 12px;">Error: ' + message.error + '</div>';
+                                container.innerHTML = '<div style="color: var(--vscode-errorForeground); font-size: 12px;">Error: ' + message.error + '</div>';
                             }
                             return;
                         }
 
                         let assets = message.assets || [];
                         if (assets.length === 0) {
-                            container.innerHTML = '<div style="color: #888; font-size: 12px; font-style: italic; padding: 5px;">(Empty folder)</div>';
+                            container.innerHTML = '<div style="color: var(--vscode-descriptionForeground); font-size: 12px; font-style: italic; padding: 2px 20px;">(Empty folder)</div>';
                             return;
                         }
 
@@ -346,9 +370,9 @@ export class AIView {
                             else if (a.type === 'IMAGE') icon = '🖼️';
                             else if (a.type === 'TABLE') icon = '📊';
 
-                            let typeColor = '#888';
-                            if (a.type === 'IMAGE') typeColor = '#4ec9b0';
-                            else if (a.type === 'TABLE') typeColor = '#cca700';
+                            let typeColor = 'var(--vscode-descriptionForeground)';
+                            if (a.type === 'IMAGE') typeColor = 'var(--vscode-charts-green)';
+                            else if (a.type === 'TABLE') typeColor = 'var(--vscode-charts-yellow)';
 
                             const safeId = a.id.replace(/[^a-zA-Z0-9_-]/g, '-');
                             
@@ -356,30 +380,27 @@ export class AIView {
                             const copyBtn = '<button class="task-action-btn" title="Copiar ID" onclick="event.preventDefault(); event.stopPropagation(); vscode.postMessage({command: \\\'copyToClipboard\\\', text: \\\'\' + a.id + \'\\\'})">📋</button>';
                             
                             const cardContent = 
-                                '<div class="task-title" style="display: flex; align-items: center; gap: 4px;">' +
-                                    (isFolder ? '<span class="folder-icon" style="font-size: 8px;">▶️</span>' : '') +
-                                    '<span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%;" title="' + a.id + '">' +
-                                        icon + ' ' + a.name +
-                                    '</span>' +
+                                '<div class="tree-title">' +
+                                    '<span class="folder-chevron">' + (isFolder ? '▶' : '') + '</span>' +
+                                    '<span class="tree-icon">' + icon + '</span>' +
+                                    '<span title="' + a.id + '">' + a.name + '</span>' +
                                 '</div>' +
-                                '<div class="task-meta" style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; padding-left: ' + (isFolder ? '15px' : '0') + ';">' +
-                                    '<span style="color: ' + typeColor + '">' + (a.type || 'Unknown') + '</span>' +
-                                    '<div class="task-actions" style="display: flex; gap: 6px;">' +
-                                        copyBtn + deleteBtn +
-                                    '</div>' +
+                                '<div class="tree-meta">' +
+                                    '<span class="tree-type" style="color: ' + typeColor + '">' + (a.type || 'Unknown') + '</span>' +
+                                    copyBtn + deleteBtn +
                                 '</div>';
 
                             if (isFolder) {
                                 html += '<details class="asset-details" id="details-' + safeId + '" ontoggle="onFolderToggle(this, \\\'' + a.id + '\\\')">' +
-                                    '<summary class="task-item ready">' +
+                                    '<summary class="tree-item">' +
                                         cardContent +
                                     '</summary>' +
-                                    '<div class="folder-content" id="content-' + safeId + '" style="padding-left: 10px; margin-top: 5px; border-left: 1px solid #444; margin-left: 5px;">' +
-                                        '<div style="color: #888; font-size: 11px; font-style: italic; padding: 5px;">Loading...</div>' +
+                                    '<div class="folder-content" id="content-' + safeId + '" style="padding-left: 14px; border-left: 1px solid var(--vscode-tree-indentGuidesStroke, #444); margin-left: 6px;">' +
+                                        '<div style="color: var(--vscode-descriptionForeground); font-size: 11px; font-style: italic; padding: 2px 10px;">Loading...</div>' +
                                     '</div>' +
                                 '</details>';
                             } else {
-                                html += '<div class="task-item">' +
+                                html += '<div class="tree-item">' +
                                     cardContent +
                                 '</div>';
                             }

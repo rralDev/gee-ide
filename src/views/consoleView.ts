@@ -323,10 +323,10 @@ export class ConsoleView {
     <style>
         * { box-sizing: border-box; }
         body { 
-            background: #181818; 
-            color: #d4d4d4; 
-            font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', 'Consolas', monospace; 
-            font-size: 12.5px;
+            background-color: var(--vscode-editor-background, #1e1e1e); 
+            color: var(--vscode-editor-foreground, #d4d4d4); 
+            font-family: var(--vscode-editor-font-family, 'JetBrains Mono', 'Fira Code', 'Menlo', 'Consolas', monospace); 
+            font-size: var(--vscode-editor-font-size, 12.5px);
             line-height: 1.5;
             padding: 0;
             margin: 0;
