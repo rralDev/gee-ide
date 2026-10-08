@@ -70,6 +70,12 @@ export class GEERuntime {
             cli: async (cmdStr: string) => {
                 await this.handleCommand(cmdStr);
             },
+            cd: async (targetPath: string = '') => {
+                await this.handleCommand(`cd ${targetPath}`);
+            },
+            pwd: async () => {
+                await this.handleCommand('pwd');
+            },
             mkdir: async (folderName: string, isParents: boolean = false) => {
                 await this.handleCommand(`mkdir ${isParents ? '-p ' : ''}${folderName}`);
             },

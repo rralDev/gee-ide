@@ -225,8 +225,8 @@ else:
         except Exception as e:
             print(f"[GEE IDE] Warning: could not initialize EE: {e}")
 
-# Import the Map shim (provides Map.addLayer, Map.setCenter, etc.)
-from gee_pro_shim import Map
+# Import the Map shim and CLI helpers
+from gee_pro_shim import Map, cli, mkdir, rm, ls, touch, cd, pwd, find, du
 `.trim();
     }
 

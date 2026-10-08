@@ -144,3 +144,50 @@ class _GeeProMap:
 
 # The global Map object — used as `Map.addLayer(...)` in scripts
 Map = _GeeProMap()
+
+
+def cli(cmd: str) -> None:
+    """Execute a GEE IDE CLI command (ls, mkdir, touch, rm, etc.)."""
+    _send("cli", {"command": cmd})
+
+
+def mkdir(folder: str, parents: bool = False) -> None:
+    """Create a folder or ImageCollection in your GEE assets."""
+    flag = "-p " if parents else ""
+    cli(f"mkdir {flag}{folder}")
+
+
+def rm(asset: str, recursive: bool = False) -> None:
+    """Delete an asset or folder in your GEE assets."""
+    flag = "-r " if recursive else ""
+    cli(f"rm {flag}{asset}")
+
+
+def ls(path: str = "") -> None:
+    """List assets or folders in your GEE account."""
+    cli(f"ls {path}".strip())
+
+
+def touch(collection: str) -> None:
+    """Create an empty ImageCollection in your GEE assets."""
+    cli(f"touch {collection}")
+
+
+def cd(path: str = "") -> None:
+    """Change current working directory in GEE assets."""
+    cli(f"cd {path}".strip())
+
+
+def pwd() -> None:
+    """Print current working directory in GEE assets."""
+    cli("pwd")
+
+
+def find(pattern: str = "") -> None:
+    """Search for assets matching a pattern."""
+    cli(f"find {pattern}".strip())
+
+
+def du(path: str = "") -> None:
+    """Show quota / size usage in GEE assets."""
+    cli(f"du {path}".strip())

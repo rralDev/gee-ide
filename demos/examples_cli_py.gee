@@ -1,0 +1,38 @@
+# py
+"""
+DEMO: Automatización de Assets y Comandos CLI en Python (GEE IDE)
+
+💡 TIPS DE USO:
+1. En scripts Python (# py): Puedes usar funciones nativas como ls(), cd('robles'),
+   mkdir('dir'), touch('col'), find('patron'), rm('patron', recursive=True) o cli('comando').
+   Sintaxis 100% limpia sin errores ni líneas rojas.
+2. En la TERMINAL interactiva (gee:users/robles>): Puedes escribir comandos directos
+   (ej: ls, cd robles, find test_*, rm -r test_*).
+"""
+
+# 1. Ver directorio actual y listar contenido
+pwd()
+ls()
+du()
+
+# 2. Navegar a tu carpeta de usuario
+cd("robles")
+
+# 3. Bucle para crear 5 directorios recurrentes en tu cuenta
+print("⏳ Creando directorios recurrentes con bucle Python...")
+for i in range(1, 6):
+    mkdir(f"test_temporada_{i}")
+
+# 4. Crear una colección de imágenes vacía con touch
+touch("test_coleccion_2024_test01")
+
+# 5. Listar assets con comodines
+ls("test_*")
+
+# 6. Buscar assets con find
+find("test_*")
+
+# 7. Eliminar directorios y colecciones temporales (recursive=True equivale a -r)
+rm("test_*", recursive=True)
+
+print("✅ Proceso completado en Python con éxito.")

@@ -87,3 +87,42 @@ Map$clear <- function() {
     cat("[GEE IDE] Clearing map layers...\n")
     .gee_pro_send("clear", "{}")
 }
+
+cli <- function(cmd) {
+    payload <- sprintf('{"command":"%s"}', cmd)
+    .gee_pro_send("cli", payload)
+}
+
+mkdir <- function(folder, parents = FALSE) {
+    flag <- if (isTRUE(parents)) "-p " else ""
+    cli(sprintf("mkdir %s%s", flag, folder))
+}
+
+rm_asset <- function(asset, recursive = FALSE) {
+    flag <- if (isTRUE(recursive)) "-r " else ""
+    cli(sprintf("rm %s%s", flag, asset))
+}
+
+ls_assets <- function(path = "") {
+    cli(sprintf("ls %s", path))
+}
+
+touch <- function(collection) {
+    cli(sprintf("touch %s", collection))
+}
+
+cd <- function(path = "") {
+    cli(sprintf("cd %s", path))
+}
+
+pwd <- function() {
+    cli("pwd")
+}
+
+find_assets <- function(pattern = "") {
+    cli(sprintf("find %s", pattern))
+}
+
+du <- function(path = "") {
+    cli(sprintf("du %s", path))
+}

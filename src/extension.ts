@@ -509,6 +509,16 @@ export function activate(context: vscode.ExtensionContext) {
                 } else if (cmd.action === 'clear' && mapView) {
                     logStep('Bridge clear map');
                     mapView.clear();
+                } else if (cmd.action === 'cli') {
+                    logStep(`Bridge CLI command: ${cmd.payload?.command}`);
+                    if (!runtime) {
+                        const { GEERuntime } = require('./geeRuntime');
+                        runtime = new GEERuntime(consoleView, mapView);
+                        runtime!.setSnippetsManager(snippetsManager);
+                    }
+                    if (runtime && cmd.payload?.command) {
+                        runtime.handleCommand(cmd.payload.command);
+                    }
                 }
             });
             context.subscriptions.push({
