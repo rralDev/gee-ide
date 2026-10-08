@@ -1518,9 +1518,13 @@ export class GEERuntime {
                 } else {
                     try {
                         const ee = getEE();
-                        ee.data.listAssets(parentFolder, { pageSize: 1000 }, (res: any, err: any) => {
-                            if (err) return reject(new Error(typeof err === 'string' ? err : JSON.stringify(err)));
-                            resolve(res.assets || []);
+                        ee.data.listAssets(parentFolder, {}, (res: any, err: any) => {
+                            try {
+                                if (err) return reject(new Error(typeof err === 'string' ? err : JSON.stringify(err)));
+                                resolve((res && res.assets) || []);
+                            } catch (e: any) {
+                                reject(e);
+                            }
                         });
                     } catch (err: any) {
                         reject(new Error(typeof err === 'string' ? err : JSON.stringify(err)));

@@ -447,6 +447,11 @@ function deleteAsset(id) {
                             }
                         });
 
+                        } catch (err) {
+                            container.innerHTML = '<div style="color: red; font-size: 11px; padding: 10px; word-break: break-all;">RENDER ERROR: ' + err.message + '<br/>' + err.stack + '</div>';
+                            return;
+                        }
+
                         container.innerHTML = html;
                         
                         // Auto-fetch children for folders that were restored as open
