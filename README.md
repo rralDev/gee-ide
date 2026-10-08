@@ -403,13 +403,13 @@ GEE IDE automatically injects a curated collection of professional color palette
 Map.addLayer(ndvi_image, {min: -1, max: 1, palette: palettes.ndvi}, 'My NDVI');
 ```
 
-### 6. Swipe Tool (Split Panel)
+### 5. Swipe Tool (Split Panel)
 Compare two raster layers effortlessly using the built-in Swipe Tool. Click the 🔀 icon in the bottom right toolbar of the map to activate it. A slider will appear allowing you to visually compare the top two visible layers. Hold `Shift` to toggle the slider between vertical and horizontal modes.
 
-### 7. Automatic Map Legends
+### 6. Automatic Map Legends
 When adding a layer via `Map.addLayer` that contains a `palette` (e.g. `palettes.ndvi`), a beautiful color-gradient legend (with min/max values) is automatically generated directly inside the Layer Manager panel under the layer name.
 
-### 5. Interactive Pixel Inspector (Point & Click)
+### 7. Interactive Pixel Inspector (Point & Click)
 Click anywhere on the Map Viewer to instantly inspect the pixel values of all currently active raster layers at that precise coordinate. 
 * **Precision Crosshair:** Hold down `Alt`, `Cmd`, or `Ctrl` while hovering over the map to switch your cursor to a precision crosshair, preventing accidental map dragging.
 * **Smart Concurrency:** Automatically fetches values concurrently for `ee.Image` and `ee.ImageCollection` layers present on the map.
