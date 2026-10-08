@@ -1,38 +1,40 @@
 # py
 """
-DEMO: Automatización de Assets y Comandos CLI en Python (GEE IDE)
+DEMO: Automatización de Assets y Comandos CLI en GEE IDE (Python)
 
 💡 TIPS DE USO:
-1. En scripts Python (# py): Puedes usar funciones nativas como ls(), cd('robles'),
-   mkdir('dir'), touch('col'), find('patron'), rm('patron', recursive=True) o cli('comando').
-   Sintaxis 100% limpia sin errores ni líneas rojas.
-2. En la TERMINAL interactiva (gee:users/robles>): Puedes escribir comandos directos
-   (ej: ls, cd robles, find test_*, rm -r test_*).
+1. En SCRIPTS (.gee con // js, # py o # r): Usamos llamadas a funciones
+   como ls(), cd('robles'), mkdir('dir'), touch('col'), find('patron'), rm('patron', recursive=True) o cli('comando').
+   Esto garantiza sintaxis 100% válida sin ninguna línea roja en el editor.
+2. En la TERMINAL interactiva (gee:users/robles>): Puedes escribir directamente los comandos
+   sin comillas ni paréntesis (ej: ls, cd robles, find test_*, rm -r test_*).
 """
 
-# 1. Ver directorio actual y listar contenido
+# 1. Ver ruta actual y listar contenido
 pwd()
 ls()
 du()
 
-# 2. Navegar a tu carpeta de usuario
+# 2. Navegar a tu carpeta de usuario (reemplaza 'robles' por tu usuario)
 cd("robles")
 
-# 3. Bucle para crear 5 directorios recurrentes en tu cuenta
-print("⏳ Creando directorios recurrentes con bucle Python...")
+# 3. Bucle para CREAR 5 directorios recurrentes en tu cuenta de GEE
+print("⏳ Creando directorios recurrentes...")
 for i in range(1, 6):
     mkdir(f"test_temporada_{i}")
 
 # 4. Crear una colección de imágenes vacía con touch
 touch("test_coleccion_2024_test01")
 
-# 5. Listar assets con comodines
+# 5. Listar únicamente los assets que coinciden con el patrón
 ls("test_*")
 
 # 6. Buscar assets con find
 find("test_*")
 
-# 7. Eliminar directorios y colecciones temporales (recursive=True equivale a -r)
+# 7. Eliminar todos los directorios y colecciones temporales (recursive=True equivale a -r)
+# (También puedes usar: cli("rm -r test_*"))
 rm("test_*", recursive=True)
 
-print("✅ Proceso completado en Python con éxito.")
+print("✅ Automatización completada con éxito.")
+
