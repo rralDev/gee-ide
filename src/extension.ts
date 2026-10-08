@@ -344,9 +344,29 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    aiView.onMessage((message: any) => {
+    aiView.onMessage(async (message: any) => {
         if (message.command === 'focusQuadrant') {
             switchQuadrant(message.quadrant);
+        } else if (message.command === 'getTasks') {
+            if (runtime && runtime.isInitialized) {
+                try {
+                    const tasks = await runtime.getTasks();
+                    aiView.sendMessage({ command: 'tasksData', tasks: tasks });
+                } catch (e: any) {
+                    vscode.window.showErrorMessage('Error al obtener tareas: ' + e.message);
+                }
+            } else {
+                aiView.sendMessage({ command: 'tasksData', tasks: [] });
+            }
+        } else if (message.command === 'cancelTask') {
+            if (runtime && runtime.isInitialized) {
+                try {
+                    await runtime.cancelTask(message.taskId);
+                    vscode.window.showInformationMessage(`Tarea ${message.taskId} cancelada.`);
+                } catch (e: any) {
+                    vscode.window.showErrorMessage(`Error al cancelar tarea: ${e.message}`);
+                }
+            }
         }
     });
 

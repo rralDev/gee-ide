@@ -1318,6 +1318,44 @@ export class GEERuntime {
         }
     }
 
+    public async getTasks(): Promise<any[]> {
+        return new Promise((resolve, reject) => {
+            if (!this.isInitialized) {
+                return reject(new Error('GEE no está inicializado.'));
+            }
+            try {
+                getEE().data.getTaskList((tasks: any, err: any) => {
+                    if (err) {
+                        reject(new Error(err));
+                    } else {
+                        resolve(tasks || []);
+                    }
+                });
+            } catch (e: any) {
+                reject(e);
+            }
+        });
+    }
+
+    public async cancelTask(taskId: string): Promise<void> {
+        return new Promise((resolve, reject) => {
+            if (!this.isInitialized) {
+                return reject(new Error('GEE no está inicializado.'));
+            }
+            try {
+                getEE().data.cancelTask(taskId, (_: any, err: any) => {
+                    if (err) {
+                        reject(new Error(err));
+                    } else {
+                        resolve();
+                    }
+                });
+            } catch (e: any) {
+                reject(e);
+            }
+        });
+    }
+
     public async inspectPixel(lat: number, lon: number) {
         if (!this.isInitialized || this.activeLayers.size === 0) return;
         

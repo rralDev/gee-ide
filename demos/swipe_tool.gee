@@ -5,7 +5,10 @@
 // Este script compara el Índice de Vegetación (NDVI) entre dos años para
 // evidenciar la pérdida de bosque en La Pampa, Madre de Dios (Perú).
 
-var roi = ee.Geometry.Point([-69.95, -12.95]).buffer(6000);
+// 0. Limpiar capas previas
+Map.clear();
+
+var roi = ee.Geometry.Point([-69.08924, -12.08565]).buffer(6000);
 Map.centerObject(roi, 13);
 
 // Colección Sentinel-2
