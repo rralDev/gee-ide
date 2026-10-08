@@ -350,17 +350,23 @@ function deleteAsset(id) {
                         vscode.postMessage({ command: "deleteAsset", assetId: id });
                     }
 
-                    function onFolderToggle(detailsEl) {
-                        const summary = detailsEl.querySelector('summary');
-                        if (!summary) return;
-                        const path = summary.dataset.path;
-                        if (detailsEl.open) {
+                    function toggleFolder(treeItemEl) {
+                        const path = treeItemEl.dataset.path;
+                        const content = treeItemEl.nextElementSibling;
+                        const chevron = treeItemEl.querySelector('.folder-chevron');
+                        
+                        if (content.style.display === 'none') {
+                            content.style.display = 'block';
+                            if (chevron) chevron.innerText = '▼';
                             openFolders.add(path);
-                            if (!detailsEl.dataset.loaded) {
-                                detailsEl.dataset.loaded = "true";
+                            
+                            if (!content.dataset.loaded) {
+                                content.dataset.loaded = "true";
                                 vscode.postMessage({ command: "getAssets", parent: path });
                             }
                         } else {
+                            content.style.display = 'none';
+                            if (chevron) chevron.innerText = '▶';
                             openFolders.delete(path);
                         }
                     }
@@ -414,7 +420,7 @@ function deleteAsset(id) {
                             
                             const cardContent = 
                                 '<div class="tree-title">' +
-                                    '<span class="folder-chevron">' + (isFolder ? '▶' : '') + '</span>' +
+                                    '<span class="folder-chevron">' + (isFolder ? (isOpen ? '▼' : '▶') : '') + '</span>' +
                                     '<span class="tree-icon">' + icon + '</span>' +
                                     '<span title="' + a.id + '">' + a.name + '</span>' +
                                 '</div>' +
@@ -424,16 +430,17 @@ function deleteAsset(id) {
                                 '</div>';
 
                             if (isFolder) {
-                                html += '<details class="asset-details" id="details-' + safeId + '" ontoggle="onFolderToggle(this, \\\'' + a.id + '\\\')" ' + isOpen + '>' +
-                                    '<summary class="tree-item" tabindex="0" data-path="' + a.id + '" data-type="' + a.type + '">' +
+                                const display = isOpen ? 'block' : 'none';
+                                html += '<div class="asset-folder-container" id="container-' + safeId + '">' +
+                                    '<div class="tree-item" tabindex="0" data-path="' + a.id + '" data-type="' + a.type + '" onclick="toggleFolder(this)">' +
                                         cardContent +
-                                    '</summary>' +
-                                    '<div class="folder-content" id="content-' + safeId + '" style="padding-left: 14px; border-left: 1px solid var(--vscode-tree-indentGuidesStroke, #444); margin-left: 6px;">' +
+                                    '</div>' +
+                                    '<div class="folder-content" id="content-' + safeId + '" style="display: ' + display + '; padding-left: 14px; border-left: 1px solid var(--vscode-tree-indentGuidesStroke, #444); margin-left: 6px;">' +
                                         '<div style="color: var(--vscode-descriptionForeground); font-size: 11px; font-style: italic; padding: 2px 10px;">Loading...</div>' +
                                     '</div>' +
-                                '</details>';
+                                '</div>';
                             } else {
-                                html += '<div class="tree-item" tabindex="0" data-path="' + a.id + '" data-type="' + a.type + '" ondblclick="showAssetModal(\\\'' + a.id + '\\\')">' +
+                                html += '<div class="tree-item" tabindex="0" data-path="' + a.id + '" data-type="' + a.type + '" ondblclick="showAssetModal(this.dataset.path)">' +
                                     cardContent +
                                 '</div>';
                             }
@@ -442,10 +449,10 @@ function deleteAsset(id) {
                         container.innerHTML = html;
                         
                         // Auto-fetch children for folders that were restored as open
-                        Array.from(container.querySelectorAll('details[open]')).forEach(detailsEl => {
-                            if (!detailsEl.dataset.loaded) {
-                                detailsEl.dataset.loaded = "true";
-                                const path = detailsEl.querySelector('summary').dataset.path;
+                        Array.from(container.querySelectorAll('.folder-content')).forEach(contentEl => {
+                            if (contentEl.style.display !== 'none' && !contentEl.dataset.loaded) {
+                                contentEl.dataset.loaded = "true";
+                                const path = contentEl.previousElementSibling.dataset.path;
                                 vscode.postMessage({ command: "getAssets", parent: path });
                             }
                         });
@@ -510,14 +517,14 @@ function deleteAsset(id) {
                         const type = active.dataset.type;
                         
                         if (e.key === 'ArrowRight') {
-                            if (active.tagName === 'SUMMARY') {
-                                const details = active.parentElement;
-                                if (!details.open) details.open = true;
+                            const content = active.nextElementSibling;
+                            if (content && content.classList.contains('folder-content') && content.style.display === 'none') {
+                                toggleFolder(active);
                             }
                         } else if (e.key === 'ArrowLeft') {
-                            if (active.tagName === 'SUMMARY') {
-                                const details = active.parentElement;
-                                if (details.open) details.open = false;
+                            const content = active.nextElementSibling;
+                            if (content && content.classList.contains('folder-content') && content.style.display !== 'none') {
+                                toggleFolder(active);
                             }
                         } else if (e.key === 'ArrowDown') {
                             e.preventDefault();
@@ -534,9 +541,9 @@ function deleteAsset(id) {
                             const idx = visibleFocusable.indexOf(active);
                             if (idx > 0) visibleFocusable[idx-1].focus();
                         } else if (e.key === 'Enter') {
-                            if (active.tagName === 'SUMMARY') {
-                                const details = active.parentElement;
-                                details.open = !details.open;
+                            const content = active.nextElementSibling;
+                            if (content && content.classList.contains('folder-content')) {
+                                toggleFolder(active);
                             } else {
                                 vscode.postMessage({ command: 'insertInEditor', text: path });
                             }
