@@ -447,7 +447,7 @@ export function activate(context: vscode.ExtensionContext) {
                     aiView.sendMessage({ command: 'assetsData', assets, parent: message.parent || '~' });
                 } catch (e: any) {
                     vscode.window.showErrorMessage('Error al obtener assets: ' + e.message);
-                    aiView.sendMessage({ command: 'assetsData', error: e.message });
+                    aiView.sendMessage({ command: 'assetsData', error: e.message, parent: message.parent || '~' });
                 }
             } else {
                 aiView.sendMessage({ command: 'assetsData', error: 'not_initialized' });

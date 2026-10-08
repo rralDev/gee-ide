@@ -411,18 +411,20 @@ function deleteAsset(id) {
                             if (a.type === 'IMAGE') typeColor = 'var(--vscode-charts-green)';
                             else if (a.type === 'TABLE') typeColor = 'var(--vscode-charts-yellow)';
 
-                            const safeId = a.id.replace(/[^a-zA-Z0-9_-]/g, '-');
-                            const isOpen = openFolders.has(a.id) ? 'open' : '';
+                            const assetId = assetId || a.name;
+                            const assetName = a.name ? a.name.split('/').pop() : assetId.split('/').pop();
+                            const safeId = assetId.replace(/[^a-zA-Z0-9_-]/g, '-');
+                            const isOpen = openFolders.has(assetId) ? 'open' : '';
                             
-                            const deleteBtn = (!a.isRoot) ? '<button class="task-action-btn cancel-btn" title="Eliminar Asset" onclick="event.preventDefault(); event.stopPropagation(); deleteAsset(\\\'' + a.id + '\\\')">❌</button>' : '';
-                            const copyBtn = '<button class="task-action-btn" title="Copiar ID" onclick="event.preventDefault(); event.stopPropagation(); vscode.postMessage({command: \\\'copyToClipboard\\\', text: \\\'\' + a.id + \'\\\'})">📋</button>';
-                            const insertBtn = (!isFolder) ? '<button class="task-action-btn" title="Insertar en Editor" onclick="event.preventDefault(); event.stopPropagation(); vscode.postMessage({command: \\\'insertInEditor\\\', text: \\\'\' + a.id + \'\\\'})">➕</button>' : '';
+                            const deleteBtn = (!a.isRoot) ? '<button class="task-action-btn cancel-btn" title="Eliminar Asset" onclick="event.preventDefault(); event.stopPropagation(); deleteAsset(\'' + assetId + '\')">❌</button>' : '';
+                            const copyBtn = '<button class="task-action-btn" title="Copiar ID" onclick="event.preventDefault(); event.stopPropagation(); vscode.postMessage({command: \'copyToClipboard\', text: \'\' + assetId + \'\'})">📋</button>';
+                            const insertBtn = (!isFolder) ? '<button class="task-action-btn" title="Insertar en Editor" onclick="event.preventDefault(); event.stopPropagation(); vscode.postMessage({command: \'insertInEditor\', text: \'\' + assetId + \'\'})">➕</button>' : '';
                             
                             const cardContent = 
                                 '<div class="tree-title">' +
                                     '<span class="folder-chevron">' + (isFolder ? (isOpen ? '▼' : '▶') : '') + '</span>' +
                                     '<span class="tree-icon">' + icon + '</span>' +
-                                    '<span title="' + a.id + '">' + a.name + '</span>' +
+                                    '<span title="' + assetId + '">' + assetName + '</span>' +
                                 '</div>' +
                                 '<div class="tree-meta">' +
                                     '<span class="tree-type" style="color: ' + typeColor + '">' + (a.type || 'Unknown') + '</span>' +
@@ -432,7 +434,7 @@ function deleteAsset(id) {
                             if (isFolder) {
                                 const display = isOpen ? 'block' : 'none';
                                 html += '<div class="asset-folder-container" id="container-' + safeId + '">' +
-                                    '<div class="tree-item" tabindex="0" data-path="' + a.id + '" data-type="' + a.type + '" onclick="toggleFolder(this)">' +
+                                    '<div class="tree-item" tabindex="0" data-path="' + assetId + '" data-type="' + a.type + '" onclick="toggleFolder(this)">' +
                                         cardContent +
                                     '</div>' +
                                     '<div class="folder-content" id="content-' + safeId + '" style="display: ' + display + '; padding-left: 14px; border-left: 1px solid var(--vscode-tree-indentGuidesStroke, #444); margin-left: 6px;">' +
@@ -440,7 +442,7 @@ function deleteAsset(id) {
                                     '</div>' +
                                 '</div>';
                             } else {
-                                html += '<div class="tree-item" tabindex="0" data-path="' + a.id + '" data-type="' + a.type + '" ondblclick="showAssetModal(this.dataset.path)">' +
+                                html += '<div class="tree-item" tabindex="0" data-path="' + assetId + '" data-type="' + a.type + '" ondblclick="showAssetModal(this.dataset.path)">' +
                                     cardContent +
                                 '</div>';
                             }
