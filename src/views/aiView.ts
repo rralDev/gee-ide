@@ -350,7 +350,10 @@ function deleteAsset(id) {
                         vscode.postMessage({ command: "deleteAsset", assetId: id });
                     }
 
-                    function onFolderToggle(detailsEl, path) {
+                    function onFolderToggle(detailsEl) {
+                        const summary = detailsEl.querySelector('summary');
+                        if (!summary) return;
+                        const path = summary.dataset.path;
                         if (detailsEl.open) {
                             openFolders.add(path);
                             if (!detailsEl.dataset.loaded) {

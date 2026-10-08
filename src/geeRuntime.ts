@@ -1512,15 +1512,19 @@ export class GEERuntime {
                     resolve(this.assetRoots.map(r => ({
                         type: 'FOLDER_ROOT',
                         id: r.id,
-                        name: r.id.split('/').pop(),
+                        name: (r as any).shortName || r.id.split('/').pop(),
                         isRoot: true
                     })));
                 } else {
-                    const ee = require('@google/earthengine');
-                    ee.data.listAssets(parentFolder, {}, (res: any, err: string) => {
-                        if (err) return reject(new Error(err));
-                        resolve(res.assets || []);
-                    });
+                    try {
+                        const ee = getEE();
+                        ee.data.listAssets(parentFolder, { pageSize: 1000 }, (res: any, err: any) => {
+                            if (err) return reject(new Error(typeof err === 'string' ? err : JSON.stringify(err)));
+                            resolve(res.assets || []);
+                        });
+                    } catch (err: any) {
+                        reject(new Error(typeof err === 'string' ? err : JSON.stringify(err)));
+                    }
                 }
             } catch (e) {
                 reject(e);

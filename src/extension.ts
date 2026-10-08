@@ -386,41 +386,48 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.env.openExternal(vscode.Uri.parse(message.url));
         } else if (message.command === 'createFolder') {
             if (runtime && runtime.isInitialized) {
-                let defaultPath = '';
-                if (message.activePath) {
-                    defaultPath = message.activePath + '/nueva_carpeta';
-                } else {
-                    const roots = runtime.getAssetRootsList();
-                    const projectId = runtime.getProjectId() || '';
-                    const validRoots = roots.filter(r => 
-                        (projectId && r.id.includes(projectId)) || 
-                        (!r.id.includes('earthengine-public') && !r.id.includes('earthengine-legacy'))
-                    );
-                    if (validRoots && validRoots.length > 0) {
-                        defaultPath = validRoots[0].id + '/nueva_carpeta';
-                    } else if (roots && roots.length > 0) {
-                        defaultPath = roots[0].id + '/nueva_carpeta';
-                    }
+                const roots = runtime.getAssetRootsList();
+                const quickPickItems = roots.map(r => ({
+                    label: `📁 ${r.shortName || r.id.split('/').pop()}`,
+                    description: r.id,
+                    rootId: r.id
+                }));
+
+                // If we have an active path, add it to the top so they can create a folder inside the current selection
+                if (message.activePath && !roots.find(r => r.id === message.activePath)) {
+                    quickPickItems.unshift({
+                        label: `📁 ${message.activePath.split('/').pop()} (Current)`,
+                        description: message.activePath,
+                        rootId: message.activePath
+                    });
                 }
-                
-                vscode.window.showInputBox({ 
-                    prompt: 'Ruta completa de la nueva carpeta', 
-                    value: defaultPath,
-                    valueSelection: defaultPath ? [defaultPath.lastIndexOf('/') + 1, defaultPath.length] : undefined
-                }).then(async val => {
-                    if (val) {
-                        try {
-                            // If user types just a name without a path, but defaultPath had a path, we should auto-prefix
-                            let finalVal = val;
-                            if (!val.includes('/') && defaultPath) {
-                                finalVal = defaultPath.substring(0, defaultPath.lastIndexOf('/')) + '/' + val;
+
+                vscode.window.showQuickPick(quickPickItems, {
+                    placeHolder: '1. Selecciona el directorio padre para la nueva carpeta'
+                }).then(selection => {
+                    if (selection) {
+                        const parentPath = selection.rootId;
+                        const defaultPath = parentPath + '/nueva_carpeta';
+                        
+                        vscode.window.showInputBox({ 
+                            prompt: '2. Ruta completa de la nueva carpeta', 
+                            value: defaultPath,
+                            valueSelection: defaultPath ? [defaultPath.lastIndexOf('/') + 1, defaultPath.length] : undefined
+                        }).then(async val => {
+                            if (val) {
+                                try {
+                                    let finalVal = val;
+                                    if (!val.includes('/') && defaultPath) {
+                                        finalVal = defaultPath.substring(0, defaultPath.lastIndexOf('/')) + '/' + val;
+                                    }
+                                    await runtime!.createFolderApi(finalVal);
+                                    vscode.window.showInformationMessage(`Carpeta ${finalVal} creada exitosamente.`);
+                                    aiView.sendMessage({ command: 'assetDeleted' }); // Reuses refresh
+                                } catch (e: any) {
+                                    vscode.window.showErrorMessage('Error al crear folder: ' + e.message);
+                                }
                             }
-                            await runtime!.createFolderApi(finalVal);
-                            vscode.window.showInformationMessage(`Carpeta ${finalVal} creada exitosamente.`);
-                            aiView.sendMessage({ command: 'assetDeleted' }); // Reuses refresh
-                        } catch (e: any) {
-                            vscode.window.showErrorMessage('Error al crear folder: ' + e.message);
-                        }
+                        });
                     }
                 });
             }
