@@ -311,7 +311,7 @@ export class AIView {
                             actionsHTML += '<button class="task-action-btn" title="Copiar ID" onclick="event.preventDefault(); event.stopPropagation(); copyText(&apos;' + t.id + '&apos;)">📋</button>';
                             
                             if (t.state === 'FAILED' && t.error_message) {
-                                const errorMsg = String(t.error_message).replace(/[\r\n]+/g, ' ').replace(/["']/g, '');
+                                const errorMsg = String(t.error_message).split(String.fromCharCode(10)).join(' ').split(String.fromCharCode(13)).join(' ').split(String.fromCharCode(39)).join('').split(String.fromCharCode(34)).join('');
                                 actionsHTML += '<button class="task-action-btn" title="Copiar Error" onclick="event.preventDefault(); event.stopPropagation(); copyText(&apos;' + errorMsg + '&apos;)">⚠️</button>';
                             }
 
