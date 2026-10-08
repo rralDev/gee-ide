@@ -42,7 +42,7 @@ async function displaySessionBanner(consoleView: any, creds: any, runtime: any) 
         consoleView.append(`👤 Account: ${userEmail}`);
     }
 
-    let activeProj = creds.project_id || (runtime ? runtime.getProjectId() : '');
+    let activeProj = creds.project_id || (runtime ? runtime!.getProjectId() : '');
     if (activeProj === 'gee-pro-default' || activeProj === 'PeruREDD') {
         activeProj = '';
     }
@@ -53,7 +53,7 @@ async function displaySessionBanner(consoleView: any, creds: any, runtime: any) 
     }
     
     if (runtime) {
-        const roots = runtime.getAssetRootsList();
+        const roots = runtime!.getAssetRootsList();
         if (roots && roots.length > 0) {
             consoleView.append(`📁 Asset Roots: ${roots.map((r: any) => `${r.shortName} (${r.id})`).join(', ')}`);
             const completionItems: string[] = [];
@@ -180,7 +180,7 @@ export function activate(context: vscode.ExtensionContext) {
         const vars = new Set<string>();
         if (runtime) {
             try {
-                runtime.getUserVariables().forEach(v => vars.add(v));
+                runtime!.getUserVariables().forEach(v => vars.add(v));
             } catch (e) {}
         }
         const activeEditor = vscode.window.activeTextEditor;
@@ -214,7 +214,7 @@ export function activate(context: vscode.ExtensionContext) {
                     // 1. Máxima prioridad: Variables en memoria activa (runtime)
                     if (runtime) {
                         try {
-                            const userVars = runtime.getUserVariables();
+                            const userVars = runtime!.getUserVariables();
                             for (const v of userVars) {
                                 seen.add(v);
                                 const item = new vscode.CompletionItem(v, vscode.CompletionItemKind.Variable);
@@ -270,12 +270,12 @@ export function activate(context: vscode.ExtensionContext) {
         } else if (message.command === 'requestCompletions' || message.command === 'consoleReady') {
             syncCompletionsToConsole();
         } else if (message.command === 'geeCommand') {
-            if (!runtime || !runtime.isInitialized) {
+            if (!runtime || !runtime!.isInitialized) {
                 consoleView.append('⏳ Inicializando sesión de Earth Engine...');
             }
             await ensureRuntimeInitialized();
             if (runtime) {
-                await runtime.handleCommand(message.text);
+                await runtime!.handleCommand(message.text);
             } else {
                 consoleView.append('⚠️ GEE no está autenticado. Presiona Cmd+Shift+P -> "GEE IDE: Login with Google"');
                 consoleView.append('gee> ');
@@ -286,6 +286,13 @@ export function activate(context: vscode.ExtensionContext) {
     mapView.onMessage(async (message: any) => {
         if (message.command === 'focusQuadrant') {
             switchQuadrant(message.quadrant);
+        } else if (message.command === 'mapClicked') {
+            if (runtime && runtime.isInitialized) {
+                runtime.inspectPixel(message.lat, message.lng);
+            }
+        } else if (message.command === 'copyToClipboard') {
+            await vscode.env.clipboard.writeText(message.text);
+            vscode.window.showInformationMessage('📋 Copiado al portapapeles');
         } else if (message.command === 'webviewError') {
             logStep(`MAP WEBVIEW ERROR: ${message.message} | ${message.stack}`);
             if (consoleView) consoleView.append(`[Map Error] ${message.message}`);
@@ -385,7 +392,7 @@ export function activate(context: vscode.ExtensionContext) {
     let initPromise: Promise<boolean> | undefined;
 
     async function ensureRuntimeInitialized(forceShowBanner: boolean = false): Promise<boolean> {
-        if (runtime && runtime.isInitialized) {
+        if (runtime && runtime!.isInitialized) {
             if (forceShowBanner) {
                 const savedJson = await context.secrets.get('gee-pro.credentials');
                 if (savedJson) {
@@ -487,8 +494,8 @@ export function activate(context: vscode.ExtensionContext) {
                     if (!runtime) {
                         const { GEERuntime } = require('./geeRuntime');
                         runtime = new GEERuntime(consoleView, mapView);
-                        runtime.setSnippetsManager(snippetsManager);
-                        runtime.setCatalogManager(catalogManager);
+                        runtime!.setSnippetsManager(snippetsManager);
+                        runtime!.setCatalogManager(catalogManager);
                     }
                     consoleView.append('Authentication required: Cmd+Shift+P -> GEE IDE: Login with Google');
                     return false;
@@ -578,7 +585,7 @@ export function activate(context: vscode.ExtensionContext) {
             try {
                 const creds = JSON.parse(json);
                 if (runtime) {
-                    await runtime.initialize(creds);
+                    await runtime!.initialize(creds);
                     const bridgePort = await ensureBridgeServer();
                     runtimePy = new GEERuntimePy(consoleView, creds.access_token || '', creds.project_id || '', context.globalStorageUri.fsPath, bridgePort);
                     await context.secrets.store('gee-pro.credentials', json);
@@ -604,7 +611,7 @@ export function activate(context: vscode.ExtensionContext) {
                 const existingCreds = JSON.parse(savedSecret);
                 if (existingCreds && existingCreds.access_token) {
                     const email = existingCreds.email || 'Google User';
-                    const activeProj = existingCreds.project_id || (runtime ? runtime.getProjectId() : '') || 'Default Project';
+                    const activeProj = existingCreds.project_id || (runtime ? runtime!.getProjectId() : '') || 'Default Project';
                     
                     const choice = await vscode.window.showInformationMessage(
                         `You already have an active GEE session as ${email} (Project: ${activeProj}).`,
@@ -625,7 +632,7 @@ export function activate(context: vscode.ExtensionContext) {
                     if (fs.existsSync(credPath)) {
                         try { fs.unlinkSync(credPath); } catch (e) {}
                     }
-                    if (runtime) runtime.reset(true);
+                    if (runtime) runtime!.reset(true);
                     if (runtimePy) runtimePy.stop();
                     if (runtimeR) runtimeR.reset(true);
                 }
@@ -657,11 +664,11 @@ export function activate(context: vscode.ExtensionContext) {
                         if (!runtime) {
                             const { GEERuntime } = require('./geeRuntime');
                             runtime = new GEERuntime(consoleView, mapView);
-                            runtime.setSnippetsManager(snippetsManager);
-                            runtime.setCatalogManager(catalogManager);
+                            runtime!.setSnippetsManager(snippetsManager);
+                            runtime!.setCatalogManager(catalogManager);
                         }
 
-                        await runtime.initialize(readyCreds);
+                        await runtime!.initialize(readyCreds);
                         const bridgePort = await ensureBridgeServer();
                         runtimePy = new GEERuntimePy(consoleView, readyCreds.access_token || '', readyCreds.project_id || '', context.globalStorageUri.fsPath, bridgePort);
                         runtimeR = new GEERuntimeR(consoleView, readyCreds.access_token || '', readyCreds.project_id || '', bridgePort);
@@ -714,11 +721,11 @@ export function activate(context: vscode.ExtensionContext) {
             if (!runtime) {
                 const { GEERuntime } = require('./geeRuntime');
                 runtime = new GEERuntime(consoleView, mapView);
-                runtime.setSnippetsManager(snippetsManager);
-                runtime.setCatalogManager(catalogManager);
+                runtime!.setSnippetsManager(snippetsManager);
+                runtime!.setCatalogManager(catalogManager);
             }
 
-            await runtime.initialize(tokenData);
+            await runtime!.initialize(tokenData);
             let activeProject = tokenData.project_id || tokenData.project;
                 if (activeProject === 'gee-pro-default' || activeProject === 'PeruREDD') {
                     activeProject = '';
@@ -737,7 +744,7 @@ export function activate(context: vscode.ExtensionContext) {
                     try {
                         const detected = await autoDetectCloudProject(
                             tokenData.access_token,
-                            runtime.getAssetRootsList(),
+                            runtime!.getAssetRootsList(),
                             tokenData.email
                         );
                         if (detected) {
@@ -747,8 +754,8 @@ export function activate(context: vscode.ExtensionContext) {
                 }
                 if (activeProject && activeProject !== 'gee-pro-default' && activeProject !== 'PeruREDD') {
                     tokenData.project_id = activeProject;
-                    runtime.setProjectId(activeProject);
-                    await runtime.loadAssetRoots(tokenData.email);
+                    runtime!.setProjectId(activeProject);
+                    await runtime!.loadAssetRoots(tokenData.email);
                 }
                 const bridgePort = await ensureBridgeServer();
                 runtimePy = new GEERuntimePy(consoleView, tokenData.access_token || '', activeProject || '', context.globalStorageUri.fsPath, bridgePort);
@@ -800,7 +807,7 @@ export function activate(context: vscode.ExtensionContext) {
             } catch (e) {}
         }
         if (runtime) {
-            runtime.reset(true);
+            runtime!.reset(true);
             runtime = undefined;
         }
         if (runtimePy) {
@@ -862,11 +869,11 @@ export function activate(context: vscode.ExtensionContext) {
                 return;
             }
 
-            if (!runtime || !runtime.isInitialized) {
+            if (!runtime || !runtime!.isInitialized) {
                 await ensureRuntimeInitialized();
             }
             if (runtime) {
-                runtime.execute(code, true).then(() => {
+                runtime!.execute(code, true).then(() => {
                     if (consoleView) consoleView.append('gee> ');
                 });
             }
@@ -875,7 +882,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     let resetCommand = vscode.commands.registerCommand('gee-pro.reset', () => {
         if (runtime) {
-            runtime.reset(true);
+            runtime!.reset(true);
         }
         if (runtimePy) {
             runtimePy.stop();
@@ -1060,10 +1067,10 @@ export function activate(context: vscode.ExtensionContext) {
                 if (!runtime) {
                     const { GEERuntime } = require('./geeRuntime');
                     runtime = new GEERuntime(consoleView, mapView);
-                    runtime.setSnippetsManager(snippetsManager);
+                    runtime!.setSnippetsManager(snippetsManager);
                 }
                 const query = trimmedCode.startsWith('?') ? trimmedCode.substring(1).trim() : trimmedCode.replace(/^help\s*/, '').trim();
-                runtime.showHelp(query);
+                runtime!.showHelp(query);
                 if (consoleView) consoleView.append('gee> ');
             } else if (langId === 'python') {
                 await ensureBridgeServer();
@@ -1087,11 +1094,11 @@ export function activate(context: vscode.ExtensionContext) {
                     if (consoleView) consoleView.append('gee> ');
                 });
             } else {
-                if (!runtime || !runtime.isInitialized) {
+                if (!runtime || !runtime!.isInitialized) {
                     await ensureRuntimeInitialized();
                 }
                 if (runtime) {
-                    runtime.execute(code).then(() => {
+                    runtime!.execute(code).then(() => {
                         if (consoleView) consoleView.append('gee> ');
                     });
                 }
@@ -1110,7 +1117,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     let setProjectCommand = vscode.commands.registerCommand('gee-pro.setProject', async () => {
-        const current = (runtime ? runtime.getProjectId() : '') || 'PeruREDD';
+        const current = (runtime ? runtime!.getProjectId() : '') || 'PeruREDD';
         const project = await vscode.window.showInputBox({
             prompt: 'Enter Google Cloud / Earth Engine Project ID',
             value: current,
@@ -1121,8 +1128,8 @@ export function activate(context: vscode.ExtensionContext) {
             const config = vscode.workspace.getConfiguration('gee-pro');
             await config.update('projectId', clean, vscode.ConfigurationTarget.Global);
             if (runtime) {
-                runtime.setProjectId(clean);
-                await runtime.loadAssetRoots();
+                runtime!.setProjectId(clean);
+                await runtime!.loadAssetRoots();
             }
             if (runtimePy) runtimePy.setProject(clean);
             try {

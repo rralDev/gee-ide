@@ -365,6 +365,7 @@ Query and discover over 1,100 official public Google Earth Engine datasets (Sent
 * Search in real-time by mission, sensor, variable, band, or tag (e.g. `sentinel 2`, `landsat 8`, `elevation`, `srtm`, `modis ndvi`, `landcover`).
 * Inspect temporal coverage, data type, and band summaries.
 * **One-Click Actions:**
+  * **Insertar y Visualizar en Mapa (Smart Auto-Plot):** Inserts the dataset declaration AND automatically appends `Map.centerObject()` and `Map.addLayer()` code. It includes a **Smart VisParams Guesser** that automatically detects the dataset type (e.g. NDVI, Elevation, Water, LST) and generates the correct visualization ranges and professional color palettes. For collections, it intelligently appends `.first()` to ensure instant visualization.
   * **Insert in Editor:** Automatically inserts language-aware declarations (`var s2 = ee.ImageCollection('...')` in JS, Python, or R) at your active cursor.
   * **Copy Snippet:** Copies the dataset declaration to your system clipboard.
   * **Open in Earth Engine Catalog:** Opens the official Google documentation page in your browser.
@@ -382,6 +383,34 @@ Query and discover over 1,100 official public Google Earth Engine datasets (Sent
   gee> find -c elevation
   ```
 * Prints dataset IDs, descriptions, temporal ranges, band lists, and runnable code snippets directly to the console canvas.
+
+### 3. Smart Console Auto-Plot (RStudio UX)
+When evaluating any Earth Engine spatial variable or expression (`ee.Image`, `ee.FeatureCollection`, `ee.Geometry`) directly in the interactive `gee>` REPL, the IDE will automatically plot it on the Map Viewer and center the camera without requiring explicit `Map.addLayer()` commands.
+
+### 4. Built-in Global Palettes (`palettes`)
+GEE IDE automatically injects a curated collection of professional color palettes into your local execution context. You can use them directly in your scripts without having to copy-paste long HEX strings:
+* **Vegetation/NDVI:** `palettes.ndvi`
+* **Water/NDWI:** `palettes.water`
+* **Elevation/DEM:** `palettes.dem`
+* **Temperature/LST:** `palettes.temperature`
+* **Fire/Burn:** `palettes.fire`
+* **Bare Soil/Agriculture:** `palettes.soil`
+* **Snow/Ice:** `palettes.snow`
+* **Urban/Impervious:** `palettes.urban`
+
+*Example usage:*
+```javascript
+Map.addLayer(ndvi_image, {min: -1, max: 1, palette: palettes.ndvi}, 'My NDVI');
+```
+
+### 5. Interactive Pixel Inspector (Point & Click)
+Click anywhere on the Map Viewer to instantly inspect the pixel values of all currently active raster layers at that precise coordinate. 
+* **Precision Crosshair:** Hold down `Alt`, `Cmd`, or `Ctrl` while hovering over the map to switch your cursor to a precision crosshair, preventing accidental map dragging.
+* **Smart Concurrency:** Automatically fetches values concurrently for `ee.Image` and `ee.ImageCollection` layers present on the map.
+* **Ergonomic UI:** Generates an interactive, dark-themed Leaflet popup. Layers are organized into collapsible accordions to keep the UI compact regardless of how many bands are loaded.
+* **Export & Copy:** Quickly copy the raw coordinate `[lon, lat]` or click **"📋 Copiar Todo (JSON)"** to copy the entire pixel dataset to your clipboard.
+* **Console History:** Every inspected point is automatically logged into the `gee>` Console (Quadrant 2), creating a persistent history of your analysis without cluttering your workspace tabs.
+* **Quick Close:** Press `Esc` at any time to immediately close the inspector popup.
 
 ---
 

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import { GE_PALETTES } from './palettes';
 
 export interface CatalogDataset {
     id: string;
@@ -196,6 +197,54 @@ export class CatalogManager {
         }
     }
 
+    public guessVisParams(dataset: CatalogDataset, lang: string = 'javascript'): string {
+        const idLower = dataset.id.toLowerCase();
+        const tags = dataset.tags || [];
+        const isR = lang === 'r';
+
+        let params: any = {};
+
+        if (idLower.includes('ndvi')) {
+            const isScaled = idLower.includes('modis') || idLower.includes('mcd') || idLower.includes('mod13');
+            params = { min: isScaled ? 0 : 0.0, max: isScaled ? 10000 : 1.0, palette: GE_PALETTES.ndvi };
+        } else if (idLower.includes('elevation') || idLower.includes('srtm') || idLower.includes('dem')) {
+            params = { min: 0, max: 3000, palette: GE_PALETTES.dem };
+        } else if (idLower.includes('sentinel-2') || idLower.includes('copernicus/s2')) {
+            params = { min: 0, max: 3000, bands: ['B4', 'B3', 'B2'] };
+        } else if (idLower.includes('landsat')) {
+            if (idLower.includes('lc08') || idLower.includes('lc09')) {
+                params = { min: 0, max: 3000, bands: ['SR_B4', 'SR_B3', 'SR_B2'] };
+                if (dataset.bands && dataset.bands.includes('B4')) params.bands = ['B4', 'B3', 'B2'];
+            } else {
+                params = { min: 0, max: 3000, bands: ['B3', 'B2', 'B1'] };
+                if (dataset.bands && dataset.bands.includes('SR_B3')) params.bands = ['SR_B3', 'SR_B2', 'SR_B1'];
+            }
+        } else if (idLower.includes('nighttime') || idLower.includes('viirs')) {
+            params = { min: 0, max: 60 };
+        } else if (idLower.includes('water') || idLower.includes('jrc')) {
+            params = { min: 0, max: 100, palette: GE_PALETTES.water };
+        } else if (idLower.includes('lst') || idLower.includes('temperature')) {
+            params = { min: 13000, max: 16500, palette: GE_PALETTES.temperature };
+        } else if (idLower.includes('fire') || idLower.includes('burn')) {
+            params = { min: 0, max: 100, palette: GE_PALETTES.fire };
+        }
+
+        if (Object.keys(params).length === 0) {
+            return isR ? 'list()' : '{}';
+        }
+
+        if (isR) {
+            let parts = [];
+            if (params.min !== undefined) parts.push(`min = ${params.min}`);
+            if (params.max !== undefined) parts.push(`max = ${params.max}`);
+            if (params.bands) parts.push(`bands = c('${params.bands.join("', '")}')`);
+            if (params.palette) parts.push(`palette = c('${params.palette.join("', '")}')`);
+            return `list(${parts.join(', ')})`;
+        } else {
+            return JSON.stringify(params).replace(/"/g, "'");
+        }
+    }
+
     public async showCatalogQuickPick() {
         if (!this.isLoaded) this.loadCatalog();
 
@@ -266,15 +315,32 @@ export class CatalogManager {
                 const action = await vscode.window.showInformationMessage(
                     header,
                     { detail: messageBody },
+                    'Insertar y Ver en Mapa',
                     'Insertar en Editor',
                     'Copiar Snippet',
                     'Abrir en Earth Engine Catalog'
                 );
 
-                if (action === 'Insertar en Editor') {
+                if (action === 'Insertar y Ver en Mapa' || action === 'Insertar en Editor') {
                     if (editor) {
+                        const safeVarName = ds.id.split('/').pop()?.toLowerCase().replace(/[^a-z0-9_]/g, '_') || 'dataset';
+                        let finalSnippet = snippet;
+                        if (action === 'Insertar y Ver en Mapa') {
+                            const visParams = this.guessVisParams(ds, lang);
+                            const isColl = ds.type === 'image_collection' || ds.type === 'collection';
+                            const plotVar = isColl ? `${safeVarName}.first()` : safeVarName;
+
+                            if (lang === 'python') {
+                                finalSnippet += `\nMap.centerObject(${plotVar})\nMap.addLayer(${plotVar}, ${visParams}, '${ds.id}')`;
+                            } else if (lang === 'r') {
+                                finalSnippet += `\nMap$centerObject(${plotVar})\nMap$addLayer(${plotVar}, ${visParams}, '${ds.id}')`;
+                            } else {
+                                finalSnippet += `\nMap.centerObject(${plotVar});\nMap.addLayer(${plotVar}, ${visParams}, '${ds.id}');`;
+                            }
+                        }
+
                         editor.edit(editBuilder => {
-                            editBuilder.insert(editor.selection.active, snippet);
+                            editBuilder.insert(editor.selection.active, finalSnippet);
                         });
                         if (deprecated) {
                             vscode.window.showWarningMessage(`⚠️ Has insertado '${ds.id}', que está obsoleto.${replacement ? ` Considera actualizar a: ${replacement}` : ''}`);

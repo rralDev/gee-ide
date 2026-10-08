@@ -16,12 +16,10 @@ Map.centerObject(roi, 11);
 // 3. Cargar Modelo Digital de Elevación (SRTM) para la región amazónica
 var elevation = ee.Image('CGIAR/SRTM90_V4');
 
-
-
 // 4. Agregar al mapa con paleta de relieve amazónico
 Map.addLayer(elevation, {
-    min: 150, 
-    max: 500, 
+    min: 150,
+    max: 500,
     palette: ['#1a9850', '#91cf60', '#d9ef8b', '#fee08b', '#fc8d59', '#d73027']
 }, 'Relieve SRTM (Amazonía)');
 

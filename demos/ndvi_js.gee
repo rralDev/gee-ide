@@ -48,9 +48,9 @@ var ndviVis = {
 };
 
 // 6. Proyectar capas al visor interactivo de GEE IDE
-Map.addLayer(image, rgbVis, '1. Sentinel-2 Color Natural (La Pampa)');
-Map.addLayer(image, swirVis, '2. SWIR Minería y Agua Turbia (Falso Color)');
 Map.addLayer(ndvi, ndviVis, '3. NDVI Salud Vegetal vs Minería');
+Map.addLayer(image, swirVis, '2. SWIR Minería y Agua Turbia (Falso Color)');
+Map.addLayer(image, rgbVis, '1. Sentinel-2 Color Natural (La Pampa)');
 
 print("✅ Análisis amazónico completado exitosamente en JavaScript.");
 print("📍 Ubicación: La Pampa, Madre de Dios, Perú (-12.85°S, -69.85°W)");

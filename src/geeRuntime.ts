@@ -22,6 +22,7 @@ export class GEERuntime {
     private projectId: string = '';
     private snippetsManager: any;
     private catalogManager: any;
+    public activeLayers: Map<string, any> = new Map();
 
     public setSnippetsManager(sm: any) {
         this.snippetsManager = sm;
@@ -43,8 +44,10 @@ export class GEERuntime {
 
     private resetContext() {
         const eeInstance = getEE();
+        const { GE_PALETTES } = require('./palettes');
         const ctx = {
             ee: eeInstance,
+            palettes: GE_PALETTES,
             print: (...args: any[]) => {
                 try {
                     process.chdir(os.tmpdir());
@@ -66,7 +69,9 @@ export class GEERuntime {
             },
             Map: {
                 addLayer: async (element: any, visParams?: any, name?: string) => {
-                    this.consoleView.append(`Adding layer: ${name || 'unnamed'}...`);
+                    const layerName = name || 'unnamed';
+                    this.consoleView.append(`Adding layer: ${layerName}...`);
+                    this.activeLayers.set(layerName, element);
                     try {
                         const mapId = await new Promise((resolve, reject) => {
                             element.getMapId(visParams || {}, (res: any, err: any) => {
@@ -131,6 +136,7 @@ export class GEERuntime {
                     }
                 },
                 clear: () => {
+                    this.activeLayers.clear();
                     this.mapView.clear();
                 },
                 add_layer: function(this: any, ...args: any[]) { return this.addLayer(...args); },
@@ -224,7 +230,7 @@ export class GEERuntime {
 
     public getUserVariables(): string[] {
         if (!this.context) return [];
-        const builtins = new Set(['ee', 'Map', 'ui', 'Export', 'print', 'require', 'global', 'console', 'window', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Buffer', 'process']);
+        const builtins = new Set(['ee', 'Map', 'ui', 'Export', 'print', 'require', 'global', 'console', 'window', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Buffer', 'process', 'palettes']);
         return Object.keys(this.context).filter(k => !builtins.has(k) && !k.startsWith('_'));
     }
 
@@ -253,9 +259,16 @@ export class GEERuntime {
                     // RStudio UX: If the executed line/selection is an expression that yields a value, print it
                     if (!resetContext && result !== undefined && !(result instanceof Promise)) {
                         let outputVal = result;
+                        let isSpatial = false;
                         if (result && typeof result.getInfo === 'function') {
                             try {
-                                outputVal = result.getInfo();
+                                const typeName = (typeof result.name === 'function') ? result.name() : '';
+                                if (typeof result.getMapId === 'function' || typeName === 'Geometry' || typeName === 'Feature' || typeName.includes('Image') || typeName.includes('Collection')) {
+                                    isSpatial = true;
+                                    outputVal = `[Earth Engine Spatial Object: ${typeName || 'Unknown'}]`;
+                                } else {
+                                    outputVal = result.getInfo();
+                                }
                             } catch (e: any) {
                                 outputVal = `[EE Object: ${e.message || e}]`;
                             }
@@ -264,6 +277,11 @@ export class GEERuntime {
                             this.consoleView.append(JSON.stringify(outputVal, null, 2));
                         } else {
                             this.consoleView.append(String(outputVal));
+                        }
+                        if (isSpatial && this.context && this.context.Map) {
+                            this.consoleView.append(`🗺️ Auto-Plotting spatial object...`);
+                            this.context.Map.centerObject(result).catch(() => {});
+                            this.context.Map.addLayer(result, {}, 'Auto-Plot').catch(() => {});
                         }
                     }
 
@@ -854,7 +872,7 @@ export class GEERuntime {
                     this.consoleView.append('  (no active runtime context)');
                     break;
                 }
-                const builtins = new Set(['ee', 'Map', 'ui', 'Export', 'print', 'require', 'global', 'console', 'window', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Buffer', 'process']);
+                const builtins = new Set(['ee', 'Map', 'ui', 'Export', 'print', 'require', 'global', 'console', 'window', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Buffer', 'process', 'palettes']);
                 const userVars = Object.keys(this.context).filter(k => !builtins.has(k) && !k.startsWith('_'));
                 if (userVars.length === 0) {
                     this.consoleView.append('  (no user variables currently in memory)');
@@ -1253,9 +1271,16 @@ export class GEERuntime {
                         const result = vm.runInContext(text, this.context);
                         if (result !== undefined && !(result instanceof Promise)) {
                             let outputVal = result;
+                            let isSpatial = false;
                             if (result && typeof result.getInfo === 'function') {
                                 try {
-                                    outputVal = result.getInfo();
+                                    const typeName = (typeof result.name === 'function') ? result.name() : '';
+                                    if (typeof result.getMapId === 'function' || typeName === 'Geometry' || typeName === 'Feature' || typeName.includes('Image') || typeName.includes('Collection')) {
+                                        isSpatial = true;
+                                        outputVal = `[Earth Engine Spatial Object: ${typeName || 'Unknown'}]`;
+                                    } else {
+                                        outputVal = result.getInfo();
+                                    }
                                 } catch (e: any) {
                                     outputVal = `[EE Object: ${e.message || e}]`;
                                 }
@@ -1264,6 +1289,11 @@ export class GEERuntime {
                                 this.consoleView.append(JSON.stringify(outputVal, null, 2));
                             } else {
                                 this.consoleView.append(String(outputVal));
+                            }
+                            if (isSpatial && this.context && this.context.Map) {
+                                this.consoleView.append(`🗺️ Auto-Plotting spatial object...`);
+                                this.context.Map.centerObject(result).catch(() => {});
+                                this.context.Map.addLayer(result, {}, 'Auto-Plot').catch(() => {});
                             }
                             const uv = this.getUserVariables();
                             if (uv.length > 0) this.consoleView.addCompletions(uv);
@@ -1286,5 +1316,109 @@ export class GEERuntime {
         } catch (err: any) {
             this.consoleView.append(`[Command Error]: ${err.message || err}`);
         }
+    }
+
+    public async inspectPixel(lat: number, lon: number) {
+        if (!this.isInitialized || this.activeLayers.size === 0) return;
+        
+        const eeInstance = getEE();
+        const point = eeInstance.Geometry.Point([lon, lat]);
+        
+        // Notify the UI to show loading popup
+        this.mapView.showInspectorPopup(lat, lon, '<div style="padding: 10px; color:#ccc; font-family: monospace; font-size: 11px;">⏳ Consultando Earth Engine...</div>');
+
+        let resultsHtml = `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 11.5px; padding: 4px; min-width: 220px; max-height: 280px; overflow-y: auto; overflow-x: hidden;">`;
+        
+        const coordsStr = `${lon.toFixed(5)}, ${lat.toFixed(5)}`;
+        
+        resultsHtml += `<div style="border-bottom: 1px solid #444; margin-bottom: 8px; padding-bottom: 6px; position: sticky; top: 0; background: rgba(20,20,22,0.9); z-index: 10; display: flex; justify-content: center; align-items: center; gap: 8px;">`;
+        resultsHtml += `<span style="color:#aaa; font-size: 12px; font-family: monospace;">📍 ${coordsStr}</span>`;
+        resultsHtml += `<button onclick="vscode.postMessage({command:'copyToClipboard', text:'[${coordsStr}]'})" style="background:none; border:none; color:#4ec9b0; cursor:pointer; font-size:12px; padding:0; margin:0; line-height:1;" title="Copiar Coordenadas">📋</button>`;
+        resultsHtml += `</div>`;
+        
+        let hasData = false;
+        let consoleReport = `\n📍 [Inspector] Point (${coordsStr})\n`;
+
+        const promises = Array.from(this.activeLayers.entries()).map(async ([name, element]) => {
+            try {
+                let sampled: any = null;
+                
+                if (typeof element.reduceRegion === 'function') {
+                    sampled = element.reduceRegion({
+                        reducer: eeInstance.Reducer.first(),
+                        geometry: point,
+                        scale: 30, // Default evaluation scale
+                        bestEffort: true
+                    });
+                } else if (typeof element.filterBounds === 'function' && typeof element.mosaic === 'function') {
+                    const img = element.filterBounds(point).mosaic();
+                    sampled = img.reduceRegion({
+                        reducer: eeInstance.Reducer.first(),
+                        geometry: point,
+                        scale: 30,
+                        bestEffort: true
+                    });
+                }
+                
+                if (sampled) {
+                    const values: any = await new Promise((resolve) => {
+                        sampled.evaluate((val: any, err: any) => {
+                            resolve(err ? null : val);
+                        });
+                    });
+                    return { name, values };
+                }
+            } catch (err) {
+                console.error(`[Inspector Error] Layer ${name}:`, err);
+            }
+            return { name, values: null };
+        });
+
+        const results = await Promise.all(promises);
+        
+        // Prepare global copy text (JSON format)
+        const fullReportObj: any = { coordinates: [lon, lat], layers: {} };
+
+        for (const res of results) {
+            if (res.values && Object.keys(res.values).length > 0) {
+                hasData = true;
+                fullReportObj.layers[res.name] = res.values;
+                
+                resultsHtml += `<details open style="margin-bottom: 6px; background: rgba(255,255,255,0.03); border-radius: 4px; border: 1px solid rgba(255,255,255,0.05);">`;
+                resultsHtml += `<summary style="color: #4ec9b0; padding: 5px 6px; cursor: pointer; font-weight: 600; outline: none;">${res.name}</summary>`;
+                resultsHtml += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px 6px 6px 6px; border-top: 1px solid rgba(255,255,255,0.05);">`;
+                
+                consoleReport += `  ├─ ${res.name}:\n`;
+                
+                for (const key of Object.keys(res.values).sort()) {
+                    let val = res.values[key];
+                    if (val !== null && val !== undefined) {
+                        if (typeof val === 'number') {
+                            val = Number.isInteger(val) ? val : val.toFixed(4);
+                        }
+                        resultsHtml += `<div><span style="color: #888; font-family: monospace; font-size: 10px;">${key}:</span> <span style="color: #fff; font-family: monospace; font-size: 10.5px;">${val}</span></div>`;
+                        consoleReport += `  │    ${key}: ${val}\n`;
+                    }
+                }
+                resultsHtml += `</div></details>`;
+            }
+        }
+        
+        if (!hasData) {
+            resultsHtml += `<div style="color: #999; font-style: italic; margin-top: 5px; text-align: center;">No raster data found.</div>`;
+            consoleReport += `  └─ No raster data found.\n`;
+        } else {
+            const encodedJson = encodeURIComponent(JSON.stringify(fullReportObj, null, 2));
+            resultsHtml += `<div style="text-align:center; margin-top: 10px;">`;
+            resultsHtml += `<button onclick="vscode.postMessage({command:'copyToClipboard', text: decodeURIComponent('${encodedJson}')})" style="background:#2d2d2d; border:1px solid #444; color:#ccc; border-radius:4px; padding:4px 8px; cursor:pointer; font-size:10.5px; width:100%;">📋 Copiar Todo (JSON)</button>`;
+            resultsHtml += `</div>`;
+        }
+        
+        resultsHtml += `</div>`;
+        
+        // Print to Console History
+        this.consoleView.append(consoleReport);
+        
+        this.mapView.showInspectorPopup(lat, lon, resultsHtml);
     }
 }

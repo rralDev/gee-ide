@@ -145,6 +145,10 @@ export class MapView {
         this.sendMessage({ command: 'addLayer', mapId: { urlFormat }, name, shown, opacity });
     }
 
+    public showInspectorPopup(lat: number, lon: number, htmlContent: string) {
+        this.sendMessage({ command: 'showInspectorPopup', lat, lon, htmlContent });
+    }
+
     public setCenter(lat: number, lng: number, zoom?: number) {
         this.sendMessage({ command: 'setCenter', lat, lng, zoom });
     }
@@ -513,15 +517,17 @@ export class MapView {
                     }
                     .gee-basemap-select {
                         width: 100%;
-                        background: #181818;
+                        background: #1e1e1e url('data:image/svg+xml;utf8,<svg fill="%23cccccc" height="18" viewBox="0 0 24 24" width="18" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>') no-repeat right 4px center;
                         color: #eee;
                         border: 1px solid #454545;
                         border-radius: 5px;
-                        padding: 4px 7px;
+                        padding: 4px 22px 4px 7px;
                         font-size: 10.5px;
                         outline: none;
                         cursor: pointer;
                         margin-bottom: 6px;
+                        -webkit-appearance: none;
+                        appearance: none;
                     }
                     .gee-basemap-select:focus {
                         border-color: #007acc;
@@ -536,7 +542,7 @@ export class MapView {
                         background: rgba(255, 255, 255, 0.03);
                         border: 1px solid rgba(255, 255, 255, 0.05);
                         transition: background 0.15s ease;
-                        gap: 5px;
+                        gap: 8px;
                     }
                     .gee-layer-item:hover {
                         background: rgba(255, 255, 255, 0.08);
@@ -550,18 +556,24 @@ export class MapView {
                     }
                     .gee-layer-left input[type="checkbox"] {
                         margin: 0;
+                        padding: 0;
                         cursor: pointer;
                         accent-color: #4ec9b0;
+                        flex-shrink: 0;
                     }
                     .gee-layer-badge {
                         background: #333;
                         color: #4ec9b0;
                         font-family: 'JetBrains Mono', 'Consolas', monospace;
                         font-size: 9.5px;
-                        padding: 1px 4px;
+                        padding: 2px 4px;
                         border-radius: 3px;
                         font-weight: 600;
                         flex-shrink: 0;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        line-height: 1;
                     }
                     .gee-layer-name {
                         white-space: nowrap;
@@ -569,6 +581,7 @@ export class MapView {
                         text-overflow: ellipsis;
                         font-size: 11.5px;
                         color: #ddd;
+                        line-height: 1.2;
                     }
                     .gee-layer-opacity {
                         width: 50px;
@@ -576,6 +589,16 @@ export class MapView {
                         height: 3px;
                         cursor: pointer;
                         flex-shrink: 0;
+                        margin: 0;
+                    }
+                    /* Dark Mode Leaflet Controls */
+                    .leaflet-bar a, .leaflet-bar a:hover {
+                        background-color: #252526 !important;
+                        color: #cccccc !important;
+                        border-bottom: 1px solid #3c3c3c !important;
+                    }
+                    .leaflet-control-zoom-in, .leaflet-control-zoom-out {
+                        color: #cccccc !important;
                     }
                     /* Group Styling */
                     .gee-layer-group {
@@ -657,6 +680,11 @@ export class MapView {
                         color: #aaa;
                         cursor: pointer;
                         text-decoration: underline;
+                    }
+
+                    /* Crosshair Inspector Mode */
+                    .crosshair-mode, .crosshair-mode .leaflet-interactive, .crosshair-mode .leaflet-container {
+                        cursor: crosshair !important;
                     }
 
                     /* Snapshot Modal */
@@ -1360,6 +1388,32 @@ export class MapView {
                         coordsDiv.innerHTML = 'Lat: ' + e.latlng.lat.toFixed(4) + ', Lng: ' + e.latlng.lng.toFixed(4);
                     });
 
+                    // Pixel Inspector: Listen for modifier keys to toggle crosshair
+                    document.addEventListener('keydown', (e) => {
+                        if (e.altKey || e.metaKey || e.ctrlKey) {
+                            document.getElementById('map').classList.add('crosshair-mode');
+                        }
+                        if (e.key === 'Escape') {
+                            map.closePopup();
+                        }
+                    });
+                    document.addEventListener('keyup', (e) => {
+                        if (!e.altKey && !e.metaKey && !e.ctrlKey) {
+                            document.getElementById('map').classList.remove('crosshair-mode');
+                        }
+                    });
+
+                    // Pixel Inspector: Send coordinates only on Alt/Cmd/Ctrl + Click
+                    map.on('click', (e) => {
+                        if (e.originalEvent.altKey || e.originalEvent.metaKey || e.originalEvent.ctrlKey) {
+                            vscode.postMessage({
+                                command: 'mapClicked',
+                                lat: e.latlng.lat,
+                                lng: e.latlng.lng
+                            });
+                        }
+                    });
+
                     const geeLayers = [];
                     let isPinned = getSetting('gee_layers_pinned', false) === true || getSetting('gee_layers_pinned', 'false') === 'true';
 
@@ -1627,6 +1681,13 @@ export class MapView {
                                 });
                                 updateLayerManagerUI();
                                 map.invalidateSize();
+                                break;
+                            }
+                            case 'showInspectorPopup': {
+                                L.popup({ autoClose: true, closeOnClick: false })
+                                    .setLatLng([message.lat, message.lon])
+                                    .setContent(message.htmlContent)
+                                    .openOn(map);
                                 break;
                             }
                             case 'setCenter':
