@@ -8,7 +8,6 @@ media/concept_logos/**
 **/.DS_Store
 src/**
 tsconfig.json
-node_modules/**
 vsc-extension-quickstart.md
 **/*.map
 **/*.ts
