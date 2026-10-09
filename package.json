@@ -302,7 +302,7 @@
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "build": "rm -rf out && esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --external:@google/earthengine --external:xmlhttprequest --format=cjs --platform=node --main-fields=main,module && mkdir -p out/shims && cp src/shims/gee_pro_shim.py src/shims/gee_pro_shim.R out/shims/",
+    "build": "rm -rf out && esbuild ./src/extension.ts --bundle --minify --outfile=out/extension.js --external:vscode --alias:googleapis=./src/shims/googleapis_stub.js --format=cjs --platform=node --main-fields=main,module && mkdir -p out/shims && cp src/shims/gee_pro_shim.py src/shims/gee_pro_shim.R out/shims/",
     "mpupdate": "npm run build && npx @vscode/vsce publish patch",
     "mppackage": "npm run build && npx @vscode/vsce package"
   },
