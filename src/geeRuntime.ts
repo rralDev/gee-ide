@@ -132,6 +132,17 @@ export class GEERuntime {
 
                         const targetZoom = typeof zoom === 'number' ? zoom : 12;
 
+                        // Fast path: Client-side coordinates extraction if available
+                        try {
+                            if (geom && typeof geom.toGeoJSON === 'function') {
+                                const gj = geom.toGeoJSON();
+                                if (gj && gj.type === 'Point' && Array.isArray(gj.coordinates)) {
+                                    this.mapView.setCenter(gj.coordinates[1], gj.coordinates[0], targetZoom);
+                                    return;
+                                }
+                            }
+                        } catch (e) {}
+
                         const geoInfo: any = await new Promise((resolve, reject) => {
                             try {
                                 if (typeof geom.centroid === 'function') {
@@ -234,6 +245,28 @@ export class GEERuntime {
                 );
             } else if (credentials.access_token || credentials.refresh_token) {
                 // Real OAuth Flow
+                if (credentials.refresh_token && ee.data && typeof ee.data.setAuthTokenRefresher === 'function') {
+                    ee.data.setAuthTokenRefresher(async (authArgs: any, callback: any) => {
+                        try {
+                            const { refreshAccessToken } = require('./auth');
+                            const newTokens = await refreshAccessToken(credentials.refresh_token);
+                            credentials.access_token = newTokens.access_token;
+                            callback({
+                                token_type: 'Bearer',
+                                access_token: newTokens.access_token,
+                                state: (authArgs.scope || '').split(' '),
+                                expires_in: newTokens.expires_in || 3600
+                            });
+                        } catch (err: any) {
+                            callback({ error: err.message || 'Token refresh failed' });
+                        }
+                    });
+                }
+
+                if (projectId && ee.data && typeof ee.data.setProject === 'function') {
+                    try { ee.data.setProject(projectId); } catch(e) {}
+                }
+
                 ee.data.setAuthToken(
                     credentials.client_id,
                     'Bearer',
@@ -473,10 +506,24 @@ export class GEERuntime {
     }
 
     public setProjectId(id: string) {
+        const ee = getEE();
         if (id && id !== 'gee-pro-default' && id !== 'PeruREDD') {
             this.projectId = id;
+            try {
+                if (ee && ee.data && typeof ee.data.setProject === 'function') {
+                    ee.data.setProject(id);
+                }
+                if (ee && typeof ee.initialize === 'function') {
+                    ee.initialize(null, null, null, null, null, id);
+                }
+            } catch (e) {}
         } else {
             this.projectId = '';
+            try {
+                if (ee && ee.data && typeof ee.data.setProject === 'function') {
+                    ee.data.setProject('');
+                }
+            } catch (e) {}
         }
     }
 
