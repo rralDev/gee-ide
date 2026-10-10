@@ -2263,10 +2263,10 @@ export class MapView {
 
                         if (swipeOrientation === 'vertical') {
                             // clip: rect(top, right, bottom, left)
-                            container.style.clip = \`rect(\${nw.y}px, \${layerClipX}px, \${se.y}px, \${nw.x}px)\`;
+                            container.style.clip = 'rect(' + nw.y + 'px, ' + layerClipX + 'px, ' + se.y + 'px, ' + nw.x + 'px)';
                             container.style.clipPath = ''; // clear old just in case
                             
-                            divider.style.left = \`\${swipeValue}%\`;
+                            divider.style.left = swipeValue + '%';
                             divider.style.top = '0';
                             divider.style.bottom = '0';
                             divider.style.width = '3px';
@@ -2274,10 +2274,10 @@ export class MapView {
                             divider.style.cursor = 'col-resize';
                             icon.style.transform = 'rotate(90deg)';
                         } else {
-                            container.style.clip = \`rect(\${nw.y}px, \${se.x}px, \${layerClipY}px, \${nw.x}px)\`;
+                            container.style.clip = 'rect(' + nw.y + 'px, ' + se.x + 'px, ' + layerClipY + 'px, ' + nw.x + 'px)';
                             container.style.clipPath = '';
                             
-                            divider.style.top = \`\${swipeValue}%\`;
+                            divider.style.top = swipeValue + '%';
                             divider.style.left = '0';
                             divider.style.right = '0';
                             divider.style.height = '3px';
