@@ -2,7 +2,7 @@
   "name": "gee-pro-ide",
   "displayName": "GEE IDE",
   "description": "Ultimate Google Earth Engine IDE for VS Code with integrated Map, Console, and AI Assistant.",
-  "version": "0.1.32",
+  "version": "0.1.33",
   "publisher": "LuisRobles",
   "icon": "media/logo.png",
   "engines": {
