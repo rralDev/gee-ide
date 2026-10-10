@@ -1647,8 +1647,9 @@ export class MapView {
                         if (!c) return 'transparent';
                         const s = String(c).trim();
                         if (s.startsWith('#')) return s;
-                        if (/^rgba?\(|^hsla?\(/i.test(s)) return s;
-                        if (/^[0-9a-fA-F]{3}$|^[0-9a-fA-F]{6}$|^[0-9a-fA-F]{8}$/.test(s)) return '#' + s;
+                        const lower = s.toLowerCase();
+                        if (lower.startsWith('rgb(') || lower.startsWith('rgba(') || lower.startsWith('hsl(') || lower.startsWith('hsla(')) return s;
+                        if (/^[0-9a-fA-F]{3,8}$/.test(s)) return '#' + s;
                         return s;
                     }
 
