@@ -355,7 +355,7 @@ export class GEERuntime {
                     const result = vm.runInContext(cleanCode, this.context);
                     // RStudio UX: If the executed line/selection is an expression that yields a value, print it
                     if (!resetContext && result !== undefined && !(result instanceof Promise)) {
-                        this.handleEvaluatedResult(result);
+                        this.handleEvaluatedResult(result, cleanCode);
                     }
                 }
             }
@@ -521,7 +521,7 @@ export class GEERuntime {
         return visParams || {};
     }
 
-    private handleEvaluatedResult(result: any) {
+    private handleEvaluatedResult(result: any, rawExpression?: string) {
         if (result === undefined || (result instanceof Promise)) {
             return;
         }
@@ -557,9 +557,21 @@ export class GEERuntime {
         }
 
         if (isSpatial && this.context && this.context.Map) {
-            this.consoleView.append(`🗺️ Auto-Plotting spatial object...`);
+            let layerLabel = 'Auto-Plot';
+            if (rawExpression) {
+                const clean = rawExpression.trim();
+                const lines = clean.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('//') && !l.startsWith('#'));
+                if (lines.length > 0) {
+                    const lastLine = lines[lines.length - 1].replace(/;$/, '').trim();
+                    if (lastLine.length > 0 && lastLine.length <= 40 && !lastLine.includes('{') && !lastLine.includes('\n')) {
+                        layerLabel = lastLine;
+                    }
+                }
+            }
+
+            this.consoleView.append(`🗺️ Auto-Plotting spatial object: ${layerLabel}...`);
             this.context.Map.centerObject(result).catch(() => {});
-            this.context.Map.addLayer(result, undefined, 'Auto-Plot').catch(() => {});
+            this.context.Map.addLayer(result, undefined, layerLabel).catch(() => {});
         }
 
         const uv = this.getUserVariables();
@@ -1639,7 +1651,7 @@ export class GEERuntime {
                     try {
                         const result = vm.runInContext(text, this.context);
                         if (result !== undefined && !(result instanceof Promise)) {
-                            this.handleEvaluatedResult(result);
+                            this.handleEvaluatedResult(result, text);
                             break;
                         } else if (result === undefined && (text.startsWith('var ') || text.startsWith('let ') || text.startsWith('const ') || text.includes('='))) {
                             const uv = this.getUserVariables();

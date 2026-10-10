@@ -1796,13 +1796,27 @@ export class MapView {
                                     if (layer.bringToFront) layer.bringToFront();
                                 }
                                 const layerName = message.name || 'EE Layer ' + (geeLayers.length + 1);
-                                geeLayers.push({
-                                    layer,
-                                    name: layerName,
-                                    shown: message.shown !== false,
-                                    opacity: message.opacity !== undefined ? message.opacity : 1.0,
-                                    visParams: message.visParams
-                                });
+                                const existingIdx = geeLayers.findIndex(l => l.name === layerName);
+                                if (existingIdx !== -1) {
+                                    if (map.hasLayer(geeLayers[existingIdx].layer)) {
+                                        map.removeLayer(geeLayers[existingIdx].layer);
+                                    }
+                                    geeLayers[existingIdx] = {
+                                        layer,
+                                        name: layerName,
+                                        shown: message.shown !== false,
+                                        opacity: message.opacity !== undefined ? message.opacity : 1.0,
+                                        visParams: message.visParams
+                                    };
+                                } else {
+                                    geeLayers.push({
+                                        layer,
+                                        name: layerName,
+                                        shown: message.shown !== false,
+                                        opacity: message.opacity !== undefined ? message.opacity : 1.0,
+                                        visParams: message.visParams
+                                    });
+                                }
                                 updateLayerManagerUI();
                                 map.invalidateSize();
                                 break;
