@@ -191,17 +191,17 @@ export class MapView {
             await vscode.workspace.fs.writeFile(targetUri, buffer);
             const relPath = vscode.workspace.asRelativePath(targetUri);
             const action = await vscode.window.showInformationMessage(
-                `📸 Captura guardada: ${relPath}`,
-                'Abrir imagen',
-                'Copiar ruta'
+                `📸 Screenshot saved: ${relPath}`,
+                'Open Image',
+                'Copy Path'
             );
-            if (action === 'Abrir imagen') {
+            if (action === 'Open Image') {
                 vscode.commands.executeCommand('vscode.open', targetUri);
-            } else if (action === 'Copiar ruta') {
+            } else if (action === 'Copy Path') {
                 vscode.env.clipboard.writeText(targetUri.fsPath);
             }
         } catch (err: any) {
-            vscode.window.showErrorMessage('Error al guardar la captura: ' + (err?.message || err));
+            vscode.window.showErrorMessage('Error saving screenshot: ' + (err?.message || err));
         }
     }
 
@@ -804,7 +804,7 @@ export class MapView {
                 </div>
 
                 <div class="toolbar-container" style="right: 20px; bottom: 20px; left: auto; display: flex; flex-direction: column; gap: 8px;">
-                    <button class="toolbar-toggle" id="btn-swipe" onclick="toggleSwipeMode()" title="Swipe Tool (Comparador Antes/Después) - Presiona Shift para modo Horizontal" style="font-size: 15px; border: 1px solid rgba(255, 255, 255, 0.1);">🔀</button>
+                    <button class="toolbar-toggle" id="btn-swipe" onclick="toggleSwipeMode()" title="Swipe Tool (Before/After Comparison) - Hold Shift for Horizontal Mode" style="font-size: 15px; border: 1px solid rgba(255, 255, 255, 0.1);">🔀</button>
                     <button class="toolbar-toggle" style="background: rgba(180, 40, 40, 0.9) !important; border: 1px solid rgba(255, 120, 120, 0.4) !important; font-size: 15px;" onclick="promptResetEnv()" title="Reset Environment & Map">🧹</button>
                 </div>
 
@@ -816,35 +816,35 @@ export class MapView {
 
                 <div id="resetConfirmModal" class="gee-snapshot-modal" style="display: none; width: 280px; z-index: 2100;">
                     <div class="gee-modal-header" style="background: rgba(220, 50, 50, 0.2); border-bottom: 1px solid rgba(255, 100, 100, 0.2);">
-                        <span>⚠️ Confirmar Reinicio</span>
+                        <span>⚠️ Confirm Reset</span>
                         <button class="gee-modal-close" onclick="cancelResetEnv()">✕</button>
                     </div>
                     <div class="gee-modal-body" style="gap: 12px;">
                         <div style="font-size: 12px; color: #ccc; line-height: 1.4;">
-                            ¿Deseas reiniciar el entorno de ejecución y limpiar todas las capas del mapa?
+                            Do you want to reset the execution environment and clear all map layers?
                         </div>
                         <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px;">
-                            <button class="gee-btn-action secondary" style="flex: 1;" onclick="cancelResetEnv()">Cancelar</button>
-                            <button class="gee-btn-action" style="background: #e51400; color: white; flex: 1;" onclick="confirmResetEnv()">🧹 Sí, reiniciar</button>
+                            <button class="gee-btn-action secondary" style="flex: 1;" onclick="cancelResetEnv()">Cancel</button>
+                            <button class="gee-btn-action" style="background: #e51400; color: white; flex: 1;" onclick="confirmResetEnv()">🧹 Yes, reset</button>
                         </div>
                     </div>
                 </div>
 
                 <div id="snapshotModal" class="gee-snapshot-modal" style="display: none;">
                     <div class="gee-modal-header">
-                        <span>📸 Captura de Pantalla HD</span>
+                        <span>📸 HD Map Snapshot</span>
                         <button class="gee-modal-close" onclick="toggleSnapshotModal()">✕</button>
                     </div>
                     <div class="gee-modal-body">
                         <div class="gee-modal-opts">
-                            <label><input type="checkbox" id="snapOptHd" checked /> Alta Resolución (2x Retina HD)</label>
-                            <label><input type="checkbox" id="snapOptCoords" checked /> Incluir coordenadas y escala</label>
-                            <label><input type="checkbox" id="snapOptDrawings" checked /> Incluir dibujos y polígonos</label>
+                            <label><input type="checkbox" id="snapOptHd" checked /> High Resolution (2x Retina HD)</label>
+                            <label><input type="checkbox" id="snapOptCoords" checked /> Include coordinates and scale</label>
+                            <label><input type="checkbox" id="snapOptDrawings" checked /> Include drawings and annotations</label>
                         </div>
                         <div class="gee-modal-actions">
-                            <button class="gee-btn-action primary" onclick="takeSnapshot('workspace')">💾 Guardar en Screenshots/</button>
-                            <button class="gee-btn-action secondary" onclick="takeSnapshot('saveAs')">📁 Guardar como...</button>
-                            <button class="gee-btn-action secondary" onclick="takeSnapshot('clipboard')">📋 Copiar al Portapapeles</button>
+                            <button class="gee-btn-action primary" onclick="takeSnapshot('workspace')">💾 Save to Screenshots/</button>
+                            <button class="gee-btn-action secondary" onclick="takeSnapshot('saveAs')">📁 Save As...</button>
+                            <button class="gee-btn-action secondary" onclick="takeSnapshot('clipboard')">📋 Copy to Clipboard</button>
                         </div>
                     </div>
                 </div>
@@ -854,9 +854,9 @@ export class MapView {
                     <p><kbd>Cmd</kbd> + <kbd>Enter</kbd> : Run Selection / Smart Block</p>
                     <p><kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>Enter</kbd> : Run Entire Script</p>
                     <p><kbd>Cmd</kbd> + <kbd>1..4</kbd> : Switch Focus (Editor/Console/Map/AI)</p>
-                    <p><kbd>Option</kbd> + <kbd>S</kbd> : Capturar Mapa (Snapshot HD)</p>
-                    <p><kbd>1..9</kbd> / <kbd>Alt</kbd> + <kbd>1..9</kbd> : Prender/Apagar Capa 1..9</p>
-                    <p><kbd>0</kbd> / <kbd>Alt</kbd> + <kbd>0</kbd> : Prender/Apagar Todas las Capas</p>
+                    <p><kbd>Option</kbd> + <kbd>S</kbd> : Map Snapshot (HD Screenshot)</p>
+                    <p><kbd>1..9</kbd> / <kbd>Alt</kbd> + <kbd>1..9</kbd> : Toggle Layer 1..9</p>
+                    <p><kbd>0</kbd> / <kbd>Alt</kbd> + <kbd>0</kbd> : Toggle All Layers</p>
                     <p><kbd>↑ ↓ ← →</kbd> / <kbd>+</kbd> <kbd>-</kbd> : Pan & Zoom Map</p>
                     <hr style="border: 0; border-top: 1px solid #444;">
                     <p><small>Reset (🧹) clears environment variables to avoid redeclaration errors.</small></p>
@@ -937,42 +937,42 @@ export class MapView {
                         const m = document.getElementById('resetConfirmModal');
                         if (m) m.style.display = 'none';
                         vscode.postMessage({ command: 'reset' });
-                        showHud('🧹 Entorno y mapa reiniciados');
+                        showHud('🧹 Environment & map reset');
                     }
                     function resetEnv() { promptResetEnv(); }
                     
                     // Basemap Definitions (100% Free - No API Key required)
                     const baseMaps = {
                         "hybrid": {
-                            name: "Google Hybrid (Satelital + Etiquetas)",
+                            name: "Google Hybrid (Satellite + Labels)",
                             layer: L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 24, maxNativeZoom: 20, crossOrigin: 'anonymous', attribution: '&copy; Google' })
                         },
                         "satellite": {
-                            name: "Google Satellite (Satelital puro)",
+                            name: "Google Satellite (Pure Satellite)",
                             layer: L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { maxZoom: 24, maxNativeZoom: 20, crossOrigin: 'anonymous', attribution: '&copy; Google' })
                         },
                         "streets": {
-                            name: "Google Streets (Calles / Rutas)",
+                            name: "Google Streets (Roads / Streets)",
                             layer: L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { maxZoom: 24, maxNativeZoom: 20, crossOrigin: 'anonymous', attribution: '&copy; Google' })
                         },
                         "terrain": {
-                            name: "Google Terrain (Relieve / Terreno)",
+                            name: "Google Terrain (Relief / Topo)",
                             layer: L.tileLayer('https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}', { maxZoom: 24, maxNativeZoom: 20, crossOrigin: 'anonymous', attribution: '&copy; Google' })
                         },
                         "esri": {
-                            name: "Esri World Imagery (Foto aérea HD)",
+                            name: "Esri World Imagery (HD Aerial)",
                             layer: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 24, maxNativeZoom: 19, crossOrigin: 'anonymous', attribution: '&copy; Esri' })
                         },
                         "esridark": {
-                            name: "Esri Dark Gray (Modo Oscuro)",
+                            name: "Esri Dark Gray (Dark Mode)",
                             layer: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 24, maxNativeZoom: 16, crossOrigin: 'anonymous', attribution: '&copy; Esri' })
                         },
                         "osm": {
-                            name: "OpenStreetMap (Calles)",
+                            name: "OpenStreetMap (Standard)",
                             layer: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 24, maxNativeZoom: 19, crossOrigin: 'anonymous', attribution: '&copy; OpenStreetMap' })
                         },
                         "opentopo": {
-                            name: "OpenTopoMap (Topográfico / Relieve)",
+                            name: "OpenTopoMap (Topographic)",
                             layer: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { subdomains: 'abc', maxZoom: 24, maxNativeZoom: 17, crossOrigin: 'anonymous', attribution: '&copy; OpenTopoMap' })
                         }
                     };
@@ -1036,12 +1036,12 @@ export class MapView {
                     const defaultPinIcon = createPinIcon('#2A81CB');
                     L.Marker.prototype.options.icon = defaultPinIcon;
 
-                    // Drawing Implementation & Spanish Localization
+                    // Drawing Implementation & Localization
                     if (window.L && L.drawLocal) {
-                        L.drawLocal.draw.toolbar.buttons.polygon = 'Dibujar Polígono';
-                        L.drawLocal.draw.toolbar.buttons.polyline = 'Dibujar Línea';
-                        L.drawLocal.draw.toolbar.buttons.rectangle = 'Dibujar Rectángulo';
-                        L.drawLocal.draw.toolbar.buttons.marker = 'Colocar Punto / Marcador';
+                        L.drawLocal.draw.toolbar.buttons.polygon = 'Draw Polygon';
+                        L.drawLocal.draw.toolbar.buttons.polyline = 'Draw Polyline';
+                        L.drawLocal.draw.toolbar.buttons.rectangle = 'Draw Rectangle';
+                        L.drawLocal.draw.toolbar.buttons.marker = 'Place Marker / Point';
                     }
 
                     const drawnItems = new L.FeatureGroup();
@@ -1076,7 +1076,7 @@ export class MapView {
                             // 1. Edit / Save button (only affects this specific object)
                             const isEditing = layer._isEditing || false;
                             const btnEdit = document.createElement('button');
-                            btnEdit.title = isEditing ? 'Guardar cambios' : 'Mover o editar forma';
+                            btnEdit.title = isEditing ? 'Save changes' : 'Edit / Move shape';
                             btnEdit.innerHTML = isEditing ? '💾' : '✏️';
                             btnEdit.style.cssText = 'width: 22px; height: 22px; border-radius: 4px; border: ' + (isEditing ? '1px solid rgba(78, 201, 176, 0.5)' : 'none') + '; background: ' + (isEditing ? 'rgba(78, 201, 176, 0.25)' : 'transparent') + '; color: #fff; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s ease; padding: 0;';
                             
@@ -1098,10 +1098,10 @@ export class MapView {
                                     }
                                     layer._isEditing = false;
                                     btnEdit.innerHTML = '✏️';
-                                    btnEdit.title = 'Mover o editar forma';
+                                    btnEdit.title = 'Edit / Move shape';
                                     btnEdit.style.background = 'transparent';
                                     btnEdit.style.border = 'none';
-                                    showHud('💾 Geometría guardada');
+                                    showHud('💾 Geometry saved');
                                     vscode.postMessage({
                                         command: 'geometryEdited',
                                         geometry: layer.toGeoJSON()
@@ -1236,7 +1236,7 @@ export class MapView {
                                         btnColor.style.background = 'transparent';
                                     }
                                 } else if (closePanel) {
-                                    showHud('⚠️ Código HTML/HEX inválido (ej: #F46D43)');
+                                    showHud('⚠️ Invalid HTML/HEX color (e.g. #F46D43)');
                                 }
                             };
 
@@ -1269,7 +1269,7 @@ export class MapView {
 
                             // Apply button (check mark)
                             const btnApply = document.createElement('button');
-                            btnApply.title = 'Aplicar color HTML / HEX';
+                            btnApply.title = 'Apply HTML / HEX color';
                             btnApply.innerHTML = '✓';
                             btnApply.style.cssText = 'width: 18px; height: 18px; border-radius: 4px; border: 1px solid rgba(78, 201, 176, 0.5); background: rgba(78, 201, 176, 0.25); color: #4ec9b0; font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0; font-weight: bold;';
                             btnApply.onmouseover = function() { btnApply.style.background = 'rgba(78, 201, 176, 0.4)'; };
@@ -1300,7 +1300,7 @@ export class MapView {
 
                             // 3. Delete button & Inline Confirmation Row
                             const btnDelete = document.createElement('button');
-                            btnDelete.title = 'Eliminar objeto';
+                            btnDelete.title = 'Delete object';
                             btnDelete.innerHTML = '🗑️';
                             btnDelete.style.cssText = 'width: 22px; height: 22px; border-radius: 4px; border: none; background: transparent; color: #fff; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s ease; padding: 0;';
                             btnDelete.onmouseover = function() { btnDelete.style.background = 'rgba(235, 60, 60, 0.3)'; };
@@ -1311,18 +1311,18 @@ export class MapView {
                             confirmRow.style.cssText = 'display: none; align-items: center; justify-content: center; gap: 5px; padding: 1px 2px;';
 
                             const confirmLabel = document.createElement('span');
-                            confirmLabel.textContent = '¿Eliminar?';
+                            confirmLabel.textContent = 'Delete?';
                             confirmLabel.style.cssText = 'font-size: 11px; color: #ff6b6b; font-weight: 600; white-space: nowrap;';
 
                             const btnConfirmYes = document.createElement('button');
-                            btnConfirmYes.title = 'Sí, eliminar definitivamente';
+                            btnConfirmYes.title = 'Yes, delete permanently';
                             btnConfirmYes.textContent = '✓';
                             btnConfirmYes.style.cssText = 'width: 20px; height: 20px; border-radius: 4px; border: none; background: #e51400; color: #fff; font-size: 11px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; transition: background 0.15s ease;';
                             btnConfirmYes.onmouseover = function() { btnConfirmYes.style.background = '#ff2a1a'; };
                             btnConfirmYes.onmouseout = function() { btnConfirmYes.style.background = '#e51400'; };
 
                             const btnConfirmNo = document.createElement('button');
-                            btnConfirmNo.title = 'Cancelar';
+                            btnConfirmNo.title = 'Cancel';
                             btnConfirmNo.textContent = '✕';
                             btnConfirmNo.style.cssText = 'width: 20px; height: 20px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.1); color: #ccc; font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; transition: all 0.15s ease;';
                             btnConfirmNo.onmouseover = function() { btnConfirmNo.style.background = 'rgba(255,255,255,0.2)'; btnConfirmNo.style.color = '#fff'; };
@@ -1354,7 +1354,7 @@ export class MapView {
                                 }
                                 drawnItems.removeLayer(layer);
                                 map.closePopup();
-                                showHud('🗑️ Geometría eliminada');
+                                showHud('🗑️ Geometry deleted');
                                 vscode.postMessage({
                                     command: 'geometryDeleted',
                                     layers: drawnItems.toGeoJSON()
@@ -1373,7 +1373,7 @@ export class MapView {
 
                         if (layer instanceof L.Marker) {
                             layer.on('dragend', function() {
-                                showHud('📍 Posición actualizada');
+                                showHud('📍 Position updated');
                                 vscode.postMessage({
                                     command: 'geometryEdited',
                                     geometry: layer.toGeoJSON()
@@ -1454,36 +1454,36 @@ export class MapView {
                         ).join('');
 
                         container.innerHTML = 
-                            '<div class="gee-layer-toggle-icon" title="Capas y Mapas Base">🗺️</div>' +
+                            '<div class="gee-layer-toggle-icon" title="Layers & Basemaps">🗺️</div>' +
                             '<div class="gee-layer-content">' +
                                 '<div class="gee-layer-header">' +
                                     '<span>Layers</span>' +
                                     '<div class="gee-layer-header-actions">' +
-                                        '<button class="gee-btn-icon" id="snapHeaderBtn" title="Capturar mapa (Snapshot HD) [Atajo: Option+S]">📸</button>' +
-                                        '<button class="gee-btn-icon" id="toggleAllBtn" title="Prender / Apagar Todas (Atajo: 0)">[0] Todas</button>' +
-                                        '<button class="gee-btn-icon ' + (isPinned ? 'active' : '') + '" id="pinBtn" title="' + (isPinned ? 'Desfijar panel' : 'Fijar panel (📌)') + '">📌</button>' +
+                                        '<button class="gee-btn-icon" id="snapHeaderBtn" title="HD Map Snapshot [Shortcut: Option+S]">📸</button>' +
+                                        '<button class="gee-btn-icon" id="toggleAllBtn" title="Toggle All Layers (Shortcut: 0)">[0] All</button>' +
+                                        '<button class="gee-btn-icon ' + (isPinned ? 'active' : '') + '" id="pinBtn" title="' + (isPinned ? 'Unpin panel' : 'Pin panel (📌)') + '">📌</button>' +
                                     '</div>' +
                                 '</div>' +
                                 '<div class="gee-layer-body">' +
                                     '<div class="gee-section-title">' +
-                                        '<span>🗺️ Mapa Base</span>' +
+                                        '<span>🗺️ BASEMAP</span>' +
                                     '</div>' +
                                     '<select class="gee-basemap-select" id="basemapSelect">' +
                                         optionsHtml +
                                     '</select>' +
                                     '<div class="gee-section-title" style="display: flex; justify-content: space-between; align-items: center;">' +
-                                        '<span>🛰️ Capas de Earth Engine</span>' +
+                                        '<span>🛰️ EE LAYERS</span>' +
                                         '<div style="display: flex; align-items: center; gap: 8px;">' +
-                                            '<label style="display: flex; align-items: center; gap: 4px; font-size: 10px; color: #9cdcfe; cursor: pointer; user-select: none;" title="Mostrar u ocultar leyendas">' +
+                                            '<label style="display: flex; align-items: center; gap: 4px; font-size: 10px; color: #9cdcfe; cursor: pointer; user-select: none;" title="Toggle legends visibility">' +
                                                 '<input type="checkbox" id="toggleLegendsChk" style="cursor: pointer; width: 11px; height: 11px; accent-color: #4ec9b0; margin: 0;" />' +
-                                                '<span>Leyendas</span>' +
+                                                '<span>LEGENDS</span>' +
                                             '</label>' +
                                             '<span id="layerCount" style="color: #4ec9b0; font-weight: bold;">0</span>' +
                                         '</div>' +
                                     '</div>' +
                                     '<div id="geeLayersList">' +
                                         '<div style="font-size: 11px; color: #777; padding: 4px 2px; font-style: italic;">' +
-                                            '(Sin capas activas — ejecuta Map.addLayer)' +
+                                            '(No active layers — run Map.addLayer)' +
                                         '</div>' +
                                     '</div>' +
                                 '</div>' +
@@ -1508,11 +1508,11 @@ export class MapView {
                                 container.classList.remove('collapsed');
                                 container.classList.add('pinned');
                                 pinBtn.classList.add('active');
-                                pinBtn.title = "Desfijar panel (Auto-ocultar)";
+                                pinBtn.title = "Unpin panel (Auto-hide)";
                             } else {
                                 container.classList.remove('pinned');
                                 pinBtn.classList.remove('active');
-                                pinBtn.title = "Fijar panel (📌)";
+                                pinBtn.title = "Pin panel (📌)";
                             }
                             setSetting('gee_layers_pinned', isPinned);
                         });
@@ -1578,7 +1578,7 @@ export class MapView {
                         if (countEl) countEl.textContent = String(geeLayers.length);
 
                         if (geeLayers.length === 0) {
-                            listEl.innerHTML = '<div style="font-size: 11px; color: #777; padding: 4px 2px; font-style: italic;">(Sin capas activas — ejecuta Map.addLayer)</div>';
+                            listEl.innerHTML = '<div style="font-size: 11px; color: #777; padding: 4px 2px; font-style: italic;">(No active layers — run Map.addLayer)</div>';
                             return;
                         }
 
@@ -1610,7 +1610,7 @@ export class MapView {
                                             '<input type="checkbox" ' + (allVisible ? 'checked' : '') + ' onclick="event.stopPropagation(); toggleGroupVisibility(&quot;' + grpName + '&quot;)" />' +
                                             '<span>📁 ' + grpName + '</span>' +
                                         '</div>' +
-                                        '<span style="color:#888; font-size:10px;">' + items.length + ' capas</span>' +
+                                        '<span style="color:#888; font-size:10px;">' + items.length + ' layers</span>' +
                                     '</div>' +
                                     '<div class="gee-group-items" id="grp_items_' + grpName + '">' +
                                         items.map(x => renderLayerItemHtml(x)).join('') +
@@ -1644,7 +1644,7 @@ export class MapView {
 
                     function renderLayerItemHtml(x) {
                         const isVisible = map.hasLayer(x.item.layer);
-                        const badge = x.keyShortcut ? ('<span class="gee-layer-badge" title="Atajo: ' + x.keyShortcut + ' o Alt+' + x.keyShortcut + '">[' + x.keyShortcut + ']</span>') : '';
+                        const badge = x.keyShortcut ? ('<span class="gee-layer-badge" title="Shortcut: ' + x.keyShortcut + ' or Alt+' + x.keyShortcut + '">[' + x.keyShortcut + ']</span>') : '';
                         
                         let legendHtml = '';
                         const vp = x.item.visParams;
@@ -1712,7 +1712,7 @@ export class MapView {
                                     badge +
                                     '<span class="gee-layer-name" title="' + x.item.name + '">' + x.subName + '</span>' +
                                 '</div>' +
-                                '<input type="range" class="gee-layer-opacity" id="op_layer_' + x.idx + '" min="0" max="1" step="0.05" value="' + (x.item.opacity !== undefined ? x.item.opacity : 1) + '" title="Opacidad" />' +
+                                '<input type="range" class="gee-layer-opacity" id="op_layer_' + x.idx + '" min="0" max="1" step="0.05" value="' + (x.item.opacity !== undefined ? x.item.opacity : 1) + '" title="Opacity" />' +
                             '</div>' +
                             legendHtml +
                         '</div>';
@@ -1732,7 +1732,7 @@ export class MapView {
                             }
                         });
                         updateLayerManagerUI();
-                        showHud(target ? ('👁️ Grupo ' + grpName + ': Visible') : ('🚫 Grupo ' + grpName + ': Oculto'));
+                        showHud(target ? ('👁️ Group ' + grpName + ': Visible') : ('🚫 Group ' + grpName + ': Hidden'));
                     };
 
                     window.toggleGroupCollapse = function(grpName) {
@@ -1755,7 +1755,7 @@ export class MapView {
                         } else {
                             if (map.hasLayer(item.layer)) map.removeLayer(item.layer);
                             item.shown = false;
-                            showHud('🚫 [' + (idx + 1) + '] ' + item.name + ': Oculta');
+                            showHud('🚫 [' + (idx + 1) + '] ' + item.name + ': Hidden');
                         }
                         updateLayerManagerUI();
                     }
@@ -1774,7 +1774,7 @@ export class MapView {
                             }
                         });
                         updateLayerManagerUI();
-                        showHud(target ? '👁️ Todas las capas visibles' : '🚫 Todas las capas ocultas');
+                        showHud(target ? '👁️ All layers visible' : '🚫 All layers hidden');
                     }
 
                     window.addEventListener('message', event => {
@@ -2163,7 +2163,7 @@ export class MapView {
                                 return;
                             }
 
-                            showHud('⏳ Esperando a que las capas terminen de cargar...');
+                            showHud('⏳ Waiting for layers to finish loading...');
                             await new Promise(r => setTimeout(r, 180));
                         }
                     }
@@ -2173,9 +2173,9 @@ export class MapView {
                         if (m) m.style.display = 'none';
 
                         try {
-                            showHud('📸 Preparando captura HD...');
+                            showHud('📸 Preparing HD snapshot...');
                             await waitForTilesToLoad(2500);
-                            showHud('📸 Generando imagen HD...');
+                            showHud('📸 Generating HD image...');
                             const canvas = await captureMapToCanvas();
                             const now = new Date();
                             const pad = (n) => String(n).padStart(2, '0');
@@ -2189,14 +2189,14 @@ export class MapView {
                             if (target === 'clipboard') {
                                 canvas.toBlob(async (blob) => {
                                     if (!blob) {
-                                        showHud('❌ Error generando imagen');
+                                        showHud('❌ Error generating image');
                                         return;
                                     }
                                     try {
                                         await navigator.clipboard.write([
                                             new ClipboardItem({ 'image/png': blob })
                                         ]);
-                                        showHud('📋 ¡Copiado al portapapeles!');
+                                        showHud('📋 Copied to clipboard!');
                                     } catch (e) {
                                         const dataUrl = canvas.toDataURL('image/png');
                                         const base64 = dataUrl.split(',')[1];
@@ -2206,7 +2206,7 @@ export class MapView {
                                             filename: filename,
                                             promptSaveAs: false
                                         });
-                                        showHud('💾 Guardado en Screenshots/ (portapapeles restringido)');
+                                        showHud('💾 Saved to Screenshots/ (clipboard restricted)');
                                     }
                                 }, 'image/png');
                             } else {
@@ -2218,11 +2218,11 @@ export class MapView {
                                     filename: filename,
                                     promptSaveAs: target === 'saveAs'
                                 });
-                                showHud(target === 'saveAs' ? '📁 Abriendo diálogo para guardar...' : '💾 Guardando en Screenshots/...');
+                                showHud(target === 'saveAs' ? '📁 Opening save dialog...' : '💾 Saving to Screenshots/...');
                             }
                         } catch (err) {
-                            console.error('Error al capturar mapa:', err);
-                            showHud('❌ Error al capturar mapa: ' + (err.message || err));
+                            console.error('Error capturing map:', err);
+                            showHud('❌ Error capturing map: ' + (err.message || err));
                         }
                     };
 
@@ -2288,7 +2288,7 @@ export class MapView {
                             const visibleLayers = geeLayers.filter(l => l.shown);
                             if (visibleLayers.length < 2) {
                                 swipeMode = false;
-                                vscode.postMessage({command: 'webviewError', message: 'Swipe Tool requiere al menos 2 capas GEE visibles en el mapa.'});
+                                vscode.postMessage({command: 'webviewError', message: 'Swipe Tool requires at least 2 visible GEE layers on the map.'});
                                 return;
                             }
                             // Top layer is the last one in the array

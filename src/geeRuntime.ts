@@ -1755,7 +1755,7 @@ export class GEERuntime {
         const point = eeInstance.Geometry.Point([lon, lat]);
         
         // Notify the UI to show loading popup
-        this.mapView.showInspectorPopup(lat, lon, '<div style="padding: 10px; color:#ccc; font-family: monospace; font-size: 11px;">⏳ Consultando Earth Engine...</div>');
+        this.mapView.showInspectorPopup(lat, lon, '<div style="padding: 10px; color:#ccc; font-family: monospace; font-size: 11px;">⏳ Querying Earth Engine...</div>');
 
         let resultsHtml = `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 11.5px; padding: 4px; min-width: 220px; max-height: 280px; overflow-y: auto; overflow-x: hidden;">`;
         
@@ -1763,7 +1763,7 @@ export class GEERuntime {
         
         resultsHtml += `<div style="border-bottom: 1px solid #444; margin-bottom: 8px; padding-bottom: 6px; position: sticky; top: 0; background: rgba(20,20,22,0.9); z-index: 10; display: flex; justify-content: center; align-items: center; gap: 8px;">`;
         resultsHtml += `<span style="color:#aaa; font-size: 12px; font-family: monospace;">📍 ${coordsStr}</span>`;
-        resultsHtml += `<button onclick="vscode.postMessage({command:'copyToClipboard', text:'[${coordsStr}]'})" style="background:none; border:none; color:#4ec9b0; cursor:pointer; font-size:12px; padding:0; margin:0; line-height:1;" title="Copiar Coordenadas">📋</button>`;
+        resultsHtml += `<button onclick="vscode.postMessage({command:'copyToClipboard', text:'[${coordsStr}]'})" style="background:none; border:none; color:#4ec9b0; cursor:pointer; font-size:12px; padding:0; margin:0; line-height:1;" title="Copy Coordinates">📋</button>`;
         resultsHtml += `</div>`;
         
         let hasData = false;
@@ -1840,7 +1840,7 @@ export class GEERuntime {
         } else {
             const encodedJson = encodeURIComponent(JSON.stringify(fullReportObj, null, 2));
             resultsHtml += `<div style="text-align:center; margin-top: 10px;">`;
-            resultsHtml += `<button onclick="vscode.postMessage({command:'copyToClipboard', text: decodeURIComponent('${encodedJson}')})" style="background:#2d2d2d; border:1px solid #444; color:#ccc; border-radius:4px; padding:4px 8px; cursor:pointer; font-size:10.5px; width:100%;">📋 Copiar Todo (JSON)</button>`;
+            resultsHtml += `<button onclick="vscode.postMessage({command:'copyToClipboard', text: decodeURIComponent('${encodedJson}')})" style="background:#2d2d2d; border:1px solid #444; color:#ccc; border-radius:4px; padding:4px 8px; cursor:pointer; font-size:10.5px; width:100%;">📋 Copy All (JSON)</button>`;
             resultsHtml += `</div>`;
         }
         
