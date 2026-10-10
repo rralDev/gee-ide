@@ -21,5 +21,13 @@ export const GE_PALETTES = {
     snow: ['000000', '0d0887', '6a00a8', 'b12a90', 'e16462', 'fca636', 'f0f921'], // Magma palette for contrast, or simple cyan-white
     
     // 🏙️ Zonas Urbanas / Impermeables
-    urban: ['000000', '333333', '666666', '999999', 'cccccc', 'ffffff']
+    urban: ['000000', '333333', '666666', '999999', 'cccccc', 'ffffff'],
+
+    // 🌈 Científica / General (Viridis)
+    viridis: ['440154', '414487', '2a788e', '22a884', '7ad151', 'fde725'],
+
+    // ⚪ Escala de grises
+    grayscale: ['000000', 'ffffff'],
+    gray: ['000000', 'ffffff'],
+    elevation: ['006600', '002200', 'fff700', 'ab7634', 'c4d0ff', 'ffffff']
 };

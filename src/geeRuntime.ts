@@ -106,13 +106,23 @@ export class GEERuntime {
                     this.consoleView.append(`Adding layer: ${layerName}...`);
                     this.activeLayers.set(layerName, element);
                     try {
+                        let targetElement = element;
+                        // Geometry does not have getMapId in GEE JS SDK; wrap into Feature
+                        if (targetElement && typeof targetElement.getMapId !== 'function') {
+                            if (eeInstance && typeof eeInstance.Feature === 'function') {
+                                targetElement = eeInstance.Feature(targetElement);
+                            }
+                        }
+
+                        const resolvedVis = await this.resolveSmartVisParams(element, visParams);
+
                         const mapId = await new Promise((resolve, reject) => {
-                            element.getMapId(visParams || {}, (res: any, err: any) => {
+                            targetElement.getMapId(resolvedVis, (res: any, err: any) => {
                                 if (err) reject(err);
                                 else resolve(res);
                             });
                         });
-                        this.mapView.addLayer(mapId, name, shown, opacity, visParams);
+                        this.mapView.addLayer(mapId, layerName, shown, opacity, resolvedVis);
                     } catch (err: any) {
                         this.consoleView.append(`Error adding layer: ${err.message}`);
                     }
@@ -139,6 +149,16 @@ export class GEERuntime {
                                 if (gj && gj.type === 'Point' && Array.isArray(gj.coordinates)) {
                                     this.mapView.setCenter(gj.coordinates[1], gj.coordinates[0], targetZoom);
                                     return;
+                                } else if (gj && Array.isArray(gj.coordinates) && gj.coordinates.length > 0) {
+                                    const coords = (gj.type === 'Polygon') ? gj.coordinates[0] : (gj.type === 'MultiPolygon' ? gj.coordinates.flat(1)[0] : gj.coordinates);
+                                    if (Array.isArray(coords) && coords.length > 0 && Array.isArray(coords[0])) {
+                                        const lons = coords.map((c: any) => c[0]);
+                                        const lats = coords.map((c: any) => c[1]);
+                                        const lon = (Math.min(...lons) + Math.max(...lons)) / 2;
+                                        const lat = (Math.min(...lats) + Math.max(...lats)) / 2;
+                                        this.mapView.setCenter(lat, lon, targetZoom);
+                                        return;
+                                    }
                                 }
                             }
                         } catch (e) {}
@@ -335,37 +355,7 @@ export class GEERuntime {
                     const result = vm.runInContext(cleanCode, this.context);
                     // RStudio UX: If the executed line/selection is an expression that yields a value, print it
                     if (!resetContext && result !== undefined && !(result instanceof Promise)) {
-                        let outputVal = result;
-                        let isSpatial = false;
-                        if (result && typeof result.getInfo === 'function') {
-                            try {
-                                const typeName = (typeof result.name === 'function') ? result.name() : '';
-                                if (typeof result.getMapId === 'function' || typeName === 'Geometry' || typeName === 'Feature' || typeName.includes('Image') || typeName.includes('Collection')) {
-                                    isSpatial = true;
-                                    outputVal = `[Earth Engine Spatial Object: ${typeName || 'Unknown'}]`;
-                                } else {
-                                    outputVal = result.getInfo();
-                                }
-                            } catch (e: any) {
-                                outputVal = `[EE Object: ${e.message || e}]`;
-                            }
-                        }
-                        if (typeof outputVal === 'object' && outputVal !== null) {
-                            this.consoleView.append(JSON.stringify(outputVal, null, 2));
-                        } else {
-                            this.consoleView.append(String(outputVal));
-                        }
-                        if (isSpatial && this.context && this.context.Map) {
-                            this.consoleView.append(`🗺️ Auto-Plotting spatial object...`);
-                            this.context.Map.centerObject(result).catch(() => {});
-                            this.context.Map.addLayer(result, {}, 'Auto-Plot').catch(() => {});
-                        }
-                    }
-
-                    // Sincronizar variables vivas al autocompletado de la consola
-                    const userVars = this.getUserVariables();
-                    if (userVars.length > 0) {
-                        this.consoleView.addCompletions(userVars);
+                        this.handleEvaluatedResult(result);
                     }
                 }
             }
@@ -378,6 +368,203 @@ export class GEERuntime {
                 } catch (e) {}
                 this.consoleView.append('Tip: Fixed working directory to writable temp folder. Please re-run the line.');
             }
+        }
+    }
+
+    private async resolveSmartVisParams(element: any, visParams?: any): Promise<any> {
+        // If user explicitly provided non-empty visualization parameters, respect them completely
+        if (visParams && typeof visParams === 'object' && Object.keys(visParams).length > 0) {
+            return visParams;
+        }
+
+        const { GE_PALETTES } = require('./palettes');
+
+        try {
+            const typeName = (typeof element.name === 'function') ? element.name() : '';
+
+            // 1. Vector: Geometry, Feature, FeatureCollection
+            if (typeName === 'Geometry' || typeName === 'Feature' || typeName === 'FeatureCollection' ||
+                typeof element.coordinates === 'function' || typeof element.features === 'function') {
+                return { color: 'FF0000', width: 2 };
+            }
+
+            // 2. Raster: Image or ImageCollection
+            let img = element;
+            if (typeof element.first === 'function' && typeof element.mosaic === 'function') {
+                img = element.first();
+            }
+
+            if (img && typeof img.bandNames === 'function') {
+                const bandNames: string[] = await new Promise((resolve) => {
+                    const timer = setTimeout(() => resolve([]), 2500);
+                    try {
+                        img.bandNames().getInfo((res: any, err: any) => {
+                            clearTimeout(timer);
+                            resolve((!err && Array.isArray(res)) ? res : []);
+                        });
+                    } catch (e) {
+                        clearTimeout(timer);
+                        resolve([]);
+                    }
+                });
+
+                if (bandNames && bandNames.length > 0) {
+                    const lowerBands = bandNames.map(b => (b || '').toLowerCase());
+
+                    // Case A: DEM / Elevation / Topography
+                    const demIndex = lowerBands.findIndex(b =>
+                        b === 'elevation' || b === 'dem' || b.includes('elevation') || b === 'slope' || b === 'aspect' || b.includes('topography')
+                    );
+                    if (demIndex !== -1) {
+                        return {
+                            bands: [bandNames[demIndex]],
+                            min: 0,
+                            max: 3000,
+                            palette: GE_PALETTES.dem || ['006600', '002200', 'fff700', 'ab7634', 'c4d0ff', 'ffffff']
+                        };
+                    }
+
+                    // Case B: Vegetation Indices (NDVI, EVI, SAVI)
+                    const vegIndex = lowerBands.findIndex(b =>
+                        b === 'ndvi' || b === 'evi' || b === 'savi' || b === 'msavi' || b.includes('ndvi')
+                    );
+                    if (vegIndex !== -1) {
+                        return {
+                            bands: [bandNames[vegIndex]],
+                            min: -0.2,
+                            max: 0.8,
+                            palette: GE_PALETTES.ndvi
+                        };
+                    }
+
+                    // Case C: Water Indices (NDWI, MNDWI)
+                    const waterIndex = lowerBands.findIndex(b =>
+                        b === 'ndwi' || b === 'mndwi' || b.includes('water')
+                    );
+                    if (waterIndex !== -1) {
+                        return {
+                            bands: [bandNames[waterIndex]],
+                            min: -0.5,
+                            max: 0.5,
+                            palette: GE_PALETTES.water
+                        };
+                    }
+
+                    // Case D: Temperature / Thermal
+                    const tempIndex = lowerBands.findIndex(b =>
+                        b.includes('temp') || b.includes('lst') || b === 'b10' || b === 'b11'
+                    );
+                    if (tempIndex !== -1) {
+                        return {
+                            bands: [bandNames[tempIndex]],
+                            min: 273.15,
+                            max: 325,
+                            palette: GE_PALETTES.temperature
+                        };
+                    }
+
+                    // Case E: True Color RGB
+                    if (bandNames.includes('B4') && bandNames.includes('B3') && bandNames.includes('B2')) {
+                        return {
+                            bands: ['B4', 'B3', 'B2'],
+                            min: 0,
+                            max: 3000
+                        };
+                    }
+                    if (bandNames.includes('SR_B4') && bandNames.includes('SR_B3') && bandNames.includes('SR_B2')) {
+                        return {
+                            bands: ['SR_B4', 'SR_B3', 'SR_B2'],
+                            min: 7000,
+                            max: 20000
+                        };
+                    }
+                    const redBand = bandNames.find(b => b.toLowerCase() === 'red' || b === 'R');
+                    const greenBand = bandNames.find(b => b.toLowerCase() === 'green' || b === 'G');
+                    const blueBand = bandNames.find(b => b.toLowerCase() === 'blue' || b === 'B');
+                    if (redBand && greenBand && blueBand) {
+                        return {
+                            bands: [redBand, greenBand, blueBand],
+                            min: 0,
+                            max: 255
+                        };
+                    }
+                    if (bandNames.includes('B3') && bandNames.includes('B2') && bandNames.includes('B1')) {
+                        return {
+                            bands: ['B3', 'B2', 'B1'],
+                            min: 0,
+                            max: 0.3
+                        };
+                    }
+
+                    // Case F: Sentinel-1 Radar (VV, VH)
+                    if (bandNames.includes('VV')) {
+                        return {
+                            bands: ['VV'],
+                            min: -25,
+                            max: 0
+                        };
+                    }
+
+                    // Case G: Single band fallback (Grayscale)
+                    if (bandNames.length === 1) {
+                        return {
+                            bands: [bandNames[0]],
+                            min: 0,
+                            max: 255,
+                            palette: ['000000', 'ffffff']
+                        };
+                    }
+                }
+            }
+        } catch (e) {}
+
+        return visParams || {};
+    }
+
+    private handleEvaluatedResult(result: any) {
+        if (result === undefined || (result instanceof Promise)) {
+            return;
+        }
+
+        let outputVal = result;
+        let isSpatial = false;
+        let typeName = '';
+
+        if (result && typeof result.getInfo === 'function') {
+            try {
+                typeName = (typeof result.name === 'function') ? result.name() : '';
+            } catch (e) {}
+
+            if (typeof result.getMapId === 'function' || typeName === 'Geometry' || typeName === 'Feature' || typeName.includes('Image') || typeName.includes('Collection')) {
+                isSpatial = true;
+            }
+
+            try {
+                if (typeName.includes('Collection') && typeof result.limit === 'function') {
+                    outputVal = result.limit(10).getInfo();
+                } else {
+                    outputVal = result.getInfo();
+                }
+            } catch (e: any) {
+                outputVal = `[EE Object (${typeName || 'Unknown'}): ${e.message || e}]`;
+            }
+        }
+
+        if (typeof outputVal === 'object' && outputVal !== null) {
+            this.consoleView.append(JSON.stringify(outputVal, null, 2));
+        } else {
+            this.consoleView.append(String(outputVal));
+        }
+
+        if (isSpatial && this.context && this.context.Map) {
+            this.consoleView.append(`🗺️ Auto-Plotting spatial object...`);
+            this.context.Map.centerObject(result).catch(() => {});
+            this.context.Map.addLayer(result, undefined, 'Auto-Plot').catch(() => {});
+        }
+
+        const uv = this.getUserVariables();
+        if (uv.length > 0) {
+            this.consoleView.addCompletions(uv);
         }
     }
 
@@ -1452,33 +1639,7 @@ export class GEERuntime {
                     try {
                         const result = vm.runInContext(text, this.context);
                         if (result !== undefined && !(result instanceof Promise)) {
-                            let outputVal = result;
-                            let isSpatial = false;
-                            if (result && typeof result.getInfo === 'function') {
-                                try {
-                                    const typeName = (typeof result.name === 'function') ? result.name() : '';
-                                    if (typeof result.getMapId === 'function' || typeName === 'Geometry' || typeName === 'Feature' || typeName.includes('Image') || typeName.includes('Collection')) {
-                                        isSpatial = true;
-                                        outputVal = `[Earth Engine Spatial Object: ${typeName || 'Unknown'}]`;
-                                    } else {
-                                        outputVal = result.getInfo();
-                                    }
-                                } catch (e: any) {
-                                    outputVal = `[EE Object: ${e.message || e}]`;
-                                }
-                            }
-                            if (typeof outputVal === 'object' && outputVal !== null) {
-                                this.consoleView.append(JSON.stringify(outputVal, null, 2));
-                            } else {
-                                this.consoleView.append(String(outputVal));
-                            }
-                            if (isSpatial && this.context && this.context.Map) {
-                                this.consoleView.append(`🗺️ Auto-Plotting spatial object...`);
-                                this.context.Map.centerObject(result).catch(() => {});
-                                this.context.Map.addLayer(result, {}, 'Auto-Plot').catch(() => {});
-                            }
-                            const uv = this.getUserVariables();
-                            if (uv.length > 0) this.consoleView.addCompletions(uv);
+                            this.handleEvaluatedResult(result);
                             break;
                         } else if (result === undefined && (text.startsWith('var ') || text.startsWith('let ') || text.startsWith('const ') || text.includes('='))) {
                             const uv = this.getUserVariables();
