@@ -11,6 +11,7 @@ import { AIView } from './views/aiView';
 import { SnippetsManager } from './snippetsManager';
 import { CatalogManager } from './catalogManager';
 import { exchangeCodeForToken, refreshAccessToken, getUserInfo, getAvailableCloudProjects, autoDetectCloudProject } from './auth';
+import { TaskNotifier } from './taskNotifier';
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -120,6 +121,27 @@ export function activate(context: vscode.ExtensionContext) {
     const mapView = new MapView(context);
     const consoleView = new ConsoleView(context);
     const aiView = new AIView(context);
+    const taskNotifier = new TaskNotifier();
+    context.subscriptions.push(taskNotifier);
+
+    function attachTaskNotifierToRuntime(rt: any) {
+        if (!rt) return;
+        rt.onTaskStarted((desc?: string) => {
+            taskNotifier.wakeUp(desc);
+            if (aiView && aiView.isCreated) {
+                aiView.sendMessage({ command: 'taskStarting', description: desc });
+            }
+        });
+        taskNotifier.start(
+            () => rt.isInitialized ? rt.getTasks() : Promise.resolve([]),
+            (tasks: any[]) => {
+                if (aiView && aiView.isCreated) {
+                    aiView.sendMessage({ command: 'tasksData', tasks });
+                }
+            }
+        );
+    }
+
     let runtime: GEERuntime | undefined;
     let runtimePy: GEERuntimePy | undefined;
     let runtimeR: GEERuntimeR | undefined;
@@ -348,9 +370,13 @@ export function activate(context: vscode.ExtensionContext) {
         if (message.command === 'focusQuadrant') {
             switchQuadrant(message.quadrant);
         } else if (message.command === 'getTasks') {
+            if (!runtime || !runtime.isInitialized) {
+                await ensureRuntimeInitialized();
+            }
             if (runtime && runtime.isInitialized) {
                 try {
                     const tasks = await runtime.getTasks();
+                    taskNotifier.feedTasks(tasks);
                     aiView.sendMessage({ command: 'tasksData', tasks: tasks });
                 } catch (e: any) {
                     vscode.window.showErrorMessage('Error al obtener tareas: ' + e.message);
@@ -553,6 +579,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     async function ensureRuntimeInitialized(forceShowBanner: boolean = false): Promise<boolean> {
         if (runtime && runtime!.isInitialized) {
+            attachTaskNotifierToRuntime(runtime);
             if (forceShowBanner) {
                 const savedJson = await context.secrets.get('gee-pro.credentials');
                 if (savedJson) {
@@ -603,6 +630,7 @@ export function activate(context: vscode.ExtensionContext) {
                     rt.setCatalogManager(catalogManager);
                     await rt.initialize(creds);
                     runtime = rt;
+                    attachTaskNotifierToRuntime(rt);
 
                     let activeProject = creds.project_id || creds.project;
                     if (activeProject === 'gee-pro-default' || activeProject === 'PeruREDD') {
@@ -856,6 +884,7 @@ export function activate(context: vscode.ExtensionContext) {
                         }
 
                         await runtime!.initialize(readyCreds);
+                        attachTaskNotifierToRuntime(runtime);
                         const bridgePort = await ensureBridgeServer();
                         runtimePy = new GEERuntimePy(consoleView, readyCreds.access_token || '', readyCreds.project_id || '', context.globalStorageUri.fsPath, bridgePort);
                         runtimeR = new GEERuntimeR(consoleView, readyCreds.access_token || '', readyCreds.project_id || '', bridgePort);
@@ -913,6 +942,7 @@ export function activate(context: vscode.ExtensionContext) {
             }
 
             await runtime!.initialize(tokenData);
+            attachTaskNotifierToRuntime(runtime);
             let activeProject = tokenData.project_id || tokenData.project;
                 if (activeProject === 'gee-pro-default' || activeProject === 'PeruREDD') {
                     activeProject = '';
@@ -1034,6 +1064,14 @@ export function activate(context: vscode.ExtensionContext) {
                 }
                 if (runtimePy) {
                     if (mapView) mapView.show(vscode.ViewColumn.Three);
+                    if (/export/i.test(code)) {
+                        const match = code.match(/description\s*[:=]\s*['"]([^'"]+)['"]/i);
+                        const desc = match ? match[1] : undefined;
+                        taskNotifier.wakeUp(desc);
+                        if (aiView && aiView.isCreated) {
+                            aiView.sendMessage({ command: 'taskStarting', description: desc });
+                        }
+                    }
                     runtimePy.execute(code).then(() => {
                         if (consoleView) consoleView.append('gee> ');
                     });
@@ -1050,6 +1088,14 @@ export function activate(context: vscode.ExtensionContext) {
                     runtimeR = new GEERuntimeR(consoleView, '', '', port);
                 }
                 if (mapView) mapView.show(vscode.ViewColumn.Three);
+                if (/export/i.test(code)) {
+                    const match = code.match(/description\s*[:=]\s*['"]([^'"]+)['"]/i);
+                    const desc = match ? match[1] : undefined;
+                    taskNotifier.wakeUp(desc);
+                    if (aiView && aiView.isCreated) {
+                        aiView.sendMessage({ command: 'taskStarting', description: desc });
+                    }
+                }
                 runtimeR.execute(code).then(() => {
                     if (consoleView) consoleView.append('gee> ');
                 });
@@ -1281,6 +1327,14 @@ export function activate(context: vscode.ExtensionContext) {
                     await ensureRuntimeInitialized();
                 }
                 if (runtimePy) {
+                    if (/export/i.test(code)) {
+                        const match = code.match(/description\s*[:=]\s*['"]([^'"]+)['"]/i);
+                        const desc = match ? match[1] : undefined;
+                        taskNotifier.wakeUp(desc);
+                        if (aiView && aiView.isCreated) {
+                            aiView.sendMessage({ command: 'taskStarting', description: desc });
+                        }
+                    }
                     runtimePy.executeLine(code).then(() => {
                         if (consoleView) consoleView.append('gee> ');
                     });
@@ -1292,6 +1346,14 @@ export function activate(context: vscode.ExtensionContext) {
                 const port = await ensureBridgeServer();
                 if (!runtimeR) {
                     runtimeR = new GEERuntimeR(consoleView, '', '', port);
+                }
+                if (/export/i.test(code)) {
+                    const match = code.match(/description\s*[:=]\s*['"]([^'"]+)['"]/i);
+                    const desc = match ? match[1] : undefined;
+                    taskNotifier.wakeUp(desc);
+                    if (aiView && aiView.isCreated) {
+                        aiView.sendMessage({ command: 'taskStarting', description: desc });
+                    }
                 }
                 runtimeR.executeLine(code).then(() => {
                     if (consoleView) consoleView.append('gee> ');

@@ -226,6 +226,9 @@ export class AIView {
                         document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
                         event.target.classList.add('active');
                         document.getElementById(id).classList.add('active');
+                        if (id === 'tasks') {
+                            refreshTasks();
+                        }
                     }
 
                     // --- TASKS LOGIC ---
@@ -471,6 +474,25 @@ export class AIView {
                             if (inp) {
                                 inp.focus();
                                 inp.select();
+                            }
+                        } else if (message.command === 'taskStarting') {
+                            const list = document.getElementById('task-list');
+                            if (list) {
+                                const desc = message.description || 'Export Task';
+                                const existingTemp = document.getElementById('temp-task-item');
+                                if (existingTemp) existingTemp.remove();
+                                const tempDiv = document.createElement('div');
+                                tempDiv.className = 'tree-item';
+                                tempDiv.id = 'temp-task-item';
+                                tempDiv.innerHTML = 
+                                    '<div class="tree-title">' +
+                                        '<span class="tree-icon">🔄</span>' +
+                                        '<span style="font-weight: 500; color: var(--vscode-charts-yellow);">' + desc + '</span>' +
+                                    '</div>' +
+                                    '<div class="tree-meta">' +
+                                        '<span class="tree-type" style="color: var(--vscode-charts-yellow);">Enviando a GEE...</span>' +
+                                    '</div>';
+                                list.insertBefore(tempDiv, list.firstChild);
                             }
                         } else if (message.command === 'tasksData') {
                             renderTasks(message.tasks || message);

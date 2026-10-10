@@ -24,6 +24,11 @@ export class GEERuntime {
     private snippetsManager: any;
     private catalogManager: any;
     public activeLayers: Map<string, any> = new Map();
+    private onTaskStartedCallback?: (desc?: string) => void;
+
+    public onTaskStarted(cb: (desc?: string) => void) {
+        this.onTaskStartedCallback = cb;
+    }
 
     public setSnippetsManager(sm: any) {
         this.snippetsManager = sm;
@@ -1714,6 +1719,9 @@ export class GEERuntime {
                 const task = exportFunc(p);
                 task.start(() => {
                     this.consoleView.append(`✅ [Export Task Started]: ${label} - ${p.description || 'unnamed'}`);
+                    if (this.onTaskStartedCallback) {
+                        this.onTaskStartedCallback(p.description);
+                    }
                 }, (err: any) => {
                     this.consoleView.append(`❌ [Export Task Error]: ${err}`);
                 });
@@ -1746,7 +1754,8 @@ export class GEERuntime {
                     if (err) {
                         reject(new Error(err));
                     } else {
-                        resolve(tasks || []);
+                        const list = (tasks && Array.isArray(tasks.tasks)) ? tasks.tasks : (Array.isArray(tasks) ? tasks : []);
+                        resolve(list);
                     }
                 });
             } catch (e: any) {
