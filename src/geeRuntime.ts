@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as vm from 'vm';
 import * as os from 'os';
+import { GE_PALETTES } from './palettes';
 
 // Ensure working directory is always writable (fixes EROFS on macOS/Linux for synchronous XMLHttpRequests)
 try {
@@ -44,7 +45,6 @@ export class GEERuntime {
 
     private resetContext() {
         const eeInstance = getEE();
-        const { GE_PALETTES } = require('./palettes');
         const ctx = {
             ee: eeInstance,
             palettes: GE_PALETTES,
@@ -114,7 +114,7 @@ export class GEERuntime {
                             }
                         }
 
-                        const resolvedVis = await this.resolveSmartVisParams(element, visParams);
+                        const resolvedVis = await this.resolveSmartVisParams(element, visParams, layerName);
 
                         const mapId = await new Promise((resolve, reject) => {
                             targetElement.getMapId(resolvedVis, (res: any, err: any) => {
@@ -371,13 +371,27 @@ export class GEERuntime {
         }
     }
 
-    private async resolveSmartVisParams(element: any, visParams?: any): Promise<any> {
-        // If user explicitly provided non-empty visualization parameters, respect them completely
+    private async resolveSmartVisParams(element: any, visParams?: any, layerName?: string): Promise<any> {
+        // If user explicitly provided non-empty visualization parameters
         if (visParams && typeof visParams === 'object' && Object.keys(visParams).length > 0) {
+            // If user did not provide a palette, check if we can enrich it based on layerName or band
+            if (!visParams.palette && !visParams.color && (!Array.isArray(visParams.bands) || visParams.bands.length === 1)) {
+                const lname = (layerName || '').toLowerCase();
+                if (lname.includes('elevation') || lname.includes('dem') || lname.includes('srtm') || lname.includes('topo')) {
+                    return { ...visParams, palette: GE_PALETTES.dem };
+                }
+                if (lname.includes('ndvi') || lname.includes('evi') || lname.includes('savi')) {
+                    return { ...visParams, palette: GE_PALETTES.ndvi };
+                }
+                if (lname.includes('ndwi') || lname.includes('water')) {
+                    return { ...visParams, palette: GE_PALETTES.water };
+                }
+                if (lname.includes('temp') || lname.includes('lst')) {
+                    return { ...visParams, palette: GE_PALETTES.temperature };
+                }
+            }
             return visParams;
         }
-
-        const { GE_PALETTES } = require('./palettes');
 
         try {
             const typeName = (typeof element.name === 'function') ? element.name() : '';
@@ -420,7 +434,7 @@ export class GEERuntime {
                             bands: [bandNames[demIndex]],
                             min: 0,
                             max: 3000,
-                            palette: GE_PALETTES.dem || ['006600', '002200', 'fff700', 'ab7634', 'c4d0ff', 'ffffff']
+                            palette: GE_PALETTES.dem || ['#006600', '#002200', '#fff700', '#ab7634', '#c4d0ff', '#ffffff']
                         };
                     }
 
@@ -511,12 +525,24 @@ export class GEERuntime {
                             bands: [bandNames[0]],
                             min: 0,
                             max: 255,
-                            palette: ['000000', 'ffffff']
+                            palette: ['#000000', '#ffffff']
                         };
                     }
                 }
             }
         } catch (e) {}
+
+        // Fallback by layer name if band inspection was inconclusive or timed out
+        const lname = (layerName || '').toLowerCase();
+        if (lname.includes('elevation') || lname.includes('dem') || lname.includes('srtm') || lname.includes('topo')) {
+            return { min: 0, max: 3000, palette: GE_PALETTES.dem };
+        }
+        if (lname.includes('ndvi') || lname.includes('evi') || lname.includes('savi')) {
+            return { min: -0.2, max: 0.8, palette: GE_PALETTES.ndvi };
+        }
+        if (lname.includes('ndwi') || lname.includes('water')) {
+            return { min: -0.5, max: 0.5, palette: GE_PALETTES.water };
+        }
 
         return visParams || {};
     }

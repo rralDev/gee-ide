@@ -1642,6 +1642,15 @@ export class MapView {
                         });
                     }
 
+                    function toValidCssColor(c) {
+                        if (!c) return 'transparent';
+                        const s = String(c).trim();
+                        if (s.startsWith('#')) return s;
+                        if (/^rgba?\(|^hsla?\(/i.test(s)) return s;
+                        if (/^[0-9a-fA-F]{3}$|^[0-9a-fA-F]{6}$|^[0-9a-fA-F]{8}$/.test(s)) return '#' + s;
+                        return s;
+                    }
+
                     function renderLayerItemHtml(x) {
                         const isVisible = map.hasLayer(x.item.layer);
                         const badge = x.keyShortcut ? ('<span class="gee-layer-badge" title="Shortcut: ' + x.keyShortcut + ' or Alt+' + x.keyShortcut + '">[' + x.keyShortcut + ']</span>') : '';
@@ -1655,11 +1664,7 @@ export class MapView {
                                     palette = palette.split(',');
                                 }
                                 if (Array.isArray(palette) && palette.length > 0) {
-                                    palette = palette.map(c => {
-                                        const trimmed = String(c).trim();
-                                        if (trimmed.startsWith('#') || trimmed.match(/^[a-zA-Z]+$/)) return trimmed;
-                                        return '#' + trimmed;
-                                    });
+                                    palette = palette.map(toValidCssColor);
                                     const gradient = 'linear-gradient(to right, ' + palette.join(', ') + ')';
                                     const minVal = vp.min !== undefined ? vp.min : '';
                                     const maxVal = vp.max !== undefined ? vp.max : '';
@@ -1674,7 +1679,15 @@ export class MapView {
                                         '</div>';
                                 }
                             } else if (vp.min !== undefined && vp.max !== undefined) {
-                                const gradient = 'linear-gradient(to right, #000000, #ffffff)';
+                                const lname = (x.item.name || '').toLowerCase();
+                                let gradient = 'linear-gradient(to right, #000000, #ffffff)';
+                                if (lname.includes('elevation') || lname.includes('dem') || lname.includes('srtm') || lname.includes('topo')) {
+                                    gradient = 'linear-gradient(to right, #006600, #002200, #fff700, #ab7634, #c4d0ff, #ffffff)';
+                                } else if (lname.includes('ndvi') || lname.includes('evi') || lname.includes('savi')) {
+                                    gradient = 'linear-gradient(to right, #FFFFFF, #CE7E45, #DF923D, #F1B555, #FCD163, #99B718, #74A901, #66A000, #529400, #3E8601, #207401, #056201, #004C00)';
+                                } else if (lname.includes('ndwi') || lname.includes('water')) {
+                                    gradient = 'linear-gradient(to right, #ffffff, #ff0000, #ffff00, #00ffff, #0000ff)';
+                                }
                                 legendHtml = 
                                     '<div class="gee-layer-legend" style="margin-top: 5px; padding-left: 20px;">' +
                                         '<div style="height: 6px; width: 100%; border-radius: 2px; background: ' + gradient + '; border: 1px solid rgba(255,255,255,0.15);"></div>' +
@@ -1684,8 +1697,7 @@ export class MapView {
                                         '</div>' +
                                     '</div>';
                             } else if (vp.color) {
-                                let col = String(vp.color).trim();
-                                if (!col.startsWith('#') && !col.match(/^[a-zA-Z]+$/)) col = '#' + col;
+                                let col = toValidCssColor(vp.color);
                                 legendHtml = 
                                     '<div class="gee-layer-legend" style="margin-top: 4px; padding-left: 20px; display: flex; align-items: center; gap: 6px; font-size: 9px; color: #aaa;">' +
                                         '<span style="display: inline-block; width: 14px; height: 4px; border-radius: 2px; background: ' + col + '; border: 1px solid rgba(255,255,255,0.2);"></span>' +
