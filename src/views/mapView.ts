@@ -16,6 +16,7 @@ export class MapView {
     public async show(column?: vscode.ViewColumn, preserveFocus: boolean = true) {
         const targetColumn = column || vscode.ViewColumn.Three;
         if (this.panel) {
+            this.panel.webview.html = this.getHtml();
             this.panel.reveal(column !== undefined ? column : this.panel.viewColumn, preserveFocus);
         } else {
             await this.closeExistingTabs();
