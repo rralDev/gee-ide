@@ -549,6 +549,12 @@ export class MapView {
                     .gee-layer-item:hover {
                         background: rgba(255, 255, 255, 0.08);
                     }
+                    .gee-layer-legend {
+                        transition: all 0.2s ease;
+                    }
+                    .gee-hide-legends .gee-layer-legend {
+                        display: none !important;
+                    }
                     .gee-layer-left {
                         display: flex;
                         align-items: center;
@@ -1465,9 +1471,15 @@ export class MapView {
                                     '<select class="gee-basemap-select" id="basemapSelect">' +
                                         optionsHtml +
                                     '</select>' +
-                                    '<div class="gee-section-title">' +
+                                    '<div class="gee-section-title" style="display: flex; justify-content: space-between; align-items: center;">' +
                                         '<span>🛰️ Capas de Earth Engine</span>' +
-                                        '<span id="layerCount" style="color: #4ec9b0;">0</span>' +
+                                        '<div style="display: flex; align-items: center; gap: 8px;">' +
+                                            '<label style="display: flex; align-items: center; gap: 4px; font-size: 10px; color: #9cdcfe; cursor: pointer; user-select: none;" title="Mostrar u ocultar leyendas">' +
+                                                '<input type="checkbox" id="toggleLegendsChk" style="cursor: pointer; width: 11px; height: 11px; accent-color: #4ec9b0; margin: 0;" />' +
+                                                '<span>Leyendas</span>' +
+                                            '</label>' +
+                                            '<span id="layerCount" style="color: #4ec9b0; font-weight: bold;">0</span>' +
+                                        '</div>' +
                                     '</div>' +
                                     '<div id="geeLayersList">' +
                                         '<div style="font-size: 11px; color: #777; padding: 4px 2px; font-style: italic;">' +
@@ -1528,6 +1540,30 @@ export class MapView {
                             toggleAllLayers();
                         });
 
+                        let showLegends = getSetting('gee_show_legends', true);
+                        if (typeof showLegends === 'string') showLegends = showLegends === 'true';
+
+                        const legendsChk = container.querySelector('#toggleLegendsChk');
+                        if (legendsChk) {
+                            legendsChk.checked = showLegends !== false;
+                            legendsChk.addEventListener('change', (e) => {
+                                showLegends = e.target.checked;
+                                setSetting('gee_show_legends', showLegends);
+                                applyLegendsVisibility();
+                            });
+                        }
+
+                        window.applyLegendsVisibility = function() {
+                            const listEl = document.getElementById('geeLayersList');
+                            if (listEl) {
+                                if (showLegends === false) {
+                                    listEl.classList.add('gee-hide-legends');
+                                } else {
+                                    listEl.classList.remove('gee-hide-legends');
+                                }
+                            }
+                        };
+
                         return container;
                     };
                     map.addControl(layerManagerControl);
@@ -1584,6 +1620,9 @@ export class MapView {
 
                         html += standalone.map(x => renderLayerItemHtml(x)).join('');
                         listEl.innerHTML = html;
+                        if (typeof window.applyLegendsVisibility === 'function') {
+                            window.applyLegendsVisibility();
+                        }
 
                         geeLayers.forEach((item, idx) => {
                             const chk = document.getElementById('chk_layer_' + idx);
@@ -1608,24 +1647,62 @@ export class MapView {
                         const badge = x.keyShortcut ? ('<span class="gee-layer-badge" title="Atajo: ' + x.keyShortcut + ' o Alt+' + x.keyShortcut + '">[' + x.keyShortcut + ']</span>') : '';
                         
                         let legendHtml = '';
-                        if (x.item.visParams && x.item.visParams.palette) {
-                            let palette = x.item.visParams.palette;
-                            if (typeof palette === 'string') {
-                                palette = palette.split(',');
+                        const vp = x.item.visParams;
+                        if (vp) {
+                            if (vp.palette) {
+                                let palette = vp.palette;
+                                if (typeof palette === 'string') {
+                                    palette = palette.split(',');
+                                }
+                                if (Array.isArray(palette) && palette.length > 0) {
+                                    palette = palette.map(c => {
+                                        const trimmed = String(c).trim();
+                                        if (trimmed.startsWith('#') || trimmed.match(/^[a-zA-Z]+$/)) return trimmed;
+                                        return '#' + trimmed;
+                                    });
+                                    const gradient = 'linear-gradient(to right, ' + palette.join(', ') + ')';
+                                    const minVal = vp.min !== undefined ? vp.min : '';
+                                    const maxVal = vp.max !== undefined ? vp.max : '';
+                                    
+                                    legendHtml = 
+                                        '<div class="gee-layer-legend" style="margin-top: 5px; padding-left: 20px;">' +
+                                            '<div style="height: 6px; width: 100%; border-radius: 2px; background: ' + gradient + '; border: 1px solid rgba(255,255,255,0.15);"></div>' +
+                                            '<div style="display: flex; justify-content: space-between; font-size: 8.5px; color: #888; margin-top: 2px; font-family: monospace;">' +
+                                                '<span>' + minVal + '</span>' +
+                                                '<span>' + maxVal + '</span>' +
+                                            '</div>' +
+                                        '</div>';
+                                }
+                            } else if (vp.min !== undefined && vp.max !== undefined) {
+                                const gradient = 'linear-gradient(to right, #000000, #ffffff)';
+                                legendHtml = 
+                                    '<div class="gee-layer-legend" style="margin-top: 5px; padding-left: 20px;">' +
+                                        '<div style="height: 6px; width: 100%; border-radius: 2px; background: ' + gradient + '; border: 1px solid rgba(255,255,255,0.15);"></div>' +
+                                        '<div style="display: flex; justify-content: space-between; font-size: 8.5px; color: #888; margin-top: 2px; font-family: monospace;">' +
+                                            '<span>' + vp.min + '</span>' +
+                                            '<span>' + vp.max + '</span>' +
+                                        '</div>' +
+                                    '</div>';
+                            } else if (vp.color) {
+                                let col = String(vp.color).trim();
+                                if (!col.startsWith('#') && !col.match(/^[a-zA-Z]+$/)) col = '#' + col;
+                                legendHtml = 
+                                    '<div class="gee-layer-legend" style="margin-top: 4px; padding-left: 20px; display: flex; align-items: center; gap: 6px; font-size: 9px; color: #aaa;">' +
+                                        '<span style="display: inline-block; width: 14px; height: 4px; border-radius: 2px; background: ' + col + '; border: 1px solid rgba(255,255,255,0.2);"></span>' +
+                                        '<span style="font-family: monospace;">Vector (' + col + ')</span>' +
+                                    '</div>';
+                            } else if (Array.isArray(vp.bands) && vp.bands.length === 3) {
+                                const minVal = vp.min !== undefined ? vp.min : '';
+                                const maxVal = vp.max !== undefined ? vp.max : '';
+                                legendHtml = 
+                                    '<div class="gee-layer-legend" style="margin-top: 4px; padding-left: 20px; display: flex; align-items: center; justify-content: space-between; font-size: 8.5px; color: #888; font-family: monospace;">' +
+                                        '<span style="display: flex; align-items: center; gap: 5px;">' +
+                                            '<span style="display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: linear-gradient(135deg, #ff4444, #44ff44, #4444ff);"></span>' +
+                                            '<span>RGB: ' + vp.bands.join(', ') + '</span>' +
+                                        '</span>' +
+                                        (minVal !== '' ? ('<span>' + minVal + ' - ' + maxVal + '</span>') : '') +
+                                    '</div>';
                             }
-                            palette = palette.map(c => c.trim().startsWith('#') || c.trim().match(/^[a-zA-Z]+$/) ? c.trim() : '#' + c.trim());
-                            const gradient = 'linear-gradient(to right, ' + palette.join(', ') + ')';
-                            const minVal = x.item.visParams.min !== undefined ? x.item.visParams.min : '';
-                            const maxVal = x.item.visParams.max !== undefined ? x.item.visParams.max : '';
-                            
-                            legendHtml = 
-                                '<div style="margin-top: 5px; padding-left: 20px;">' +
-                                    '<div style="height: 6px; width: 100%; border-radius: 2px; background: ' + gradient + '; border: 1px solid rgba(255,255,255,0.1);"></div>' +
-                                    '<div style="display: flex; justify-content: space-between; font-size: 8.5px; color: #888; margin-top: 2px; font-family: monospace;">' +
-                                        '<span>' + minVal + '</span>' +
-                                        '<span>' + maxVal + '</span>' +
-                                    '</div>' +
-                                '</div>';
                         }
                         
                         return '<div class="gee-layer-item" style="flex-direction: column; align-items: stretch;">' +

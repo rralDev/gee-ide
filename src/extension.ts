@@ -683,9 +683,16 @@ export function activate(context: vscode.ExtensionContext) {
             const tabsToClose: vscode.Tab[] = [];
             for (const group of vscode.window.tabGroups.all) {
                 for (const tab of group.tabs) {
-                    if (tab.input instanceof vscode.TabInputWebview && 
-                        ['geeAI', 'geeMap', 'geeConsole'].includes(tab.input.viewType)) {
-                        tabsToClose.push(tab);
+                    if (tab.input instanceof vscode.TabInputWebview) {
+                        const vt = (tab.input.viewType || '').toLowerCase();
+                        const label = (tab.label || '').toLowerCase();
+                        if (vt.includes('gee') || label.includes('gee map') || label.includes('gee console') || label.includes('gee tools') || label.includes('gee ai')) {
+                            tabsToClose.push(tab);
+                        }
+                    } else if (tab.input instanceof vscode.TabInputText) {
+                        if (tab.input.uri.fsPath.endsWith('welcome_to_gee_ide.gee')) {
+                            tabsToClose.push(tab);
+                        }
                     }
                 }
             }
