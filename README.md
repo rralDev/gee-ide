@@ -12,7 +12,7 @@
 <p align="center">
   <a href="#-philosophy--architecture-the-bridge-between-gee-and-rstudio"><img src="https://img.shields.io/badge/Paradigm-RStudio%20%2B%20VS%20Code-75AADB?style=flat-square" alt="RStudio Style"></a>
   <a href="#-unified-polyglot-support-gee-files"><img src="https://img.shields.io/badge/Languages-JavaScript%20%7C%20Python%20%7C%20R-orange?style=flat-square" alt="Polyglot"></a>
-  <a href="#-licensing-ethics--intellectual-property"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License MIT"></a>
+  <a href="#-licensing-ethics--intellectual-property"><img src="https://img.shields.io/badge/License-Apache_2.0-blue?style=flat-square" alt="License Apache 2.0"></a>
   <a href="#-keyboard-shortcuts-cheat-sheet"><img src="https://img.shields.io/badge/Shortcuts-Cmd%2BEnter%20%7C%20Cmd%2BL-blueviolet?style=flat-square" alt="Shortcuts"></a>
 </p>
 
@@ -505,7 +505,7 @@ Manage your cloud resources and monitor long-running processes directly from Qua
 GEE IDE intentionally incorporates **ergonomic interaction patterns and workflow concepts** popularized by **RStudio** (including REPL auto-evaluation, 4-quadrant layout partitioning, persistent `.gee_history` logging, inline `?` documentation lookup, and tabstop template expansion).
 
 > **Intellectual Property & Legal Notice:**
-> User interface workflows, keyboard shortcut conventions, and interactive programming paradigms are universal software design concepts in scientific computing. **GEE IDE does not copy, redistribute, or incorporate proprietary source code from RStudio / Posit Software, PBC**. All GEE IDE code is an original, clean-room implementation in TypeScript and JavaScript, distributed under the open-source **MIT License**.
+> User interface workflows, keyboard shortcut conventions, and interactive programming paradigms are universal software design concepts in scientific computing. **GEE IDE does not copy, redistribute, or incorporate proprietary source code from RStudio / Posit Software, PBC**. All GEE IDE code is an original, clean-room implementation in TypeScript and JavaScript, distributed under the open-source **Apache License 2.0**.
 
 ### Open Source Attributions
 * Built on the [Visual Studio Code](https://code.visualstudio.com/) extension ecosystem.

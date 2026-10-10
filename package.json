@@ -4,6 +4,8 @@
   "description": "Ultimate Google Earth Engine IDE for VS Code with integrated Map, Console, and AI Assistant.",
   "version": "0.1.33",
   "publisher": "LuisRobles",
+  "author": "Luis Robles",
+  "license": "Apache-2.0",
   "icon": "media/logo.png",
   "engines": {
     "vscode": "^1.75.0"
