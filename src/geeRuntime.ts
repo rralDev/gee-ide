@@ -1,3 +1,8 @@
+import * as dns from 'dns';
+try {
+    dns.setDefaultResultOrder('ipv4first');
+} catch (e) {}
+
 import * as vscode from 'vscode';
 import * as vm from 'vm';
 import * as os from 'os';
@@ -15,6 +20,12 @@ function getEE(): any {
     }
     return ee;
 }
+
+const SYSTEM_BUILTINS = new Set([
+    'ee', 'Map', 'ui', 'Export', 'print', 'require', 'global', 'console', 'window',
+    'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Buffer', 'process', 'palettes',
+    'cli', 'cd', 'pwd', 'mkdir', 'rm', 'ls', 'touch', 'du', 'mv', 'cp', 'find', 'quota'
+]);
 
 export class GEERuntime {
     public isInitialized = false;
@@ -247,6 +258,7 @@ export class GEERuntime {
             
             const onInitSuccess = async () => {
                 this.isInitialized = true;
+                this.credentials = credentials;
                 this.projectId = projectId;
                 await this.loadAssetRoots(credentials.email || credentials.client_email);
                 resolve(true);
@@ -323,8 +335,7 @@ export class GEERuntime {
 
     public getUserVariables(): string[] {
         if (!this.context) return [];
-        const builtins = new Set(['ee', 'Map', 'ui', 'Export', 'print', 'require', 'global', 'console', 'window', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Buffer', 'process', 'palettes']);
-        return Object.keys(this.context).filter(k => !builtins.has(k) && !k.startsWith('_'));
+        return Object.keys(this.context).filter(k => !SYSTEM_BUILTINS.has(k) && !k.startsWith('_'));
     }
 
     public async execute(code: string, resetContext: boolean = false) {
@@ -611,16 +622,100 @@ export class GEERuntime {
         }
     }
 
-    private assetRoots: Array<{ id: string; shortName: string; type: string }> = [];
+    private credentials?: any;
+    private assetRoots: Array<{ id: string; shortName: string; type: string; category?: 'CLOUD' | 'LEGACY' }> = [];
+    private discoveredCloudRoots: Array<{ id: string; shortName: string; type: string; category?: 'CLOUD' | 'LEGACY' }> = [];
+    private cloudDiscoveryDone = false;
+    private userConfiguredRoots: Array<{ id: string; shortName: string; type: string; category: 'CLOUD' | 'LEGACY' }> = [];
 
-    public async loadAssetRoots(userEmail?: string): Promise<Array<{ id: string; shortName: string; type: string }>> {
+    public setUserConfiguredRoots(roots: string[]) {
+        this.userConfiguredRoots = (roots || []).map(r => {
+            const clean = r.trim();
+            const isLegacy = clean.startsWith('users/') || clean === 'projects/PeruREDD' || clean === 'PeruREDD';
+            const id = clean.startsWith('users/') || clean.startsWith('projects/') ? clean : `projects/${clean}/assets`;
+            return {
+                id,
+                shortName: clean.replace(/^projects\//, '').replace(/\/assets$/, ''),
+                type: 'FOLDER',
+                category: isLegacy ? 'LEGACY' : 'CLOUD'
+            };
+        });
+    }
+
+    public addAssetRoot(input: string): boolean {
+        const clean = (input || '').trim();
+        if (!clean) return false;
+        const isLegacy = clean.startsWith('users/') || clean === 'projects/PeruREDD' || clean === 'PeruREDD';
+        const id = clean.startsWith('users/') || clean.startsWith('projects/') ? clean : `projects/${clean}/assets`;
+        const shortName = clean.replace(/^projects\//, '').replace(/\/assets$/, '');
+        if (this.assetRoots.some(r => r.id === id)) return false;
+        this.assetRoots.push({
+            id,
+            shortName,
+            type: 'FOLDER',
+            category: isLegacy ? 'LEGACY' : 'CLOUD'
+        });
+        return true;
+    }
+
+    public async loadAssetRoots(userEmail?: string): Promise<Array<{ id: string; shortName: string; type: string; category?: 'CLOUD' | 'LEGACY' }>> {
         const ee = getEE();
         return new Promise((resolve) => {
             try {
+                let resolved = false;
+                const globalTimer = setTimeout(() => {
+                    if (!resolved) {
+                        resolved = true;
+                        resolve(this.assetRoots || []);
+                    }
+                }, 10000);
+
                 ee.data.getAssetRoots(async (roots: any, err: any) => {
-                    const rootMap = new Map<string, { id: string; shortName: string; type: string }>();
+                    clearTimeout(globalTimer);
+                    const rootMap = new Map<string, { id: string; shortName: string; type: string; category: 'CLOUD' | 'LEGACY' }>();
                     const assetCompletions: string[] = [];
 
+                    // 1. Pre-register standard User Cloud Asset projects
+                    const standardCloud = [
+                        'ee-robles',
+                        'ee-10130092-defo-192021',
+                        'ee-10130092-defo-192021-rf',
+                        'ee-10130092-defo-192021sar',
+                        'ee-10130092-defo-192021sar2'
+                    ];
+                    for (const cp of standardCloud) {
+                        const rootId = `projects/${cp}/assets`;
+                        rootMap.set(rootId, {
+                            id: rootId,
+                            shortName: cp,
+                            type: 'FOLDER',
+                            category: 'CLOUD'
+                        });
+                        assetCompletions.push(rootId, cp);
+                    }
+
+                    // 2. Pre-register standard Legacy Asset roots
+                    const standardLegacy = [
+                        { id: 'users/robles', short: 'users/robles' },
+                        { id: 'projects/PeruREDD', short: 'projects/PeruREDD' }
+                    ];
+                    for (const lr of standardLegacy) {
+                        rootMap.set(lr.id, {
+                            id: lr.id,
+                            shortName: lr.short,
+                            type: 'FOLDER',
+                            category: 'LEGACY'
+                        });
+                        assetCompletions.push(lr.id, lr.short);
+                    }
+
+                    // 3. User configured roots from VS Code settings
+                    for (const u of this.userConfiguredRoots) {
+                        rootMap.set(u.id, u);
+                        assetCompletions.push(u.id, u.shortName);
+                    }
+
+                    // 4. Roots returned by Earth Engine client library
                     if (!err && Array.isArray(roots)) {
                         for (const r of roots) {
                             const id: string = r.id || r.name;
@@ -635,12 +730,14 @@ export class GEERuntime {
                                 const match = id.match(/^projects\/([^\/]+)(?:\/assets)?(?:\/.*)?$/);
                                 if (match) {
                                     const projName = match[1];
-                                    const rootId = `projects/${projName}/assets`;
+                                    const isLegacyProject = projName.toLowerCase() === 'peruredd' || id === 'projects/PeruREDD';
+                                    const rootId = isLegacyProject ? 'projects/PeruREDD' : `projects/${projName}/assets`;
                                     if (!rootMap.has(rootId)) {
                                         rootMap.set(rootId, {
                                             id: rootId,
-                                            shortName: projName,
-                                            type: 'FOLDER'
+                                            shortName: isLegacyProject ? 'projects/PeruREDD' : projName,
+                                            type: 'FOLDER',
+                                            category: isLegacyProject ? 'LEGACY' : 'CLOUD'
                                         });
                                     }
                                 }
@@ -652,8 +749,9 @@ export class GEERuntime {
                                     if (!rootMap.has(rootId)) {
                                         rootMap.set(rootId, {
                                             id: rootId,
-                                            shortName: username,
-                                            type: 'FOLDER'
+                                            shortName: `users/${username}`,
+                                            type: 'FOLDER',
+                                            category: 'LEGACY'
                                         });
                                     }
                                 }
@@ -662,14 +760,15 @@ export class GEERuntime {
                                     rootMap.set(id, {
                                         id,
                                         shortName: parts[parts.length - 1] || id,
-                                        type: r.type || 'FOLDER'
+                                        type: r.type || 'FOLDER',
+                                        category: 'CLOUD'
                                     });
                                 }
                             }
                         }
                     }
 
-                    // Always ensure active Cloud Project root is present
+                    // 5. Always ensure active Cloud Project root is present
                     const activeProj = this.getProjectId();
                     if (activeProj && activeProj !== 'gee-pro-default' && activeProj !== 'PeruREDD') {
                         const projRootId = `projects/${activeProj}/assets`;
@@ -677,38 +776,19 @@ export class GEERuntime {
                             rootMap.set(projRootId, {
                                 id: projRootId,
                                 shortName: activeProj,
-                                type: 'FOLDER'
+                                type: 'FOLDER',
+                                category: 'CLOUD'
                             });
                         }
                     }
 
-                    // Check for legacy roots (users/robles, projects/PeruREDD, or from email)
-                    const legacyCandidates = ['users/robles', 'projects/PeruREDD'];
-                    if (userEmail) {
-                        const clean = userEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9_-]/g, '');
-                        if (clean && !legacyCandidates.includes(`users/${clean}`)) {
-                            legacyCandidates.push(`users/${clean}`);
-                        }
-                    }
-
-                    for (const candidate of legacyCandidates) {
-                        if (!rootMap.has(candidate)) {
-                            try {
-                                const exists = await new Promise<boolean>((res) => {
-                                    ee.data.listAssets(candidate, {}, (_: any, listErr: any) => {
-                                        res(!listErr);
-                                    });
-                                });
-                                if (exists) {
-                                    const parts = candidate.split('/');
-                                    const shortName = parts[parts.length - 1];
-                                    rootMap.set(candidate, {
-                                        id: candidate,
-                                        shortName: shortName,
-                                        type: 'FOLDER'
-                                    });
-                                }
-                            } catch (e) {}
+                    // 6. Keep cloud projects discovered in background
+                    for (const r of this.discoveredCloudRoots) {
+                        if (!rootMap.has(r.id)) {
+                            rootMap.set(r.id, {
+                                ...r,
+                                category: r.category || 'CLOUD'
+                            });
                         }
                     }
 
@@ -716,7 +796,10 @@ export class GEERuntime {
                     if (this.consoleView && assetCompletions.length > 0) {
                         this.consoleView.addCompletions(assetCompletions);
                     }
-                    resolve(this.assetRoots);
+                    if (!resolved) {
+                        resolved = true;
+                        resolve(this.assetRoots);
+                    }
                 });
             } catch (e) {
                 resolve([]);
@@ -724,7 +807,7 @@ export class GEERuntime {
         });
     }
 
-    public getAssetRootsList(): Array<{ id: string; shortName: string; type: string }> {
+    public getAssetRootsList(): Array<{ id: string; shortName: string; type: string; category?: 'CLOUD' | 'LEGACY' }> {
         return this.assetRoots;
     }
 
@@ -1193,8 +1276,7 @@ export class GEERuntime {
                     this.consoleView.append('  (no active runtime context)');
                     break;
                 }
-                const builtins = new Set(['ee', 'Map', 'ui', 'Export', 'print', 'require', 'global', 'console', 'window', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Buffer', 'process', 'palettes']);
-                const userVars = Object.keys(this.context).filter(k => !builtins.has(k) && !k.startsWith('_'));
+                const userVars = Object.keys(this.context).filter(k => !SYSTEM_BUILTINS.has(k) && !k.startsWith('_'));
                 if (userVars.length === 0) {
                     this.consoleView.append('  (no user variables currently in memory)');
                 } else {
@@ -1638,38 +1720,185 @@ export class GEERuntime {
                     else this.consoleView.append(`✨ Collection created: ${touchPath}`);
                 });
                 break;
-            case 'du':
-            case 'quota':
-                const duTarget = args[0] ? this.resolvePath(args[0]) : ((!this.cwd || this.cwd === '~') ? '~' : this.cwd);
+            case 'du': {
+                const nonFlagArgs = args.filter(a => !a.startsWith('-'));
+                const duTarget = nonFlagArgs[0] ? this.resolvePath(nonFlagArgs[0]) : ((!this.cwd || this.cwd === '~') ? '~' : this.cwd);
+                const formatBytes = (bytes: number): string => {
+                    if (isNaN(bytes) || bytes === 0) return '0 B';
+                    const k = 1024;
+                    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+                    const i = Math.floor(Math.log(bytes) / Math.log(k));
+                    return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i];
+                };
+
                 if (duTarget === '~') {
+                    if (this.assetRoots.length === 0) await this.loadAssetRoots();
+                    this.consoleView.append(`📊 Uso de almacenamiento en raíces de assets (${this.assetRoots.length}):`);
+                    for (const r of this.assetRoots) {
+                        const q = await this.getAssetQuota(r.id);
+                        if (q) {
+                            const usedStr = formatBytes(q.usageBytes || 0);
+                            const limStr = q.limitBytes > 0 ? formatBytes(q.limitBytes) : 'Ilimitado';
+                            const pct = q.limitBytes > 0 ? ` (${((q.usageBytes / q.limitBytes) * 100).toFixed(1)}%)` : '';
+                            this.consoleView.append(`  🔹 [${r.shortName}]: ${usedStr} / ${limStr}${pct} (${q.countUsage || 0} assets)`);
+                        }
+                    }
+                    break;
+                }
+
+                // Check if target is a known root folder
+                const isRoot = this.assetRoots.some(r => r.id === duTarget) || duTarget.endsWith('/assets');
+                if (isRoot) {
+                    const q = await this.getAssetQuota(duTarget);
+                    if (q) {
+                        const usedStr = formatBytes(q.usageBytes || 0);
+                        const limStr = q.limitBytes > 0 ? formatBytes(q.limitBytes) : 'Ilimitado';
+                        const pct = q.limitBytes > 0 ? ` (${((q.usageBytes / q.limitBytes) * 100).toFixed(1)}%)` : '';
+                        this.consoleView.append(`📊 [ROOT] ${duTarget}`);
+                        this.consoleView.append(`   Uso: ${usedStr} / ${limStr}${pct}`);
+                        this.consoleView.append(`   Assets: ${q.countUsage || 0}${q.countLimit ? ` / ${q.countLimit}` : ''}`);
+                    } else {
+                        this.consoleView.append(`⚠️ No se pudo obtener la cuota de '${duTarget}'`);
+                    }
+                    break;
+                }
+
+                // Query individual asset or folder info
+                ee.data.getAsset(duTarget, async (assetInfo: any, err: any) => {
+                    if (err) {
+                        const q = await this.getAssetQuota(duTarget);
+                        if (q) {
+                            const usedStr = formatBytes(q.usageBytes || 0);
+                            const limStr = q.limitBytes > 0 ? formatBytes(q.limitBytes) : 'Ilimitado';
+                            this.consoleView.append(`📊 [ROOT] ${duTarget}: ${usedStr} / ${limStr} (${q.countUsage || 0} assets)`);
+                        } else {
+                            this.consoleView.append(`[Error] ${err.message || err}`);
+                        }
+                        return;
+                    }
+
+                    if (assetInfo) {
+                        const type = (assetInfo.type || 'ASSET').toUpperCase();
+                        const shortName = duTarget.split('/').pop() || duTarget;
+
+                        if (type === 'FOLDER' || type === 'IMAGE_COLLECTION') {
+                            this.consoleView.append(`⏳ Calculando tamaño acumulado en ${type} '${shortName}'...`);
+                            try {
+                                const children = await this.listAllAssets(duTarget);
+                                let totalBytes = 0;
+                                for (const c of children) {
+                                    const cBytes = Number(
+                                        (c.properties && c.properties['system:asset_size']) ||
+                                        c.sizeBytes ||
+                                        (c.properties && c.properties.asset_size) ||
+                                        0
+                                    );
+                                    totalBytes += cBytes;
+                                }
+                                this.consoleView.append(`📁 [${type}] ${shortName}: ${formatBytes(totalBytes)} (${children.length} assets)`);
+                                this.consoleView.append(`   ID: ${duTarget}`);
+                            } catch (e: any) {
+                                this.consoleView.append(`📁 [${type}] ${shortName} (${type})`);
+                            }
+                        } else {
+                            let bytes = Number(
+                                (assetInfo.properties && assetInfo.properties['system:asset_size']) ||
+                                assetInfo.sizeBytes ||
+                                (assetInfo.properties && assetInfo.properties.asset_size) ||
+                                (assetInfo.properties && assetInfo.properties['size_bytes']) ||
+                                0
+                            );
+
+                            if (bytes === 0 && duTarget) {
+                                try {
+                                    let restUrl = '';
+                                    if (duTarget.startsWith('projects/')) {
+                                        const m = duTarget.match(/^projects\/([^\/]+)(?:\/assets)?\/(.+)$/);
+                                        if (m) {
+                                            restUrl = `https://earthengine.googleapis.com/v1/projects/${encodeURIComponent(m[1])}/assets/${encodeURI(m[2])}`;
+                                        } else {
+                                            restUrl = `https://earthengine.googleapis.com/v1/${encodeURI(duTarget)}`;
+                                        }
+                                    } else if (duTarget.startsWith('users/')) {
+                                        restUrl = `https://earthengine.googleapis.com/v1/projects/earthengine-legacy/assets/${encodeURI(duTarget)}`;
+                                    }
+                                    if (restUrl) {
+                                        const res = await this.fetchWithTimeout(restUrl, 10000);
+                                        if (res && res.ok) {
+                                            const data = await res.json();
+                                            if (data && data.sizeBytes != null) {
+                                                bytes = Number(data.sizeBytes);
+                                            }
+                                        }
+                                    }
+                                } catch (e) {}
+                            }
+
+                            const bandsCount = assetInfo.bands ? ` | ${assetInfo.bands.length} banda(s)` : '';
+                            const dimStr = (assetInfo.bands && assetInfo.bands[0] && assetInfo.bands[0].dimensions) ? ` [${assetInfo.bands[0].dimensions.join('x')} px]` : '';
+                            this.consoleView.append(`📦 [${type}] ${shortName}: ${formatBytes(bytes)} (${bytes.toLocaleString()} bytes)${bandsCount}${dimStr}`);
+                            this.consoleView.append(`   ID: ${duTarget}`);
+                        }
+                    }
+                });
+                break;
+            }
+            case 'quota': {
+                const nonFlagArgs = args.filter(a => !a.startsWith('-'));
+                const inputTarget = nonFlagArgs[0] ? this.resolvePath(nonFlagArgs[0]) : ((!this.cwd || this.cwd === '~') ? '~' : this.cwd);
+                const formatBytes = (bytes: number): string => {
+                    if (isNaN(bytes) || bytes === 0) return '0 B';
+                    const k = 1024;
+                    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+                    const i = Math.floor(Math.log(bytes) / Math.log(k));
+                    return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i];
+                };
+
+                if (inputTarget === '~') {
                     if (this.assetRoots.length === 0) await this.loadAssetRoots();
                     this.consoleView.append(`📊 Cuota de almacenamiento en raíces de assets (${this.assetRoots.length}):`);
                     for (const r of this.assetRoots) {
-                        ee.data.getAssetRootQuota(r.id, (q: any, err: any) => {
-                            if (!err && q) {
-                                const usedMb = ((q.asset_size && q.asset_size.usage) || 0) / (1024 * 1024);
-                                const maxMb = ((q.asset_size && q.asset_size.limit) || 0) / (1024 * 1024);
-                                const count = (q.asset_count && q.asset_count.usage) || 0;
-                                const maxCount = (q.asset_count && q.asset_count.limit) || 0;
-                                const maxStr = maxMb > 0 ? `${maxMb.toFixed(0)} MB` : 'Ilimitado';
-                                this.consoleView.append(`  🔹 [${r.shortName}]: ${usedMb.toFixed(2)} MB / ${maxStr} (${count} assets)`);
-                            }
-                        });
+                        const q = await this.getAssetQuota(r.id);
+                        if (q) {
+                            const usedStr = formatBytes(q.usageBytes || 0);
+                            const limStr = q.limitBytes > 0 ? formatBytes(q.limitBytes) : 'Ilimitado';
+                            const pct = q.limitBytes > 0 ? ` (${((q.usageBytes / q.limitBytes) * 100).toFixed(1)}%)` : '';
+                            this.consoleView.append(`  🔹 [${r.shortName}]: ${usedStr} / ${limStr}${pct} (${q.countUsage || 0} assets)`);
+                        }
+                    }
+                    break;
+                }
+
+                // If inputTarget is an asset inside a root, find its containing root
+                let rootId = inputTarget;
+                const matchedRoot = this.assetRoots.find(r => inputTarget.startsWith(r.id));
+                if (matchedRoot) {
+                    rootId = matchedRoot.id;
+                } else if (inputTarget.startsWith('projects/')) {
+                    const m = inputTarget.match(/^projects\/([^\/]+)(?:\/assets)?/);
+                    if (m) rootId = `projects/${m[1]}/assets`;
+                } else if (inputTarget.startsWith('users/')) {
+                    const m = inputTarget.match(/^users\/([^\/]+)/);
+                    if (m) rootId = `users/${m[1]}`;
+                }
+
+                const q = await this.getAssetQuota(rootId);
+                if (q) {
+                    const usedStr = formatBytes(q.usageBytes || 0);
+                    const limStr = q.limitBytes > 0 ? formatBytes(q.limitBytes) : 'Ilimitado';
+                    const pct = q.limitBytes > 0 ? ` (${((q.usageBytes / q.limitBytes) * 100).toFixed(1)}%)` : '';
+                    const shortProj = rootId.split('/').filter(x => x && x !== 'projects' && x !== 'assets').pop() || rootId;
+                    this.consoleView.append(`📊 Cuota de almacenamiento [${shortProj}]:`);
+                    this.consoleView.append(`   Uso: ${usedStr} / ${limStr}${pct}`);
+                    this.consoleView.append(`   Assets totales: ${q.countUsage || 0}${q.countLimit ? ` / ${q.countLimit}` : ''}`);
+                    if (inputTarget !== rootId) {
+                        this.consoleView.append(`💡 Tip: Para ver el peso del asset '${inputTarget.split('/').pop()}', usa: du ${inputTarget.split('/').pop()}`);
                     }
                 } else {
-                    ee.data.getAssetRootQuota(duTarget, (q: any, err: any) => {
-                        if (err) {
-                            this.consoleView.append(`[Error]: ${err}`);
-                        } else if (q) {
-                            const usedMb = ((q.asset_size && q.asset_size.usage) || 0) / (1024 * 1024);
-                            const maxMb = ((q.asset_size && q.asset_size.limit) || 0) / (1024 * 1024);
-                            const count = (q.asset_count && q.asset_count.usage) || 0;
-                            const maxStr = maxMb > 0 ? `${maxMb.toFixed(0)} MB` : 'Ilimitado';
-                            this.consoleView.append(`📊 Cuota [${duTarget}]: ${usedMb.toFixed(2)} MB / ${maxStr} (${count} assets)`);
-                        }
-                    });
+                    this.consoleView.append(`⚠️ No se pudo obtener la cuota de '${rootId}'`);
                 }
                 break;
+            }
             case 'clear':
             case 'cls':
                 this.consoleView.clear();
@@ -1887,6 +2116,227 @@ export class GEERuntime {
         this.mapView.showInspectorPopup(lat, lon, resultsHtml);
     }
 
+    private quotaCache: Map<string, { quota: any; ts: number }> = new Map();
+
+    public clearQuotaCache() {
+        this.quotaCache.clear();
+    }
+
+    /** Returns cached quota (no network). Used to render the tree instantly. */
+    public getCachedQuota(rootId: string): any {
+        const c = this.quotaCache.get(rootId);
+        return c ? c.quota : null;
+    }
+
+    /** Freshest bearer token: EE library token (auto-refreshed) first, stored credentials as fallback. */
+    private getBearerToken(): string | undefined {
+        try {
+            const ee = getEE();
+            const raw = ee && ee.data && typeof ee.data.getAuthToken === 'function' ? ee.data.getAuthToken() : null;
+            if (raw && typeof raw === 'string') {
+                return raw.replace(/^Bearer\s+/i, '');
+            }
+        } catch (e) {}
+        return (this.credentials && this.credentials.access_token) || undefined;
+    }
+
+    private async fetchWithTimeout(url: string, ms: number): Promise<any> {
+        const token = this.getBearerToken();
+        if (!token) return null;
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), ms);
+        try {
+            return await fetch(url, { headers: { 'Authorization': `Bearer ${token}` }, signal: ctrl.signal as any });
+        } finally {
+            clearTimeout(t);
+        }
+    }
+
+    /**
+     * Background discovery of Cloud Asset roots (like the "CLOUD ASSETS" section of the Code Editor).
+     * Lists GCP projects and keeps the ones whose EE asset root answers. Runs once per session.
+     * Returns true if new roots were added.
+     */
+    public async discoverCloudProjectRoots(): Promise<boolean> {
+        if (!this.isInitialized || this.cloudDiscoveryDone) return false;
+        const token = this.getBearerToken();
+        if (!token) return false;
+        try {
+            const { getAvailableCloudProjects } = require('./auth');
+            const projects: Array<{ projectId: string }> = await getAvailableCloudProjects(token);
+            if (!Array.isArray(projects) || projects.length === 0) return false;
+            this.cloudDiscoveryDone = true;
+
+            const known = new Set(this.assetRoots.map(r => r.id));
+            const candidates = projects.map(p => p.projectId).filter(Boolean).slice(0, 50);
+            const found: Array<{ id: string; shortName: string; type: string }> = [];
+
+            await Promise.all(candidates.map(async (proj) => {
+                const id = `projects/${proj}/assets`;
+                if (known.has(id)) return;
+                try {
+                    const res = await this.fetchWithTimeout(`https://earthengine.googleapis.com/v1/projects/${encodeURIComponent(proj)}/assets`, 20000);
+                    if (res && res.ok) {
+                        const data: any = await res.json();
+                        found.push({ id, shortName: proj, type: 'FOLDER' });
+                        if (data && data.quota) {
+                            this.quotaCache.set(id, {
+                                quota: {
+                                    usageBytes: parseInt(data.quota.sizeBytes || '0', 10),
+                                    limitBytes: parseInt(data.quota.maxSizeBytes || '0', 10),
+                                    countUsage: parseInt(data.quota.assetCount || '0', 10),
+                                    countLimit: parseInt(data.quota.maxAssets || '0', 10)
+                                },
+                                ts: Date.now()
+                            });
+                        }
+                    }
+                } catch (e) {}
+            }));
+
+            if (found.length === 0) return false;
+            this.discoveredCloudRoots = found;
+            const ids = new Set(this.assetRoots.map(r => r.id));
+            for (const r of found) {
+                if (!ids.has(r.id)) this.assetRoots.push(r);
+            }
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    public async getAssetQuota(rootId: string, forceRefresh: boolean = false): Promise<any> {
+        if (!this.isInitialized) return null;
+
+        if (!forceRefresh) {
+            const cached = this.quotaCache.get(rootId);
+            if (cached && (Date.now() - cached.ts < 180000)) {
+                return cached.quota;
+            }
+        }
+
+        const ee = getEE();
+        const promises: Promise<any>[] = [];
+
+        // Determine bearer token for Cloud REST API v1 (live EE token first)
+        const token = this.getBearerToken();
+
+        // Path A: Direct Cloud REST API v1 (Universal for both GCP projects and legacy assets)
+        if (token) {
+            const restUrls: string[] = [];
+            if (rootId.startsWith('users/')) {
+                restUrls.push(`https://earthengine.googleapis.com/v1/projects/earthengine-legacy/assets/${encodeURI(rootId)}`);
+            } else if (rootId.startsWith('projects/')) {
+                const cleanProj = rootId.replace(/^projects\//, '').replace(/\/assets$/, '');
+                restUrls.push(`https://earthengine.googleapis.com/v1/projects/${encodeURIComponent(cleanProj)}/assets`);
+                restUrls.push(`https://earthengine.googleapis.com/v1/projects/earthengine-legacy/assets/projects/${encodeURIComponent(cleanProj)}`);
+            }
+
+            for (const url of restUrls) {
+                promises.push(
+                    new Promise<any>(async (resolve) => {
+                        try {
+                            const res = await this.fetchWithTimeout(url, 20000);
+                            if (res && res.ok) {
+                                const data: any = await res.json();
+                                if (data && data.quota) {
+                                    return resolve({
+                                        usageBytes: parseInt(data.quota.sizeBytes || '0', 10),
+                                        limitBytes: parseInt(data.quota.maxSizeBytes || '0', 10),
+                                        countUsage: parseInt(data.quota.assetCount || '0', 10),
+                                        countLimit: parseInt(data.quota.maxAssets || '0', 10)
+                                    });
+                                }
+                            }
+                        } catch {}
+                        resolve(null);
+                    })
+                );
+            }
+        }
+
+        // Path B: Legacy SDK ee.data.getAssetRootQuota (for legacy roots like projects/PeruREDD and users/robles)
+        const legacyCandidates = [
+            rootId,
+            rootId.replace(/\/assets$/, ''),
+            rootId.endsWith('/assets') ? rootId : `${rootId}/assets`,
+            rootId.replace(/^projects\//, '').replace(/\/assets$/, '')
+        ];
+        const uniqueLegacy = Array.from(new Set(legacyCandidates.filter(Boolean)));
+
+        for (const candidate of uniqueLegacy) {
+            promises.push(
+                new Promise<any>((resolve) => {
+                    try {
+                        ee.data.getAssetRootQuota(candidate, (q: any, err: any) => {
+                            if (!err && q && q.asset_size) {
+                                resolve({
+                                    usageBytes: (q.asset_size && q.asset_size.usage) || 0,
+                                    limitBytes: (q.asset_size && q.asset_size.limit) || 0,
+                                    countUsage: (q.asset_count && q.asset_count.usage) || 0,
+                                    countLimit: (q.asset_count && q.asset_count.limit) || 0
+                                });
+                            } else {
+                                resolve(null);
+                            }
+                        });
+                    } catch {
+                        resolve(null);
+                    }
+                })
+            );
+        }
+
+        // Parallel resolution: whichever valid quota returns first wins
+        const result = await new Promise<any>((resolve) => {
+            let settledCount = 0;
+            let resolved = false;
+            const timer = setTimeout(() => {
+                if (!resolved) {
+                    resolved = true;
+                    resolve(null);
+                }
+            }, 25000);
+
+            if (promises.length === 0) {
+                clearTimeout(timer);
+                return resolve(null);
+            }
+
+            for (const p of promises) {
+                p.then((res) => {
+                    if (resolved) return;
+                    if (res && res.limitBytes !== undefined) {
+                        resolved = true;
+                        clearTimeout(timer);
+                        resolve(res);
+                    } else {
+                        settledCount++;
+                        if (settledCount >= promises.length) {
+                            resolved = true;
+                            clearTimeout(timer);
+                            resolve(null);
+                        }
+                    }
+                }).catch(() => {
+                    if (resolved) return;
+                    settledCount++;
+                    if (settledCount >= promises.length) {
+                        resolved = true;
+                        clearTimeout(timer);
+                        resolve(null);
+                    }
+                });
+            }
+        });
+
+        if (result) {
+            this.quotaCache.set(rootId, { quota: result, ts: Date.now() });
+        }
+        return result;
+    }
+
     public async getAssetsApi(parentFolder: string = '~'): Promise<any[]> {
         return new Promise(async (resolve, reject) => {
             if (!this.isInitialized) {
@@ -1897,12 +2347,15 @@ export class GEERuntime {
                     if (this.assetRoots.length === 0) {
                         await this.loadAssetRoots();
                     }
-                    resolve(this.assetRoots.map(r => ({
+                    const rootsWithQuota = this.assetRoots.map(r => ({
                         type: 'FOLDER_ROOT',
                         id: r.id,
                         name: (r as any).shortName || r.id.split('/').pop(),
-                        isRoot: true
-                    })));
+                        category: (r as any).category || (r.id.startsWith('users/') || r.id === 'projects/PeruREDD' ? 'LEGACY' : 'CLOUD'),
+                        isRoot: true,
+                        quota: this.getCachedQuota(r.id)
+                    }));
+                    resolve(rootsWithQuota);
                 } else {
                     try {
                         const ee = getEE();

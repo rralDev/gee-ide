@@ -158,6 +158,7 @@ export class AIView {
                         border: 1px solid transparent;
                     }
                     .tree-item:hover { background-color: var(--vscode-list-hoverBackground, rgba(90, 93, 94, 0.31)); }
+                    .tree-item.selected { background-color: var(--vscode-list-activeSelectionBackground, rgba(0, 120, 215, 0.35)); outline: 1px solid var(--vscode-focusBorder, #007acc); }
                     .tree-title { display: flex; align-items: center; gap: 6px; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
                     .tree-icon { font-size: 14px; width: 16px; text-align: center; }
                     .tree-meta { display: flex; align-items: center; gap: 8px; }
@@ -189,8 +190,9 @@ export class AIView {
                     <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
                         <span style="font-size: 14px; font-weight: bold;">Assets Manager</span>
                         <div style="display: flex; gap: 6px;">
+                            <button onclick="vscode.postMessage({command: 'addProject'})" style="background: var(--vscode-button-secondaryBackground, #333); color: var(--vscode-button-secondaryForeground, #fff); border: 1px solid var(--vscode-contrastBorder, #555); padding: 4px 8px; font-size: 11px; border-radius: 3px; cursor: pointer;" title="Agregar Cloud Project o Legacy Asset">➕ Add Project</button>
                             <button onclick="vscode.postMessage({command: 'createFolder'})" style="background: var(--vscode-button-secondaryBackground, #333); color: var(--vscode-button-secondaryForeground, #fff); border: 1px solid var(--vscode-contrastBorder, #555); padding: 4px 8px; font-size: 11px; border-radius: 3px; cursor: pointer;" title="Nueva Carpeta">📁+</button>
-                            <button onclick="refreshAssets()" style="background: var(--vscode-button-secondaryBackground, #333); color: var(--vscode-button-secondaryForeground, #fff); border: 1px solid var(--vscode-contrastBorder, #555); padding: 4px 8px; font-size: 11px; border-radius: 3px; cursor: pointer;">🔄 Refresh</button>
+                            <button onclick="refreshAssets()" style="background: var(--vscode-button-secondaryBackground, #333); color: var(--vscode-button-secondaryForeground, #fff); border: 1px solid var(--vscode-contrastBorder, #555); padding: 4px 8px; font-size: 11px; border-radius: 3px; cursor: pointer;" title="Refrescar">🔄 Refresh</button>
                         </div>
                     </div>
                     <div class="task-list" id="assets-list">
@@ -228,6 +230,11 @@ export class AIView {
                         document.getElementById(id).classList.add('active');
                         if (id === 'tasks') {
                             refreshTasks();
+                        } else if (id === 'assets') {
+                            const list = document.getElementById('assets-list');
+                            if (!list || !list.children.length || list.innerText.includes('Click Refresh')) {
+                                refreshAssets();
+                            }
                         }
                     }
 
@@ -335,7 +342,7 @@ export class AIView {
                     function refreshAssets() {
                         const list = document.getElementById("assets-list");
                         list.innerHTML = '<div style="color: var(--vscode-descriptionForeground); font-size: 12px; font-style: italic; padding: 4px 10px;">Loading assets...</div>';
-                        vscode.postMessage({ command: "getAssets", parent: "~" });
+                        vscode.postMessage({ command: "getAssets", parent: "~", refresh: true });
                     }
 
                     function deleteAsset(id) {
@@ -346,6 +353,114 @@ export class AIView {
                         if (detailsEl.open && !detailsEl.dataset.loaded) {
                             detailsEl.dataset.loaded = "true";
                             vscode.postMessage({ command: "getAssets", parent: path });
+                        }
+                    }
+
+                    let selectedAssetData = null;
+                    function selectAsset(el, id, isFolder, safeId) {
+                        document.querySelectorAll('.tree-item.selected').forEach(x => x.classList.remove('selected'));
+                        if (el) el.classList.add('selected');
+                        selectedAssetData = { id: id, isFolder: isFolder, safeId: safeId };
+                    }
+
+                    function buildQuotaHtml(q) {
+                        if (!q) return '';
+                        const useMb = (q.usageBytes || 0) / (1024 * 1024);
+                        const limMb = (q.limitBytes || 0) / (1024 * 1024);
+                        const useStr = useMb >= 1024 ? (useMb / 1024).toFixed(2) + ' GB' : useMb.toFixed(1) + ' MB';
+                        const limStr = limMb >= 1024 ? (limMb / 1024).toFixed(0) + ' GB' : (limMb > 0 ? limMb.toFixed(0) + ' MB' : 'Ilimitado');
+                        const pct = limMb > 0 ? Math.min(100, Math.round((useMb / limMb) * 1000) / 10) : 0;
+                        let barColor = 'var(--vscode-charts-green, #4ec9b0)';
+                        if (pct >= 90) barColor = 'var(--vscode-charts-red, #f14c4c)';
+                        else if (pct >= 70) barColor = 'var(--vscode-charts-yellow, #cca700)';
+
+                        const countStr = (q.countUsage != null) ? q.countUsage + ' assets' : '';
+                        const pctStr = limMb > 0 ? ' (' + pct + '%)' : '';
+
+                        return '<div class="quota-inline-card" style="margin: 0 8px; min-width: 140px; max-width: 380px; flex: 1; flex-shrink: 0; padding: 2px 8px; background: var(--vscode-editorWidget-background, rgba(255,255,255,0.04)); border: 1px solid var(--vscode-widget-border, rgba(255,255,255,0.08)); border-radius: 4px;">' +
+                            '<div style="display: flex; justify-content: space-between; align-items: center; font-size: 10px; margin-bottom: 2px;">' +
+                                '<span style="color: var(--vscode-foreground); font-weight: 500; white-space: nowrap;">💾 Cuota: <strong>' + useStr + '</strong> / ' + limStr + pctStr + '</span>' +
+                                '<span style="color: var(--vscode-descriptionForeground); font-size: 9.5px; white-space: nowrap; margin-left: 6px;">' + countStr + '</span>' +
+                            '</div>' +
+                            '<div style="width: 100%; height: 3px; background: var(--vscode-progressBar-background, rgba(255,255,255,0.1)); border-radius: 2px; overflow: hidden;">' +
+                                '<div style="width: ' + (limMb > 0 ? Math.max(2, pct) : 2) + '%; height: 100%; background: ' + barColor + '; border-radius: 2px;"></div>' +
+                            '</div>' +
+                        '</div>';
+                    }
+
+                    window.addEventListener('keydown', (e) => {
+                        const assetsTab = document.getElementById('assets');
+                        if (!assetsTab || !assetsTab.classList.contains('active')) return;
+                        if (!selectedAssetData) return;
+
+                        if (e.key === 'Enter') {
+                            if (selectedAssetData.isFolder) {
+                                const detailsEl = document.getElementById('details-' + selectedAssetData.safeId);
+                                if (detailsEl) {
+                                    detailsEl.open = !detailsEl.open;
+                                }
+                            } else {
+                                e.preventDefault();
+                                insertText(selectedAssetData.id);
+                            }
+                        } else if ((e.metaKey || e.ctrlKey) && (e.key === 'c' || e.key === 'C')) {
+                            if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+                            e.preventDefault();
+                            copyText(selectedAssetData.id);
+                        }
+                    });
+
+                    function renderAssetCard(a) {
+                        const isFolder = (a.type === 'FOLDER' || a.type === 'FOLDER_ROOT' || a.type === 'IMAGE_COLLECTION' || a.isRoot);
+                        let icon = '📄';
+                        if (isFolder) icon = '📁';
+                        else if (a.type === 'IMAGE') icon = '🖼️';
+                        else if (a.type === 'TABLE') icon = '📊';
+
+                        let typeColor = 'var(--vscode-descriptionForeground)';
+                        if (a.type === 'IMAGE') typeColor = 'var(--vscode-charts-green)';
+                        else if (a.type === 'TABLE') typeColor = 'var(--vscode-charts-yellow)';
+
+                        const assetId = String(a.id || a.name || '');
+                        const assetName = String(a.name || a.id || '').split('/').pop() || assetId || 'unnamed';
+                        const safeId = (assetId || 'item-' + Math.random().toString(36).substring(2, 6)).replace(/[^a-zA-Z0-9_-]/g, '-');
+
+                        const deleteBtn = (!a.isRoot) ? '<button class="task-action-btn cancel-btn" title="Eliminar Asset" onclick="event.preventDefault(); event.stopPropagation(); deleteAsset(&apos;' + assetId + '&apos;)">❌</button>' : '';
+                        const copyBtn = '<button class="task-action-btn" title="Copiar ID" onclick="event.preventDefault(); event.stopPropagation(); copyText(&apos;' + assetId + '&apos;)">📋</button>';
+                        const insertBtn = (!isFolder) ? '<button class="task-action-btn" title="Insertar en Editor" onclick="event.preventDefault(); event.stopPropagation(); insertText(&apos;' + assetId + '&apos;)">➕</button>' : '';
+
+                        let quotaHtml = '';
+                        if (a.isRoot && a.quota) {
+                            quotaHtml = buildQuotaHtml(a.quota);
+                        }
+
+                        const quotaSlot = (a.isRoot) ? '<div class="quota-slot" id="quota-' + safeId + '">' + quotaHtml + '</div>' : '';
+
+                        const cardContent = 
+                            '<div class="tree-title"' + (a.isRoot && quotaHtml ? ' style="flex: 0 1 auto; max-width: 220px; min-width: 60px;"' : '') + '>' +
+                                '<span class="folder-chevron">' + (isFolder ? '▶' : '') + '</span>' +
+                                '<span class="tree-icon">' + icon + '</span>' +
+                                '<span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + assetId + '">' + assetName + '</span>' +
+                            '</div>' +
+                            quotaSlot +
+                            '<div class="tree-meta" style="flex-shrink: 0;">' +
+                                '<span class="tree-type" style="color: ' + typeColor + '">' + (a.type || 'Unknown') + '</span>' +
+                                insertBtn + copyBtn + deleteBtn +
+                            '</div>';
+
+                        if (isFolder) {
+                            return '<details class="asset-details" id="details-' + safeId + '" ontoggle="onFolderToggle(this, &apos;' + assetId + '&apos;)">' +
+                                '<summary class="tree-item" tabindex="0" onclick="selectAsset(this, &apos;' + assetId + '&apos;, true, &apos;' + safeId + '&apos;)">' +
+                                    cardContent +
+                                '</summary>' +
+                                '<div class="folder-content" id="content-' + safeId + '" style="padding-left: 14px; border-left: 1px solid var(--vscode-tree-indentGuidesStroke, #444); margin-left: 6px;">' +
+                                    '<div style="color: var(--vscode-descriptionForeground); font-size: 11px; font-style: italic; padding: 2px 10px;">Loading...</div>' +
+                                '</div>' +
+                            '</details>';
+                        } else {
+                            return '<div class="tree-item" id="item-' + safeId + '" tabindex="0" onclick="selectAsset(this, &apos;' + assetId + '&apos;, false, &apos;' + safeId + '&apos;)">' +
+                                cardContent +
+                            '</div>';
                         }
                     }
 
@@ -371,63 +486,43 @@ export class AIView {
                             return;
                         }
 
-                        let html = '';
                         try {
-                            assets.sort((a, b) => {
-                                const aIsFolder = (a.type === 'FOLDER' || a.type === 'FOLDER_ROOT' || a.type === 'IMAGE_COLLECTION');
-                                const bIsFolder = (b.type === 'FOLDER' || b.type === 'FOLDER_ROOT' || b.type === 'IMAGE_COLLECTION');
-                                if (aIsFolder && !bIsFolder) return -1;
-                                if (!aIsFolder && bIsFolder) return 1;
-                                const nameA = String(a.name || a.id || '');
-                                const nameB = String(b.name || b.id || '');
-                                return nameA.localeCompare(nameB);
-                            }).forEach(a => {
-                                let icon = '📄';
-                                const isFolder = (a.type === 'FOLDER' || a.type === 'FOLDER_ROOT' || a.type === 'IMAGE_COLLECTION' || a.isRoot);
-                                if (isFolder) icon = '📁';
-                                else if (a.type === 'IMAGE') icon = '🖼️';
-                                else if (a.type === 'TABLE') icon = '📊';
+                            if (isRoot) {
+                                const cloudAssets = assets.filter(a => a.category !== 'LEGACY');
+                                const legacyAssets = assets.filter(a => a.category === 'LEGACY');
 
-                                let typeColor = 'var(--vscode-descriptionForeground)';
-                                if (a.type === 'IMAGE') typeColor = 'var(--vscode-charts-green)';
-                                else if (a.type === 'TABLE') typeColor = 'var(--vscode-charts-yellow)';
+                                const sortFn = (a, b) => {
+                                    const nameA = String(a.name || a.id || '');
+                                    const nameB = String(b.name || b.id || '');
+                                    return nameA.localeCompare(nameB);
+                                };
+                                cloudAssets.sort(sortFn);
+                                legacyAssets.sort(sortFn);
 
-                                const assetId = String(a.id || a.name || '');
-                                const assetName = String(a.name || a.id || '').split('/').pop() || assetId || 'unnamed';
-                                const safeId = (assetId || 'item-' + Math.random().toString(36).substring(2, 6)).replace(/[^a-zA-Z0-9_-]/g, '-');
-                                
-                                const deleteBtn = (!a.isRoot) ? '<button class="task-action-btn cancel-btn" title="Eliminar Asset" onclick="event.preventDefault(); event.stopPropagation(); deleteAsset(&apos;' + assetId + '&apos;)">❌</button>' : '';
-                                const copyBtn = '<button class="task-action-btn" title="Copiar ID" onclick="event.preventDefault(); event.stopPropagation(); copyText(&apos;' + assetId + '&apos;)">📋</button>';
-                                const insertBtn = (!isFolder) ? '<button class="task-action-btn" title="Insertar en Editor" onclick="event.preventDefault(); event.stopPropagation(); insertText(&apos;' + assetId + '&apos;)">➕</button>' : '';
-                                
-                                const cardContent = 
-                                    '<div class="tree-title">' +
-                                        '<span class="folder-chevron">' + (isFolder ? '▶' : '') + '</span>' +
-                                        '<span class="tree-icon">' + icon + '</span>' +
-                                        '<span title="' + assetId + '">' + assetName + '</span>' +
-                                    '</div>' +
-                                    '<div class="tree-meta">' +
-                                        '<span class="tree-type" style="color: ' + typeColor + '">' + (a.type || 'Unknown') + '</span>' +
-                                        insertBtn + copyBtn + deleteBtn +
-                                    '</div>';
-
-                                if (isFolder) {
-                                    html += '<details class="asset-details" id="details-' + safeId + '" ontoggle="onFolderToggle(this, &apos;' + assetId + '&apos;)">' +
-                                        '<summary class="tree-item">' +
-                                            cardContent +
-                                        '</summary>' +
-                                        '<div class="folder-content" id="content-' + safeId + '" style="padding-left: 14px; border-left: 1px solid var(--vscode-tree-indentGuidesStroke, #444); margin-left: 6px;">' +
-                                            '<div style="color: var(--vscode-descriptionForeground); font-size: 11px; font-style: italic; padding: 2px 10px;">Loading...</div>' +
-                                        '</div>' +
-                                    '</details>';
-                                } else {
-                                    html += '<div class="tree-item">' +
-                                        cardContent +
-                                    '</div>';
+                                let html = '';
+                                if (cloudAssets.length > 0) {
+                                    html += '<div style="font-size: 11px; font-weight: 700; color: var(--vscode-descriptionForeground); text-transform: uppercase; letter-spacing: 0.5px; padding: 6px 4px 4px 4px; display: flex; align-items: center; gap: 5px;">☁️ CLOUD ASSETS</div>';
+                                    cloudAssets.forEach(a => { html += renderAssetCard(a); });
                                 }
-                            });
-
-                            container.innerHTML = html;
+                                if (legacyAssets.length > 0) {
+                                    html += '<div style="font-size: 11px; font-weight: 700; color: var(--vscode-descriptionForeground); text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 4px 4px 4px; border-top: 1px solid var(--vscode-widget-border, rgba(255,255,255,0.06)); margin-top: 6px; display: flex; align-items: center; gap: 5px;">📁 LEGACY ASSETS</div>';
+                                    legacyAssets.forEach(a => { html += renderAssetCard(a); });
+                                }
+                                container.innerHTML = html;
+                            } else {
+                                assets.sort((a, b) => {
+                                    const aIsFolder = (a.type === 'FOLDER' || a.type === 'FOLDER_ROOT' || a.type === 'IMAGE_COLLECTION');
+                                    const bIsFolder = (b.type === 'FOLDER' || b.type === 'FOLDER_ROOT' || b.type === 'IMAGE_COLLECTION');
+                                    if (aIsFolder && !bIsFolder) return -1;
+                                    if (!aIsFolder && bIsFolder) return 1;
+                                    const nameA = String(a.name || a.id || '');
+                                    const nameB = String(b.name || b.id || '');
+                                    return nameA.localeCompare(nameB);
+                                });
+                                let html = '';
+                                assets.forEach(a => { html += renderAssetCard(a); });
+                                container.innerHTML = html;
+                            }
                         } catch (err) {
                             container.innerHTML = '<div style="color: red; font-size: 11px; padding: 10px; word-break: break-all;">RENDER ERROR: ' + err.message + '<br/>' + err.stack + '</div>';
                         }
@@ -498,6 +593,21 @@ export class AIView {
                             renderTasks(message.tasks || message);
                         } else if (message.command === 'assetsData') {
                             renderAssets(message);
+                        } else if (message.command === 'assetQuota') {
+                            const safeId = (message.id || '').replace(/[^a-zA-Z0-9_-]/g, '-');
+                            const slot = document.getElementById('quota-' + safeId);
+                            if (slot && message.quota) {
+                                slot.innerHTML = buildQuotaHtml(message.quota);
+                                const parentItem = slot.parentElement;
+                                if (parentItem) {
+                                    const titleEl = parentItem.querySelector('.tree-title');
+                                    if (titleEl) {
+                                        titleEl.style.flex = '0 1 auto';
+                                        titleEl.style.maxWidth = '220px';
+                                        titleEl.style.minWidth = '60px';
+                                    }
+                                }
+                            }
                         } else if (message.command === 'assetDeleted') {
                             refreshAssets();
                         }

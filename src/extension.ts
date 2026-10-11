@@ -1,3 +1,8 @@
+import * as dns from 'dns';
+try {
+    dns.setDefaultResultOrder('ipv4first');
+} catch (e) {}
+
 import * as vscode from 'vscode';
 import { MapView } from './views/mapView';
 import { ConsoleView } from './views/consoleView';
@@ -97,12 +102,15 @@ export function activate(context: vscode.ExtensionContext) {
     } catch (e) {}
     logStep('>>> ACTIVATE() STARTED');
 
-    // Register dynamic language switchers
+    let lastActiveEditor: vscode.TextEditor | undefined = vscode.window.activeTextEditor || vscode.window.visibleTextEditors.find(e => !e.document.isClosed && !e.document.uri.scheme.includes('output') && !e.document.uri.scheme.includes('ai'));
     context.subscriptions.push(
         vscode.workspace.onDidOpenTextDocument(detectAndSetGeeLanguage),
         vscode.workspace.onDidChangeTextDocument(e => detectAndSetGeeLanguage(e.document)),
         vscode.window.onDidChangeActiveTextEditor(editor => {
-            if (editor) detectAndSetGeeLanguage(editor.document);
+            if (editor && !editor.document.uri.scheme.includes('output') && !editor.document.uri.scheme.includes('ai')) {
+                lastActiveEditor = editor;
+                detectAndSetGeeLanguage(editor.document);
+            }
         })
     );
     logStep('Step 1: Language switchers registered');
@@ -374,12 +382,21 @@ export function activate(context: vscode.ExtensionContext) {
                 await ensureRuntimeInitialized();
             }
             if (runtime && runtime.isInitialized) {
+                const rt = runtime;
+                const fetchTasks = () => Promise.race([
+                    rt.getTasks(),
+                    new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error('Timeout al consultar tareas (red lenta)')), 45000))
+                ]);
                 try {
-                    const tasks = await runtime.getTasks();
+                    let tasks: any[];
+                    try {
+                        tasks = await fetchTasks();
+                    } catch (first) {
+                        tasks = await fetchTasks(); // one automatic retry
+                    }
                     taskNotifier.feedTasks(tasks);
                     aiView.sendMessage({ command: 'tasksData', tasks: tasks });
                 } catch (e: any) {
-                    vscode.window.showErrorMessage('Error al obtener tareas: ' + e.message);
                     aiView.sendMessage({ command: 'tasksData', error: e.message });
                 }
             } else {
@@ -398,15 +415,71 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.env.clipboard.writeText(message.text);
             vscode.window.showInformationMessage(`Copiado al portapapeles: ${message.text}`);
         } else if (message.command === 'insertInEditor') {
-            const editor = vscode.window.activeTextEditor;
-            if (editor) {
-                editor.edit(editBuilder => {
-                    editBuilder.insert(editor.selection.active, `'${message.text}'`);
-                });
-                vscode.window.showInformationMessage(`Asset insertado en el editor.`);
+            let editor = vscode.window.activeTextEditor;
+            if (!editor && lastActiveEditor && !lastActiveEditor.document.isClosed) {
+                editor = lastActiveEditor;
+            }
+            if (!editor) {
+                editor = vscode.window.visibleTextEditors.find(e => !e.document.isClosed && !e.document.uri.scheme.includes('output') && !e.document.uri.scheme.includes('ai'));
+            }
+            let targetDoc = editor ? editor.document : undefined;
+            if (!targetDoc) {
+                for (const group of vscode.window.tabGroups.all) {
+                    for (const tab of group.tabs) {
+                        if (tab.input instanceof vscode.TabInputText) {
+                            const found = vscode.workspace.textDocuments.find(d => d.uri.toString() === (tab.input as vscode.TabInputText).uri.toString());
+                            if (found && !found.isClosed) {
+                                targetDoc = found;
+                                break;
+                            }
+                        }
+                    }
+                    if (targetDoc) break;
+                }
+            }
+            if (!targetDoc) {
+                targetDoc = vscode.workspace.textDocuments.find(d => !d.isClosed && (d.fileName.endsWith('.gee') || d.fileName.endsWith('.js') || d.fileName.endsWith('.py') || d.fileName.endsWith('.r')));
+            }
+
+            if (targetDoc) {
+                try {
+                    const ed = await vscode.window.showTextDocument(targetDoc, vscode.ViewColumn.One, false);
+                    const assetSnippet = `'${message.text}'`;
+                    await ed.edit(editBuilder => {
+                        if (ed.selection.isEmpty) {
+                            editBuilder.insert(ed.selection.active, assetSnippet);
+                        } else {
+                            editBuilder.replace(ed.selection, assetSnippet);
+                        }
+                    });
+                    vscode.window.showInformationMessage(`Asset insertado en el editor: ${assetSnippet}`);
+                } catch (e: any) {
+                    vscode.env.clipboard.writeText(`'${message.text}'`);
+                    vscode.window.showInformationMessage(`Copiado al portapapeles: '${message.text}'`);
+                }
             } else {
                 vscode.env.clipboard.writeText(`'${message.text}'`);
-                vscode.window.showInformationMessage(`Copiado al portapapeles (no hay editor activo).`);
+                vscode.window.showInformationMessage(`Copiado al portapapeles: '${message.text}'`);
+            }
+        } else if (message.command === 'addProject') {
+            const input = await vscode.window.showInputBox({
+                prompt: 'Ingresa el ID del Cloud Project o ruta de Asset Legacy',
+                placeHolder: 'ej. ee-mi-proyecto, projects/mi-proyecto o users/mi-usuario'
+            });
+            if (input && input.trim()) {
+                const clean = input.trim();
+                const config = vscode.workspace.getConfiguration('gee-pro');
+                const existingRoots: string[] = config.get<string[]>('assetRoots', []) || [];
+                if (!existingRoots.includes(clean)) {
+                    const updated = [...existingRoots, clean];
+                    await config.update('assetRoots', updated, vscode.ConfigurationTarget.Global);
+                }
+                if (runtime) {
+                    runtime.addAssetRoot(clean);
+                    const assets = await runtime.getAssetsApi('~');
+                    aiView.sendMessage({ command: 'assetsData', assets, parent: '~' });
+                    vscode.window.showInformationMessage(`Proyecto agregado a Assets: ${clean}`);
+                }
             }
         } else if (message.command === 'openExternal') {
             vscode.env.openExternal(vscode.Uri.parse(message.url));
@@ -467,13 +540,45 @@ export function activate(context: vscode.ExtensionContext) {
                 }
             }
         } else if (message.command === 'getAssets') {
+            if (!runtime || !runtime.isInitialized) {
+                await ensureRuntimeInitialized();
+            }
             if (runtime && runtime.isInitialized) {
+                const rt = runtime;
+                const parent = message.parent || '~';
                 try {
-                    const assets = await runtime.getAssetsApi(message.parent || '~');
-                    aiView.sendMessage({ command: 'assetsData', assets, parent: message.parent || '~' });
+                    if (message.refresh && typeof rt.clearQuotaCache === 'function') {
+                        rt.clearQuotaCache();
+                    }
+                    const assets: any[] = await Promise.race([
+                        rt.getAssetsApi(parent),
+                        new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error('Timeout al consultar assets (red lenta)')), 45000))
+                    ]);
+                    aiView.sendMessage({ command: 'assetsData', assets, parent });
+
+                    if (parent === '~') {
+                        // Stream quotas one by one (never blocks the tree)
+                        const streamQuotas = (list: any[]) => {
+                            for (const a of list) {
+                                if (a && a.isRoot && !a.quota) {
+                                    rt.getAssetQuota(a.id).then((q: any) => {
+                                        if (q) aiView.sendMessage({ command: 'assetQuota', id: a.id, quota: q });
+                                    }).catch(() => {});
+                                }
+                            }
+                        };
+                        streamQuotas(assets);
+
+                        // Discover extra Cloud projects (once per session); re-render roots if new ones appear
+                        rt.discoverCloudProjectRoots().then(async (added: boolean) => {
+                            if (!added) return;
+                            const updated = await rt.getAssetsApi('~');
+                            aiView.sendMessage({ command: 'assetsData', assets: updated, parent: '~' });
+                            streamQuotas(updated);
+                        }).catch(() => {});
+                    }
                 } catch (e: any) {
-                    vscode.window.showErrorMessage('Error al obtener assets: ' + e.message);
-                    aiView.sendMessage({ command: 'assetsData', error: e.message, parent: message.parent || '~' });
+                    aiView.sendMessage({ command: 'assetsData', error: e.message, parent });
                 }
             } else {
                 aiView.sendMessage({ command: 'assetsData', error: 'not_initialized' });
@@ -628,6 +733,10 @@ export function activate(context: vscode.ExtensionContext) {
                     const rt = new GEERuntime(consoleView, mapView);
                     rt.setSnippetsManager(snippetsManager);
                     rt.setCatalogManager(catalogManager);
+                    const userRoots = vscode.workspace.getConfiguration('gee-pro').get<string[]>('assetRoots', []);
+                    if (userRoots && userRoots.length > 0) {
+                        rt.setUserConfiguredRoots(userRoots);
+                    }
                     await rt.initialize(creds);
                     runtime = rt;
                     attachTaskNotifierToRuntime(rt);
@@ -838,6 +947,7 @@ export function activate(context: vscode.ExtensionContext) {
                         if (consoleView) {
                             consoleView.append(`ℹ️ Active session maintained for: ${email}`);
                         }
+                        await ensureRuntimeInitialized(true);
                         return;
                     }
 

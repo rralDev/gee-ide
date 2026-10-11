@@ -1,4 +1,9 @@
 import * as https from 'https';
+import * as dns from 'dns';
+
+try {
+    dns.setDefaultResultOrder('ipv4first');
+} catch (e) {}
 
 import { CLIENT_ID, CLIENT_SECRET } from './config';
 
@@ -22,20 +27,25 @@ export async function refreshAccessToken(refreshToken: string): Promise<any> {
         grant_type: 'refresh_token'
     }).toString();
 
-    return makeTokenRequest(data);
+    try {
+        return await makeTokenRequest(data);
+    } catch (err: any) {
+        await new Promise(r => setTimeout(r, 800));
+        return await makeTokenRequest(data);
+    }
 }
 
 async function makeTokenRequest(data: string): Promise<any> {
-    const response = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: data
-    });
-
-    const bodyText = await response.text();
     try {
+        const response = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: data
+        });
+
+        const bodyText = await response.text();
         const json = JSON.parse(bodyText);
         if (response.ok) {
             return { ...json, client_id: CLIENT_ID, client_secret: CLIENT_SECRET };
@@ -43,8 +53,52 @@ async function makeTokenRequest(data: string): Promise<any> {
             throw new Error(`Google error ${response.status}: ${bodyText}`);
         }
     } catch (e: any) {
-        throw new Error(`Parse or Google Error: ${e.message}`);
+        if (e.message && e.message.startsWith('Google error')) {
+            throw e;
+        }
+        // Fallback to standard Node https with IPv4 to bypass undici/macOS DNS IPv6 timeouts
+        return makeTokenRequestHttps(data);
     }
+}
+
+function makeTokenRequestHttps(data: string): Promise<any> {
+    return new Promise((resolve, reject) => {
+        const postData = Buffer.from(data, 'utf8');
+        const req = https.request({
+            hostname: 'oauth2.googleapis.com',
+            port: 443,
+            path: '/token',
+            method: 'POST',
+            family: 4,
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Content-Length': postData.length
+            },
+            timeout: 15000
+        }, (res) => {
+            let body = '';
+            res.on('data', chunk => body += chunk);
+            res.on('end', () => {
+                try {
+                    const json = JSON.parse(body);
+                    if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+                        resolve({ ...json, client_id: CLIENT_ID, client_secret: CLIENT_SECRET });
+                    } else {
+                        reject(new Error(`Google error ${res.statusCode}: ${body}`));
+                    }
+                } catch (err: any) {
+                    reject(new Error(`Parse error: ${err.message}`));
+                }
+            });
+        });
+        req.on('error', (err) => reject(err));
+        req.on('timeout', () => {
+            req.destroy();
+            reject(new Error('Timeout connecting to oauth2.googleapis.com'));
+        });
+        req.write(postData);
+        req.end();
+    });
 }
 
 export async function getUserInfo(accessToken: string): Promise<any> {
