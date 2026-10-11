@@ -15,6 +15,7 @@ import { AssetExplorerProvider } from './views/assetExplorer';
 import { AIView } from './views/aiView';
 import { SnippetsManager } from './snippetsManager';
 import { CatalogManager } from './catalogManager';
+import { SpectralIndicesManager } from './spectralIndices';
 import { exchangeCodeForToken, refreshAccessToken, getUserInfo, getAvailableCloudProjects, autoDetectCloudProject } from './auth';
 import { TaskNotifier } from './taskNotifier';
 
@@ -1407,7 +1408,7 @@ export function activate(context: vscode.ExtensionContext) {
 
             const trimmedCode = code.trim();
             const firstWord = trimmedCode.replace(/^!|^gee>\s*/, '').trim().split(/\s+/)[0];
-            const isKnownCli = ['ls', 'dir', 'pwd', 'cd', 'mkdir', 'rm', 'rmdir', 'cp', 'mv', 'find', 'catalog', 'search', 'du', 'quota', 'history', 'clear', 'cls', 'touch', 'vars', 'objects', 'snippets'].includes(firstWord);
+            const isKnownCli = ['ls', 'dir', 'pwd', 'cd', 'mkdir', 'rm', 'rmdir', 'cp', 'mv', 'find', 'catalog', 'search', 'du', 'quota', 'history', 'clear', 'cls', 'touch', 'vars', 'objects', 'snippets', 'indices', 'index'].includes(firstWord);
             const isExplicitCli = trimmedCode.startsWith('!') || trimmedCode.startsWith('gee>') || (trimmedCode.startsWith('/') && !trimmedCode.startsWith('//') && !trimmedCode.startsWith('/*'));
 
             if (isExplicitCli || (isKnownCli && !trimmedCode.includes(';') && !trimmedCode.includes('=') && !trimmedCode.includes('('))) {
@@ -1575,6 +1576,10 @@ export function activate(context: vscode.ExtensionContext) {
         await catalogManager.showCatalogQuickPick();
     });
 
+    let insertSpectralIndexCommand = vscode.commands.registerCommand('gee-pro.insertSpectralIndex', async () => {
+        await SpectralIndicesManager.showIndicesQuickPick();
+    });
+
     let openDemosCommand = vscode.commands.registerCommand('gee-pro.openDemos', async () => {
         const demosDir = path.join(context.extensionPath, 'demos');
         if (!fs.existsSync(demosDir)) {
@@ -1608,7 +1613,7 @@ export function activate(context: vscode.ExtensionContext) {
         startCommand, authCommand, loginCommand, logoutCommand, runCommand, runSelectionCommand, resetCommand, setProjectCommand,
         focusEditorCommand, focusConsoleCommand, focusMapCommand, focusAICommand,
         clearConsoleCommand, saveLayoutCommand, resetLayoutCommand, editSnippetsCommand, listSnippetsCommand,
-        searchCatalogCommand, openDemosCommand
+        searchCatalogCommand, insertSpectralIndexCommand, openDemosCommand
     );
     logStep('>>> ACTIVATE() COMPLETED SUCCESSFULLY — All commands ready');
 }

@@ -24,3 +24,34 @@ Map.addLayer(elevation, {
 }, 'Relieve SRTM (Amazonía)');
 
 print('¡Bienvenido a GEE IDE! Mapa interactivo centrado en la Amazonía (Madre de Dios, Perú).');
+
+// ============================================================
+// Flujo Completo: Cálculo de NBR en Colección Temporal
+// Sensor: Sentinel-2 | Período: 2023-2025
+// Fórmula: (NIR - SWIR2) / (NIR + SWIR2)
+// ============================================================
+
+// 1. Área de Interés (Usa tu ROI si existe, o la vista actual del mapa)
+var aoi = (typeof roi !== 'undefined') ? roi : ee.Geometry(Map.getBounds(true));
+
+// 2. Cargar colección satelital oficial (2023-01-01 a 2025-12-31)
+var col = ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+    .filterBounds(aoi)
+    .filterDate('2023-01-01', '2025-12-31')
+    .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20));
+
+// 3. Mapear el cálculo de NBR sobre TODA la colección temporal
+var addNBR = function(img) {
+    var idx = img.normalizedDifference(['B8', 'B12']).rename('NBR');
+    return img.addBands(idx);
+};
+var colWithNBR = col.map(addNBR);
+
+// 4. Reducir colección a compósito mediano para visualización espacial
+var rgbMedian = col.median();
+var indexMedian = colWithNBR.select('NBR').median();
+
+// 5. Centrar vista y añadir capas al Mapa
+Map.centerObject(aoi, 10);
+Map.addLayer(rgbMedian, {bands: ['B4', 'B3', 'B2'], min: 0, max: 3000}, 'Sentinel-2 RGB (2023-2025)');
+Map.addLayer(indexMedian, {min: -0.5, max: 0.8, palette: palettes.fire}, 'NBR Mediana (Sentinel-2 2023-2025)');

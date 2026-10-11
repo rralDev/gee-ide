@@ -24,7 +24,8 @@ function getEE(): any {
 const SYSTEM_BUILTINS = new Set([
     'ee', 'Map', 'ui', 'Export', 'print', 'require', 'global', 'console', 'window',
     'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Buffer', 'process', 'palettes',
-    'cli', 'cd', 'pwd', 'mkdir', 'rm', 'ls', 'touch', 'du', 'mv', 'cp', 'find', 'quota'
+    'cli', 'cd', 'pwd', 'mkdir', 'rm', 'ls', 'touch', 'du', 'mv', 'cp', 'find', 'quota',
+    'snippets', 'indices', 'index'
 ]);
 
 export class GEERuntime {
@@ -36,6 +37,21 @@ export class GEERuntime {
     private catalogManager: any;
     public activeLayers: Map<string, any> = new Map();
     private onTaskStartedCallback?: (desc?: string) => void;
+    private currentCenter: { lat: number; lng: number; zoom: number } = { lat: -12.0464, lng: -77.0428, zoom: 6 };
+    private currentBounds: [number, number, number, number] | null = null;
+
+    private getEstimatedBounds(): [number, number, number, number] {
+        if (this.currentBounds) return this.currentBounds;
+        const zoom = this.currentCenter.zoom || 6;
+        const span = 360 / Math.pow(2, zoom);
+        const halfSpanLon = span / 2;
+        const halfSpanLat = (span / 2) * 0.7;
+        const w = Math.max(-180, Number((this.currentCenter.lng - halfSpanLon).toFixed(4)));
+        const e = Math.min(180, Number((this.currentCenter.lng + halfSpanLon).toFixed(4)));
+        const s = Math.max(-85, Number((this.currentCenter.lat - halfSpanLat).toFixed(4)));
+        const n = Math.min(85, Number((this.currentCenter.lat + halfSpanLat).toFixed(4)));
+        return [w, s, e, n];
+    }
 
     public onTaskStarted(cb: (desc?: string) => void) {
         this.onTaskStartedCallback = cb;
@@ -140,10 +156,13 @@ export class GEERuntime {
                         });
                         this.mapView.addLayer(mapId, layerName, shown, opacity, resolvedVis);
                     } catch (err: any) {
-                        this.consoleView.append(`Error adding layer: ${err.message}`);
+                        this.consoleView.append(`Error adding layer: ${err?.message || err}`);
                     }
                 },
                 setCenter: (lon: number, lat: number, zoom?: number) => {
+                    const targetZoom = typeof zoom === 'number' ? zoom : 10;
+                    this.currentCenter = { lat, lng: lon, zoom: targetZoom };
+                    this.currentBounds = null;
                     this.mapView.setCenter(lat, lon, zoom);
                 },
                 centerObject: async (eeObject: any, zoom?: number) => {
@@ -163,6 +182,7 @@ export class GEERuntime {
                             if (geom && typeof geom.toGeoJSON === 'function') {
                                 const gj = geom.toGeoJSON();
                                 if (gj && gj.type === 'Point' && Array.isArray(gj.coordinates)) {
+                                    this.currentCenter = { lat: gj.coordinates[1], lng: gj.coordinates[0], zoom: targetZoom };
                                     this.mapView.setCenter(gj.coordinates[1], gj.coordinates[0], targetZoom);
                                     return;
                                 } else if (gj && Array.isArray(gj.coordinates) && gj.coordinates.length > 0) {
@@ -170,8 +190,14 @@ export class GEERuntime {
                                     if (Array.isArray(coords) && coords.length > 0 && Array.isArray(coords[0])) {
                                         const lons = coords.map((c: any) => c[0]);
                                         const lats = coords.map((c: any) => c[1]);
-                                        const lon = (Math.min(...lons) + Math.max(...lons)) / 2;
-                                        const lat = (Math.min(...lats) + Math.max(...lats)) / 2;
+                                        const minLon = Math.min(...lons);
+                                        const maxLon = Math.max(...lons);
+                                        const minLat = Math.min(...lats);
+                                        const maxLat = Math.max(...lats);
+                                        const lon = (minLon + maxLon) / 2;
+                                        const lat = (minLat + maxLat) / 2;
+                                        this.currentCenter = { lat, lng: lon, zoom: targetZoom };
+                                        this.currentBounds = [minLon, minLat, maxLon, maxLat];
                                         this.mapView.setCenter(lat, lon, targetZoom);
                                         return;
                                     }
@@ -202,18 +228,47 @@ export class GEERuntime {
                         if (geoInfo && geoInfo.type === 'Point' && Array.isArray(geoInfo.coordinates)) {
                             const lon = geoInfo.coordinates[0];
                             const lat = geoInfo.coordinates[1];
+                            this.currentCenter = { lat, lng: lon, zoom: targetZoom };
                             this.mapView.setCenter(lat, lon, targetZoom);
                         } else if (geoInfo && geoInfo.coordinates && geoInfo.coordinates[0]) {
                             const coords = geoInfo.coordinates[0];
                             const lons = coords.map((c: any) => c[0]);
                             const lats = coords.map((c: any) => c[1]);
-                            const lon = (Math.min(...lons) + Math.max(...lons)) / 2;
-                            const lat = (Math.min(...lats) + Math.max(...lats)) / 2;
+                            const minLon = Math.min(...lons);
+                            const maxLon = Math.max(...lons);
+                            const minLat = Math.min(...lats);
+                            const maxLat = Math.max(...lats);
+                            const lon = (minLon + maxLon) / 2;
+                            const lat = (minLat + maxLat) / 2;
+                            this.currentCenter = { lat, lng: lon, zoom: targetZoom };
+                            this.currentBounds = [minLon, minLat, maxLon, maxLat];
                             this.mapView.setCenter(lat, lon, targetZoom);
                         }
                     } catch (err: any) {
-                        this.consoleView.append(`[Map Error] centerObject: ${err.message || err}`);
+                        this.consoleView.append(`[Map Error] centerObject: ${err?.message || err}`);
                     }
+                },
+                getBounds: (asGeoJson: boolean = false) => {
+                    const [w, s, e, n] = this.getEstimatedBounds();
+                    if (asGeoJson === true) {
+                        return {
+                            type: 'Polygon',
+                            coordinates: [[[w, s], [e, s], [e, n], [w, n], [w, s]]]
+                        };
+                    }
+                    if (eeInstance && typeof eeInstance.Geometry?.Rectangle === 'function') {
+                        return eeInstance.Geometry.Rectangle([w, s, e, n]);
+                    }
+                    return [w, s, e, n];
+                },
+                getCenter: () => {
+                    if (eeInstance && typeof eeInstance.Geometry?.Point === 'function') {
+                        return eeInstance.Geometry.Point([this.currentCenter.lng, this.currentCenter.lat]);
+                    }
+                    return [this.currentCenter.lng, this.currentCenter.lat];
+                },
+                getZoom: () => {
+                    return this.currentCenter.zoom;
                 },
                 clear: () => {
                     this.activeLayers.clear();
@@ -221,7 +276,10 @@ export class GEERuntime {
                 },
                 add_layer: function(this: any, ...args: any[]) { return this.addLayer(...args); },
                 set_center: function(this: any, ...args: any[]) { return this.setCenter(...args); },
-                center_object: function(this: any, ...args: any[]) { return this.centerObject(...args); }
+                center_object: function(this: any, ...args: any[]) { return this.centerObject(...args); },
+                get_bounds: function(this: any, ...args: any[]) { return this.getBounds(...args); },
+                get_center: function(this: any, ...args: any[]) { return this.getCenter(...args); },
+                get_zoom: function(this: any, ...args: any[]) { return this.getZoom(...args); }
             },
             ui: {
                 Label: (text: string) => { this.consoleView.append(`[UI Label]: ${text}`); return {}; },
@@ -480,20 +538,7 @@ export class GEERuntime {
                         };
                     }
 
-                    // Case D: Temperature / Thermal
-                    const tempIndex = lowerBands.findIndex(b =>
-                        b.includes('temp') || b.includes('lst') || b === 'b10' || b === 'b11'
-                    );
-                    if (tempIndex !== -1) {
-                        return {
-                            bands: [bandNames[tempIndex]],
-                            min: 273.15,
-                            max: 325,
-                            palette: GE_PALETTES.temperature
-                        };
-                    }
-
-                    // Case E: True Color RGB
+                    // Case D: True Color RGB (Prioritized before thermal/single bands)
                     if (bandNames.includes('B4') && bandNames.includes('B3') && bandNames.includes('B2')) {
                         return {
                             bands: ['B4', 'B3', 'B2'],
@@ -523,6 +568,19 @@ export class GEERuntime {
                             bands: ['B3', 'B2', 'B1'],
                             min: 0,
                             max: 0.3
+                        };
+                    }
+
+                    // Case E: Temperature / Thermal (Only if not already RGB)
+                    const tempIndex = lowerBands.findIndex(b =>
+                        b.includes('temp') || b.includes('lst') || b.includes('thermal') || b === 'st_b10' || (b === 'b10' && !bandNames.includes('B8'))
+                    );
+                    if (tempIndex !== -1) {
+                        return {
+                            bands: [bandNames[tempIndex]],
+                            min: 273.15,
+                            max: 325,
+                            palette: GE_PALETTES.temperature
                         };
                     }
 
@@ -571,6 +629,7 @@ export class GEERuntime {
         let outputVal = result;
         let isSpatial = false;
         let typeName = '';
+        let spatialTarget = result;
 
         if (result && typeof result.getInfo === 'function') {
             try {
@@ -589,6 +648,30 @@ export class GEERuntime {
                 }
             } catch (e: any) {
                 outputVal = `[EE Object (${typeName || 'Unknown'}): ${e.message || e}]`;
+            }
+        } else if (result && typeof result === 'object' && result !== null) {
+            // Check if it's a client-side GeoJSON Geometry, Feature, or FeatureCollection
+            const isGeoJson = (
+                (result.type === 'Polygon' || result.type === 'MultiPolygon' || result.type === 'Point' || result.type === 'MultiPoint' || result.type === 'LineString' || result.type === 'MultiLineString') && Array.isArray(result.coordinates)
+            ) || (result.type === 'Feature' && result.geometry) || (result.type === 'FeatureCollection' && Array.isArray(result.features));
+
+            if (isGeoJson) {
+                isSpatial = true;
+                typeName = result.type;
+                const ee = getEE();
+                if (ee) {
+                    try {
+                        if (result.type === 'FeatureCollection') {
+                            spatialTarget = ee.FeatureCollection(result.features || []);
+                        } else if (result.type === 'Feature') {
+                            spatialTarget = ee.Feature(result.geometry, result.properties);
+                        } else {
+                            spatialTarget = ee.Geometry(result);
+                        }
+                    } catch (e) {
+                        spatialTarget = result;
+                    }
+                }
             }
         }
 
@@ -612,8 +695,8 @@ export class GEERuntime {
             }
 
             this.consoleView.append(`🗺️ Auto-Plotting spatial object: ${layerLabel}...`);
-            this.context.Map.centerObject(result).catch(() => {});
-            this.context.Map.addLayer(result, undefined, layerLabel).catch(() => {});
+            this.context.Map.centerObject(spatialTarget).catch(() => {});
+            this.context.Map.addLayer(spatialTarget, undefined, layerLabel).catch(() => {});
         }
 
         const uv = this.getUserVariables();
@@ -1160,6 +1243,33 @@ export class GEERuntime {
         this.consoleView.append('💡 Tip: Presiona Cmd+Shift+P -> GEE IDE: Edit User Snippets para crear tus propias plantillas.');
     }
 
+    public showIndicesList(filter: string = '') {
+        try {
+            const { SPECTRAL_INDICES } = require('./spectralIndices');
+            let list = SPECTRAL_INDICES;
+            if (filter) {
+                const fLower = filter.toLowerCase();
+                list = list.filter((idx: any) =>
+                    idx.id.toLowerCase().includes(fLower) ||
+                    idx.name.toLowerCase().includes(fLower) ||
+                    idx.category.toLowerCase().includes(fLower)
+                );
+            }
+
+            this.consoleView.append(`🌿 Catálogo de Índices Espectrales (+${SPECTRAL_INDICES.length} fórmulas estándar):`);
+            this.consoleView.append('------------------------------------------------------------');
+            list.forEach((idx: any) => {
+                const catIcon = idx.category === 'Vegetation' ? '🌱' : (idx.category === 'Water' ? '💧' : (idx.category === 'Burn' ? '🔥' : (idx.category === 'Snow' ? '❄️' : '🏙️')));
+                this.consoleView.append(`  ${catIcon} ${idx.id.padEnd(8, ' ')} : ${idx.name} [${idx.category}]`);
+                this.consoleView.append(`     Fórmula: ${idx.formulaDescription}`);
+            });
+            this.consoleView.append('------------------------------------------------------------');
+            this.consoleView.append('💡 Tip: Usa Cmd+Shift+P -> "GEE IDE: Insert Spectral Index" para insertarlo con el sensor adecuado en tu código.');
+        } catch (e: any) {
+            this.consoleView.append(`⚠️ Error cargando índices espectrales: ${e.message || e}`);
+        }
+    }
+
     public async handleCommand(text: string) {
         try {
             let trimmed = text.trim();
@@ -1222,6 +1332,10 @@ export class GEERuntime {
             switch (cmd) {
             case 'snippets':
                 this.showSnippetsList();
+                break;
+            case 'indices':
+            case 'index':
+                this.showIndicesList(args.join(' ').trim());
                 break;
             case 'pwd':
                 this.consoleView.append((!this.cwd || this.cwd === '~') ? '~ (Asset Roots)' : this.cwd);

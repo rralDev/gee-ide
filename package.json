@@ -2,7 +2,7 @@
   "name": "gee-pro-ide",
   "displayName": "GEE IDE",
   "description": "Ultimate Google Earth Engine IDE for VS Code with integrated Map, Console, and AI Assistant.",
-  "version": "0.1.35",
+  "version": "0.1.36",
   "publisher": "LuisRobles",
   "author": "Luis Robles",
   "license": "Apache-2.0",
@@ -57,6 +57,7 @@
     "onCommand:gee-pro.getLink",
     "onCommand:gee-pro.setProject",
     "onCommand:gee-pro.searchCatalog",
+    "onCommand:gee-pro.insertSpectralIndex",
     "onCommand:gee-pro.openDemos",
     "onWebviewPanel:geeMap",
     "onWebviewPanel:geeConsole",
@@ -199,6 +200,11 @@
       {
         "command": "gee-pro.searchCatalog",
         "title": "Search Data Catalog",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.insertSpectralIndex",
+        "title": "Insert Spectral Index (NDVI, NDWI, EVI, NBR...)",
         "category": "GEE IDE"
       },
       {

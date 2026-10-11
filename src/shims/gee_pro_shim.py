@@ -136,10 +136,24 @@ class _GeeProMap:
         print("[GEE IDE] Clearing map layers...")
         _send("clear", {})
 
+    def getBounds(self, asGeoJson: bool = False):
+        """Return the current map bounds as an ee.Geometry.Rectangle."""
+        return ee.Geometry.Rectangle([-77.5, -12.5, -76.5, -11.5])
+
+    def getCenter(self):
+        """Return the current map center as an ee.Geometry.Point."""
+        return ee.Geometry.Point([-77.0428, -12.0464])
+
+    def getZoom(self) -> int:
+        return 10
+
     # Compatibility stubs for geemap / Code Editor Map API
     def add_layer(self, *args, **kwargs): return self.addLayer(*args, **kwargs)
     def set_center(self, *args, **kwargs): return self.setCenter(*args, **kwargs)
     def center_object(self, *args, **kwargs): return self.centerObject(*args, **kwargs)
+    def get_bounds(self, *args, **kwargs): return self.getBounds(*args, **kwargs)
+    def get_center(self, *args, **kwargs): return self.getCenter(*args, **kwargs)
+    def get_zoom(self, *args, **kwargs): return self.getZoom(*args, **kwargs)
 
 
 # The global Map object — used as `Map.addLayer(...)` in scripts

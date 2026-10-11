@@ -433,6 +433,9 @@ export class MapView {
                         font-size: 11.5px;
                         min-width: 240px;
                         max-width: 290px;
+                        max-height: calc(100vh - 140px);
+                        display: flex;
+                        flex-direction: column;
                         overflow: hidden;
                         transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
                         user-select: none;
@@ -497,8 +500,9 @@ export class MapView {
                     }
                     .gee-layer-body {
                         padding: 7px 9px;
-                        max-height: 380px;
+                        max-height: calc(100vh - 195px);
                         overflow-y: auto;
+                        flex: 1;
                     }
                     .gee-layer-body::-webkit-scrollbar {
                         width: 5px;
@@ -583,6 +587,34 @@ export class MapView {
                         align-items: center;
                         justify-content: center;
                         line-height: 1;
+                        transition: all 0.15s ease;
+                    }
+                    .gee-layer-badge.peek-active {
+                        background: #10382b !important;
+                        color: #3ef29b !important;
+                        border: 1px solid #3ef29b !important;
+                        box-shadow: 0 0 8px rgba(62, 242, 155, 0.7) !important;
+                    }
+                    .gee-bc-badge {
+                        font-family: 'JetBrains Mono', 'Consolas', monospace;
+                        font-size: 8.5px;
+                        font-weight: 700;
+                        padding: 1px 4px;
+                        border-radius: 3px;
+                        margin-left: 2px;
+                        line-height: 1.1;
+                        display: inline-flex;
+                        align-items: center;
+                    }
+                    .gee-bc-badge-l {
+                        background: #094771;
+                        color: #4ec9b0;
+                        border: 1px solid #4ec9b0;
+                    }
+                    .gee-bc-badge-r {
+                        background: #5c3b12;
+                        color: #e5c07b;
+                        border: 1px solid #e5c07b;
                     }
                     .gee-layer-name {
                         white-space: nowrap;
@@ -1440,6 +1472,83 @@ export class MapView {
                     });
 
                     const geeLayers = [];
+                    let swipeMode = false;
+                    let swipeOrientation = 'vertical';
+                    let swipeValue = 50;
+                    let draggingSwipe = false;
+                    let topSwipeLayer = null;
+                    let swipeCompareIndices = null; // { left: number, right: number }
+                    let currentPeekIdx = -1;
+
+                    function reorderLayersHierarchically() {
+                        // geeLayers[0] is top layer in panel -> should be at the very front of the Leaflet map
+                        // We bring layers to front in reverse order (from bottom to top) so index 0 ends up on top.
+                        for (let i = geeLayers.length - 1; i >= 0; i--) {
+                            const item = geeLayers[i];
+                            if (item && item.layer && map.hasLayer(item.layer)) {
+                                if (item.layer.bringToFront) item.layer.bringToFront();
+                            }
+                        }
+                    }
+
+                    function updateSwipeCompareIndices() {
+                        const visible = [];
+                        geeLayers.forEach((l, idx) => {
+                            if (l.shown && map.hasLayer(l.layer)) {
+                                visible.push(idx);
+                            }
+                        });
+                        if (visible.length >= 2) {
+                            swipeCompareIndices = { left: visible[0], right: visible[1] };
+                            topSwipeLayer = geeLayers[visible[0]].layer;
+                        } else {
+                            swipeCompareIndices = null;
+                            topSwipeLayer = null;
+                        }
+                    }
+
+                    function startPeek(idx) {
+                        if (idx < 0 || idx >= geeLayers.length) return;
+                        if (currentPeekIdx === idx) return;
+                        endPeek();
+
+                        currentPeekIdx = idx;
+                        const item = geeLayers[idx];
+                        if (!item) return;
+
+                        if (!map.hasLayer(item.layer)) {
+                            item.layer.addTo(map);
+                            item._peekTemp = true;
+                        }
+                        if (item.layer.bringToFront) {
+                            item.layer.bringToFront();
+                        }
+                        updateLayerManagerUI();
+                        showHud('🔍 Peek: [' + (idx + 1) + '] ' + item.name + ' (suelta Shift para restaurar)');
+                    }
+
+                    function endPeek() {
+                        if (currentPeekIdx === -1) return;
+                        const idx = currentPeekIdx;
+                        currentPeekIdx = -1;
+                        const item = geeLayers[idx];
+                        if (item && item._peekTemp) {
+                            if (map.hasLayer(item.layer)) {
+                                map.removeLayer(item.layer);
+                            }
+                            delete item._peekTemp;
+                        }
+                        reorderLayersHierarchically();
+                        if (typeof swipeMode !== 'undefined' && swipeMode) {
+                            updateSwipeCompareIndices();
+                            if (topSwipeLayer && topSwipeLayer.bringToFront) {
+                                topSwipeLayer.bringToFront();
+                            }
+                            if (typeof updateSwipeClip === 'function') updateSwipeClip();
+                        }
+                        updateLayerManagerUI();
+                    }
+
                     let isPinned = getSetting('gee_layers_pinned', false) === true || getSetting('gee_layers_pinned', 'false') === 'true';
 
                     // Custom Layer Manager Control
@@ -1570,9 +1679,6 @@ export class MapView {
                     map.addControl(layerManagerControl);
 
                     function updateLayerManagerUI() {
-                        if (typeof swipeMode !== 'undefined' && swipeMode) {
-                            window.toggleSwipeMode();
-                        }
                         const listEl = document.getElementById('geeLayersList');
                         const countEl = document.getElementById('layerCount');
                         if (!listEl) return;
@@ -1655,11 +1761,32 @@ export class MapView {
 
                     function renderLayerItemHtml(x) {
                         const isVisible = map.hasLayer(x.item.layer);
-                        const badge = x.keyShortcut ? ('<span class="gee-layer-badge" title="Shortcut: ' + x.keyShortcut + ' or Alt+' + x.keyShortcut + '">[' + x.keyShortcut + ']</span>') : '';
+                        
+                        let bcBadgeHtml = '';
+                        if (typeof swipeMode !== 'undefined' && swipeMode && swipeCompareIndices) {
+                            const isHoriz = (swipeOrientation === 'horizontal');
+                            const labelL = isHoriz ? 'T' : 'L';
+                            const labelR = isHoriz ? 'B' : 'R';
+                            const titleL = isHoriz ? 'Barra Comparadora: Arriba (Top)' : 'Barra Comparadora: Lado Izquierdo (Left)';
+                            const titleR = isHoriz ? 'Barra Comparadora: Abajo (Bottom)' : 'Barra Comparadora: Lado Derecho (Right)';
+                            if (x.idx === swipeCompareIndices.left) {
+                                bcBadgeHtml = '<span class="gee-bc-badge gee-bc-badge-l" title="' + titleL + '">' + labelL + '</span>';
+                            } else if (x.idx === swipeCompareIndices.right) {
+                                bcBadgeHtml = '<span class="gee-bc-badge gee-bc-badge-r" title="' + titleR + '">' + labelR + '</span>';
+                            }
+                        }
+                        const isPeeking = (currentPeekIdx === x.idx);
+                        const peekClass = isPeeking ? ' peek-active' : '';
+                        const peekPrefix = isPeeking ? '🟢 ' : '';
+                        const badge = x.keyShortcut ? ('<span id="badge_layer_' + x.idx + '" class="gee-layer-badge' + peekClass + '" title="Shortcut: ' + x.keyShortcut + ' (Shift+' + x.keyShortcut + ' para Peek)">' + peekPrefix + '[' + x.keyShortcut + ']</span>' + bcBadgeHtml) : bcBadgeHtml;
                         
                         let legendHtml = '';
                         const vp = x.item.visParams;
+                        const lname = (x.item.name || '').toLowerCase();
                         if (vp) {
+                            const bandsList = Array.isArray(vp.bands) ? vp.bands : (typeof vp.bands === 'string' ? vp.bands.split(',').map(s => s.trim()) : null);
+                            const isRgb = (bandsList && bandsList.length >= 3) || lname.includes('rgb') || lname.includes('color') || lname.includes('compósito') || lname.includes('composite');
+
                             if (vp.palette) {
                                 let palette = vp.palette;
                                 if (typeof palette === 'string') {
@@ -1680,8 +1807,31 @@ export class MapView {
                                             '</div>' +
                                         '</div>';
                                 }
+                            } else if (bandsList && bandsList.length >= 3) {
+                                const minVal = vp.min !== undefined ? vp.min : '';
+                                const maxVal = vp.max !== undefined ? vp.max : '';
+                                legendHtml = 
+                                    '<div class="gee-layer-legend" style="margin-top: 4px; padding-left: 20px; display: flex; align-items: center; justify-content: space-between; font-size: 8.5px; color: #aaa; font-family: monospace;">' +
+                                        '<span style="display: flex; align-items: center; gap: 6px;">' +
+                                            '<span style="display: inline-flex; align-items: center; gap: 2px;"><span style="color:#ff5555;">●</span>R:' + bandsList[0] + '</span>' +
+                                            '<span style="display: inline-flex; align-items: center; gap: 2px;"><span style="color:#55ff55;">●</span>G:' + bandsList[1] + '</span>' +
+                                            '<span style="display: inline-flex; align-items: center; gap: 2px;"><span style="color:#5588ff;">●</span>B:' + bandsList[2] + '</span>' +
+                                        '</span>' +
+                                        (minVal !== '' ? ('<span style="color: #777;">[' + minVal + ' - ' + maxVal + ']</span>') : '') +
+                                    '</div>';
+                            } else if (isRgb) {
+                                const minVal = vp.min !== undefined ? vp.min : '';
+                                const maxVal = vp.max !== undefined ? vp.max : '';
+                                legendHtml = 
+                                    '<div class="gee-layer-legend" style="margin-top: 4px; padding-left: 20px; display: flex; align-items: center; justify-content: space-between; font-size: 8.5px; color: #aaa; font-family: monospace;">' +
+                                        '<span style="display: flex; align-items: center; gap: 6px;">' +
+                                            '<span style="display: inline-flex; align-items: center; gap: 2px;"><span style="color:#ff5555;">●</span>R</span>' +
+                                            '<span style="display: inline-flex; align-items: center; gap: 2px;"><span style="color:#55ff55;">●</span>G</span>' +
+                                            '<span style="display: inline-flex; align-items: center; gap: 2px;"><span style="color:#5588ff;">●</span>B</span>' +
+                                        '</span>' +
+                                        (minVal !== '' ? ('<span style="color: #777;">[' + minVal + ' - ' + maxVal + ']</span>') : '') +
+                                    '</div>';
                             } else if (vp.min !== undefined && vp.max !== undefined) {
-                                const lname = (x.item.name || '').toLowerCase();
                                 let gradient = 'linear-gradient(to right, #000000, #ffffff)';
                                 if (lname.includes('elevation') || lname.includes('dem') || lname.includes('srtm') || lname.includes('topo')) {
                                     gradient = 'linear-gradient(to right, #006600, #002200, #fff700, #ab7634, #c4d0ff, #ffffff)';
@@ -1704,17 +1854,6 @@ export class MapView {
                                     '<div class="gee-layer-legend" style="margin-top: 4px; padding-left: 20px; display: flex; align-items: center; gap: 6px; font-size: 9px; color: #aaa;">' +
                                         '<span style="display: inline-block; width: 14px; height: 4px; border-radius: 2px; background: ' + col + '; border: 1px solid rgba(255,255,255,0.2);"></span>' +
                                         '<span style="font-family: monospace;">Vector (' + col + ')</span>' +
-                                    '</div>';
-                            } else if (Array.isArray(vp.bands) && vp.bands.length === 3) {
-                                const minVal = vp.min !== undefined ? vp.min : '';
-                                const maxVal = vp.max !== undefined ? vp.max : '';
-                                legendHtml = 
-                                    '<div class="gee-layer-legend" style="margin-top: 4px; padding-left: 20px; display: flex; align-items: center; justify-content: space-between; font-size: 8.5px; color: #888; font-family: monospace;">' +
-                                        '<span style="display: flex; align-items: center; gap: 5px;">' +
-                                            '<span style="display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: linear-gradient(135deg, #ff4444, #44ff44, #4444ff);"></span>' +
-                                            '<span>RGB: ' + vp.bands.join(', ') + '</span>' +
-                                        '</span>' +
-                                        (minVal !== '' ? ('<span>' + minVal + ' - ' + maxVal + '</span>') : '') +
                                     '</div>';
                             }
                         }
@@ -1763,13 +1902,20 @@ export class MapView {
                         const target = explicitState !== undefined ? explicitState : !isVisible;
                         if (target) {
                             if (!map.hasLayer(item.layer)) item.layer.addTo(map);
-                            if (item.layer.bringToFront) item.layer.bringToFront();
                             item.shown = true;
                             showHud('👁️ [' + (idx + 1) + '] ' + item.name + ': Visible');
                         } else {
                             if (map.hasLayer(item.layer)) map.removeLayer(item.layer);
                             item.shown = false;
                             showHud('🚫 [' + (idx + 1) + '] ' + item.name + ': Hidden');
+                        }
+                        reorderLayersHierarchically();
+                        if (typeof swipeMode !== 'undefined' && swipeMode) {
+                            updateSwipeCompareIndices();
+                            if (topSwipeLayer && topSwipeLayer.bringToFront) {
+                                topSwipeLayer.bringToFront();
+                            }
+                            if (typeof updateSwipeClip === 'function') updateSwipeClip();
                         }
                         updateLayerManagerUI();
                     }
@@ -1782,11 +1928,18 @@ export class MapView {
                             item.shown = target;
                             if (target) {
                                 if (!map.hasLayer(item.layer)) item.layer.addTo(map);
-                                if (item.layer.bringToFront) item.layer.bringToFront();
                             } else {
                                 if (map.hasLayer(item.layer)) map.removeLayer(item.layer);
                             }
                         });
+                        reorderLayersHierarchically();
+                        if (typeof swipeMode !== 'undefined' && swipeMode) {
+                            updateSwipeCompareIndices();
+                            if (topSwipeLayer && topSwipeLayer.bringToFront) {
+                                topSwipeLayer.bringToFront();
+                            }
+                            if (typeof updateSwipeClip === 'function') updateSwipeClip();
+                        }
                         updateLayerManagerUI();
                         showHud(target ? '👁️ All layers visible' : '🚫 All layers hidden');
                     }
@@ -1807,7 +1960,6 @@ export class MapView {
                                 });
                                 if (message.shown !== false) {
                                     layer.addTo(map);
-                                    if (layer.bringToFront) layer.bringToFront();
                                 }
                                 const layerName = message.name || 'EE Layer ' + (geeLayers.length + 1);
                                 const existingIdx = geeLayers.findIndex(l => l.name === layerName);
@@ -1830,6 +1982,14 @@ export class MapView {
                                         opacity: message.opacity !== undefined ? message.opacity : 1.0,
                                         visParams: message.visParams
                                     });
+                                }
+                                reorderLayersHierarchically();
+                                if (typeof swipeMode !== 'undefined' && swipeMode) {
+                                    updateSwipeCompareIndices();
+                                    if (topSwipeLayer && topSwipeLayer.bringToFront) {
+                                        topSwipeLayer.bringToFront();
+                                    }
+                                    if (typeof updateSwipeClip === 'function') updateSwipeClip();
                                 }
                                 updateLayerManagerUI();
                                 map.invalidateSize();
@@ -1932,17 +2092,33 @@ export class MapView {
                             }
                         }
 
-                        const isDirectNum = !isCmdOrCtrl && !isAlt && /^[0-9]$/.test(e.key);
-                        const isAltNum = isAlt && !isCmdOrCtrl && /^[0-9]$/.test(e.key);
+                        let pressedDigit = -1;
+                        if (/^[0-9]$/.test(e.key)) {
+                            pressedDigit = parseInt(e.key, 10);
+                        } else if (e.code && /^Digit([0-9])$/.test(e.code)) {
+                            pressedDigit = parseInt(e.code.replace('Digit', ''), 10);
+                        }
+
+                        if (!isCmdOrCtrl && !isAlt && pressedDigit >= 1 && pressedDigit <= 9) {
+                            if (e.shiftKey) {
+                                // Peek Mode: Hold Shift + Digit to peek at layer
+                                e.preventDefault();
+                                e.stopPropagation();
+                                startPeek(pressedDigit - 1);
+                                return;
+                            }
+                        }
+
+                        const isDirectNum = !isCmdOrCtrl && !isAlt && !e.shiftKey && pressedDigit !== -1;
+                        const isAltNum = isAlt && !isCmdOrCtrl && pressedDigit !== -1;
 
                         if (isDirectNum || isAltNum) {
                             e.preventDefault();
                             e.stopPropagation();
-                            const num = parseInt(e.key, 10);
-                            if (num === 0) {
+                            if (pressedDigit === 0) {
                                 toggleAllLayers();
                             } else {
-                                toggleLayerByIndex(num - 1);
+                                toggleLayerByIndex(pressedDigit - 1);
                             }
                         }
                     }, true);
@@ -2241,12 +2417,6 @@ export class MapView {
                     };
 
                     // --- SWIPE TOOL LOGIC ---
-                    let swipeMode = false;
-                    let swipeOrientation = 'vertical';
-                    let swipeValue = 50;
-                    let draggingSwipe = false;
-                    let topSwipeLayer = null;
-
                     function updateSwipeClip() {
                         if (!swipeMode || !topSwipeLayer || !topSwipeLayer.getContainer()) return;
                         const container = topSwipeLayer.getContainer();
@@ -2299,28 +2469,40 @@ export class MapView {
                         const btn = document.getElementById('btn-swipe');
                         
                         if (swipeMode) {
-                            const visibleLayers = geeLayers.filter(l => l.shown);
-                            if (visibleLayers.length < 2) {
+                            updateSwipeCompareIndices();
+                            if (!swipeCompareIndices) {
                                 swipeMode = false;
                                 vscode.postMessage({command: 'webviewError', message: 'Swipe Tool requires at least 2 visible GEE layers on the map.'});
                                 return;
                             }
-                            // Top layer is the last one in the array
-                            topSwipeLayer = visibleLayers[visibleLayers.length - 1].layer;
                             divider.style.display = 'block';
                             btn.style.background = 'rgba(78, 201, 176, 0.4)';
                             btn.style.borderColor = '#4ec9b0';
                             swipeValue = 50;
+
+                            reorderLayersHierarchically();
+                            if (topSwipeLayer && topSwipeLayer.bringToFront) {
+                                topSwipeLayer.bringToFront();
+                            }
                             updateSwipeClip();
+                            updateLayerManagerUI();
+                            if (swipeCompareIndices) {
+                                const leftNum = swipeCompareIndices.left + 1;
+                                const rightNum = swipeCompareIndices.right + 1;
+                                showHud('⇄ BC: [' + leftNum + '] L vs [' + rightNum + '] R');
+                            }
                         } else {
                             if (topSwipeLayer && topSwipeLayer.getContainer()) {
                                 topSwipeLayer.getContainer().style.clipPath = '';
                                 topSwipeLayer.getContainer().style.clip = '';
                             }
+                            swipeCompareIndices = null;
                             topSwipeLayer = null;
                             divider.style.display = 'none';
                             btn.style.background = '';
                             btn.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                            reorderLayersHierarchically();
+                            updateLayerManagerUI();
                         }
                     };
 
@@ -2328,6 +2510,19 @@ export class MapView {
                     dividerEl.addEventListener('mousedown', (e) => {
                         draggingSwipe = true;
                         e.preventDefault(); // prevent text selection
+                    });
+
+                    // Double click on divider toggles orientation between vertical (Left/Right) and horizontal (Top/Bottom)
+                    dividerEl.addEventListener('dblclick', (e) => {
+                        e.stopPropagation();
+                        swipeOrientation = swipeOrientation === 'vertical' ? 'horizontal' : 'vertical';
+                        updateSwipeClip();
+                        updateLayerManagerUI();
+                        if (swipeOrientation === 'horizontal') {
+                            showHud('⇅ Barra Comparadora: Arriba [T] vs Abajo [B]');
+                        } else {
+                            showHud('⇄ Barra Comparadora: Izquierda [L] vs Derecha [R]');
+                        }
                     });
                     
                     window.addEventListener('mousemove', (e) => {
@@ -2345,20 +2540,31 @@ export class MapView {
                         draggingSwipe = false;
                     });
 
-                    // Add orientation toggle to the global keydown listener
+                    // Add orientation toggle and peek restoration to global key listeners
+                    // NOTE: Orientation toggle is ONLY Command / Meta (Mac) or Ctrl (Win/Linux)
+                    // Shift is strictly reserved for Peek Mode (Shift + 1..9)
                     document.addEventListener('keydown', (e) => {
-                        if (swipeMode && (e.shiftKey || e.metaKey || e.ctrlKey)) {
+                        if (swipeMode && (e.key === 'Meta' || e.key === 'Control' || e.metaKey || e.ctrlKey) && !e.shiftKey) {
                             if (swipeOrientation !== 'horizontal') {
                                 swipeOrientation = 'horizontal';
                                 updateSwipeClip();
+                                updateLayerManagerUI();
+                                showHud('⇅ BC: Arriba [T] vs Abajo [B]');
                             }
                         }
                     });
                     document.addEventListener('keyup', (e) => {
-                        if (swipeMode && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+                        if (currentPeekIdx !== -1) {
+                            if (e.key === 'Shift' || !e.shiftKey) {
+                                endPeek();
+                            }
+                        }
+                        if (swipeMode && (e.key === 'Meta' || e.key === 'Control' || (!e.metaKey && !e.ctrlKey))) {
                             if (swipeOrientation !== 'vertical') {
                                 swipeOrientation = 'vertical';
                                 updateSwipeClip();
+                                updateLayerManagerUI();
+                                showHud('⇄ BC: Izquierda [L] vs Derecha [R]');
                             }
                         }
                     });

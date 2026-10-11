@@ -88,6 +88,24 @@ Map$clear <- function() {
     .gee_pro_send("clear", "{}")
 }
 
+Map$getBounds <- function(asGeoJson = FALSE) {
+    if (exists("ee") && !is.null(ee$Geometry$Rectangle)) {
+        return(ee$Geometry$Rectangle(c(-77.5, -12.5, -76.5, -11.5)))
+    }
+    return(c(-77.5, -12.5, -76.5, -11.5))
+}
+
+Map$getCenter <- function() {
+    if (exists("ee") && !is.null(ee$Geometry$Point)) {
+        return(ee$Geometry$Point(c(-77.0428, -12.0464)))
+    }
+    return(c(-77.0428, -12.0464))
+}
+
+Map$getZoom <- function() {
+    return(10)
+}
+
 cli <- function(cmd) {
     payload <- sprintf('{"command":"%s"}', cmd)
     .gee_pro_send("cli", payload)
