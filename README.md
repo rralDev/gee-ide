@@ -28,10 +28,12 @@
 7. [Integrated Help & Documentation System (`?` and `help`)](#-integrated-help--documentation-system--and-help)
 8. [Snippet System with Tab-Stop Navigation](#-snippet-system-with-tab-stop-navigation)
 9. [Real-Time Synchronized Leaflet Map Viewer](#-real-time-synchronized-leaflet-map-viewer)
-10. [Zero-Friction Unified Authentication & Cloud Project Detection](#-zero-friction-unified-authentication--cloud-project-detection)
-11. [Cloud Assets Explorer & Virtual CLI Filesystem](#-cloud-assets-explorer--virtual-cli-filesystem)
-12. [Keyboard Shortcuts Cheat Sheet](#-keyboard-shortcuts-cheat-sheet)
-13. [Licensing, Ethics & Intellectual Property](#-licensing-ethics--intellectual-property)
+10. [Awesome Spectral Indices Wizard](#-awesome-spectral-indices-wizard)
+11. [Zero-Friction Unified Authentication & Cloud Project Detection](#-zero-friction-unified-authentication--cloud-project-detection)
+12. [Cloud Assets Explorer, Task Monitor & Virtual CLI Filesystem](#-cloud-assets-explorer-task-monitor--virtual-cli-filesystem)
+13. [Smart Auto-Plotting Engine & Public Data Catalog Search (+1,100 Datasets)](#-smart-auto-plotting-engine--public-data-catalog-search-1100-datasets)
+14. [Keyboard Shortcuts Cheat Sheet](#-keyboard-shortcuts-cheat-sheet)
+15. [Licensing, Ethics & Intellectual Property](#-licensing-ethics--intellectual-property)
 
 ---
 
@@ -313,9 +315,17 @@ Type a prefix and hit **`Tab`** to deploy standard remote sensing patterns, jump
 Quadrant 3 hosts an integrated Leaflet map canvas engineered specifically for remote sensing analysis and interactive GIS workflows:
 * **Bidirectional Socket Bridge:** An internal socket bridge (`PythonBridgeServer`) intercepts `Map.addLayer(...)` calls across JavaScript, Python, and R, rendering spatial rasters and vectors live in seconds.
 * **🎛 Advanced Layers Manager:**
+  * **Dynamic Responsive Viewport:** Dynamically adapts its height (`max-height: calc(100vh - 195px)`) with smooth internal scrolling, ensuring that extensive layer stacks never overlap or obscure bottom action buttons (Swipe, Draw, Tools).
   * **Compact Floating Dock:** A dedicated, non-intrusive **Layers** dock with auto-collapse, pin mode (always visible or hover-only), and numeric toggle shortcuts (`1..9` and `0` to toggle all).
   * **Individual Layer Controls:** Instant per-layer visibility toggles and continuous precision opacity sliders (`0% – 100%`).
+  * **Automatic Map Legends & True Color Swatches:** Adding any raster with a `palette` (e.g. `palettes.ndvi`) automatically renders an inline gradient legend with min/max values. Multi-band RGB images display an intelligent True Color preview swatch.
   * **Hierarchical Grouping:** Supports subfolder organization (e.g., `Classifications/NDVI`) with group-level visibility toggles.
+* **🔀 Advanced Swipe Comparison Tool (Split Panel / BC Mode):**
+  * **Interactive Dual-Layer Comparison:** Activate the split-screen slider by clicking the floating 🔀 (BC) button in the map toolbar to visually compare the top two visible raster layers.
+  * **Dual-Orientation Mode (Vertical & Horizontal):** Seamlessly switch between vertical split (side-by-side) and horizontal split (top-to-bottom).
+  * **Instant Shortcut & Handle Toggle:** Press `Command` (macOS) / `Ctrl` (Windows/Linux) or simply **double-click** the center divider handle to toggle between vertical and horizontal orientation on the fly.
+  * **Context-Aware Dynamic Badges:** Real-time badges display `[L]` (Left) and `[R]` (Right) in vertical mode, and automatically switch to `[T]` (Top) and `[B]` (Bottom) in horizontal mode.
+  * **Zero-Flicker Tile Stacking:** Native DOM hierarchy ensures pixel-perfect clipping and eliminates tile desynchronization or displacement during drag interactions.
 * **📸 HD Retina Map Snapshots (`Option + S` / `Alt + S`):**
   * One-click or hotkey capture of the current map viewport in crystal-clear **2x Retina resolution**.
   * Automatic export to a dedicated `Screenshots/` directory within your workspace (`gee_snapshot_YYYYMMDD_HHMMSS.png`).
@@ -326,7 +336,39 @@ Quadrant 3 hosts an integrated Leaflet map canvas engineered specifically for re
   * **Floating Micro-Dock Toolbar:** Clicking any drawn geometry displays an elevated micro-toolbar `[ ✏️ Edit ] [ 🎨 Style ] [ 🗑️ Delete ]` directly above the shape without obscuring vertices.
   * **10-Color Curated GIS Palette & Custom HTML/HEX Input:** Select from 10 industry-standard GIS colors (Emerald Green, Ruby Red, Sapphire Blue, Amber Orange, etc.) or enter custom `#HEX` / HTML codes with real-time preview and one-click application.
   * **Accidental Loss Prevention:** Two-step inline confirmation (`¿Eliminar? [ ✓ ] [ ✕ ]`) prevents accidental deletion of complex digitized boundaries.
-* **📍 High-Precision Coordinate Inspector:** Click anywhere on the map canvas to extract high-precision geographic coordinates `[longitude, latitude]` with one-click cursor insertion into code.
+* **📍 High-Precision Coordinate & Pixel Inspector:**
+  * Click anywhere on the map to inspect raw pixel values for all active raster layers with collapsible, dark-themed accordion cards.
+  * Hold `Alt`, `Cmd`, or `Ctrl` while hovering to activate the precision crosshair, preventing accidental map panning.
+  * Copy raw coordinates `[lon, lat]` or click **"📋 Copiar Todo (JSON)"** to copy complete pixel records to clipboard.
+  * **Fly to Google Earth Pro:** `Cmd + Shift + Click` (macOS) or `Ctrl + Shift + Click` (Windows/Linux) directly on the map to launch Google Earth Desktop and automatically fly the 3D camera to that exact location.
+  * Inspected points are automatically logged to the `gee>` Console. Press `Esc` to close the inspector popup.
+* **🎨 Built-in Curated Global Palettes (`palettes`):**
+  * Injected directly into the script execution scope: `palettes.ndvi`, `palettes.water`, `palettes.dem`, `palettes.temperature`, `palettes.fire`, `palettes.soil`, `palettes.snow`, `palettes.urban`.
+
+---
+
+## 🌿 Awesome Spectral Indices Wizard
+
+GEE IDE features an integrated, full-featured **Spectral Indices Wizard** designed to generate complete, ready-to-run Earth Engine processing workflows for environmental, agricultural, and hydrological monitoring:
+
+* **Command Palette & Editor Access:** Press `Cmd+Shift+P` ➔ **`GEE IDE: Insert Spectral Index`** or right-click in any `.gee` file and select **Insert Spectral Index**.
+* **10+ Standardized Indices:** Instantly configure algorithms for:
+  * **Vegetation:** `NDVI`, `EVI`, `SAVI`, `MSAVI`, `GNDVI`, `NDRE`
+  * **Water & Moisture:** `NDWI` (McFeeters), `MNDWI` (Xu), `NDMI`
+  * **Burn & Fire Severity:** `NBR`, `NBR2`
+  * **Built-up / Urban:** `NDBI`
+* **Comprehensive Multi-Sensor Calibration:** Automatically binds correct sensor band names and radiometric calibrations across:
+  * **Sentinel-2 MSI** (Harmonized Level-2A / Level-1C)
+  * **Landsat 8 & 9 OLI/TIRS** (Surface Reflectance Tier 1)
+  * **Landsat 4, 5 & 7 TM/ETM+** (Surface Reflectance Tier 1)
+  * **MODIS Terra/Aqua** (MOD09GA / MOD13Q1)
+* **Automated Multi-Year Time Series Loops:**
+  * Select a multi-year analysis range (e.g. `2015 – 2020`).
+  * The wizard automatically generates an annual loop creating median/mean composites for each calendar year.
+  * Adds each year sequentially to the Map Viewer with calibrated index palettes and smart layer names (e.g., `NDVI_2015`, `NDVI_2020`).
+  * **Instant Split-Panel Ready:** Layers are loaded sequentially into the Map Viewer, ready for immediate comparison using the Swipe Tool (BC).
+* **Polyglot Code Generation:** Generates clean, idiomatic code formatted for your active language: JavaScript (`// js`), Python (`# py`), or R (`# r`).
+* **Smart Visualization Injection:** Automatically imports curated color palettes (`palettes.ndvi`, `palettes.water`, etc.) and calibrated min/max dynamic ranges.
 
 ---
 
@@ -342,39 +384,36 @@ Earth Engine authentication across heterogeneous language runtimes is traditiona
 
 ---
 
-## 📂 Cloud Assets Explorer & Virtual CLI Filesystem
+## 📂 Cloud Assets Explorer, Task Monitor & Virtual CLI Filesystem
 
-Manage cloud storage assets directly from your editor workspace:
-* **Visual Sidebar Tree:** Browse user roots (`users/...`) and Google Cloud storage assets (`projects/...`) with double-click inspection and 1-click editor code insertion (`➕`).
-* **Interactive Virtual CLI Filesystem:** Execute terminal-grade filesystem operations directly against Google Earth Engine servers.
+Manage cloud storage assets and monitor long-running background tasks directly from Quadrant 4 without switching to a web browser:
 
-### ⚡ 3 Ways to Execute CLI Commands
+### 1. Cloud Asset Manager
+* **Persistent Tree View:** An elegant, native-feeling hierarchical directory tree that remembers open folders across workspace reloads and script executions.
+* **Two-Step Secure Folder Creation:** Click the `📁+` button in the header (or press `Cmd+Shift+N` / `Ctrl+Shift+N`) to trigger an interactive workflow: first select the parent project via a native `QuickPick` dropdown, then specify the new folder name. This prevents accidental creation attempts on read-only public catalogs.
+* **Asset Details Modal:** Double-click any image or table to open an overlay modal displaying its complete cloud metadata, bands, properties, and dimensions.
+* **Insert in Editor:** Click the `➕` button on any asset to insert its cloud identifier directly at your cursor in the `.gee` script.
+* **Copy & Delete:** Quick-action buttons to copy the asset ID (`📋`) or safely delete assets (`❌`) directly from the panel.
+* **Robust Cloud v1 API Normalization:** Built-in payload adaptation ensuring full compatibility with both legacy (`users/*`) and modern Google Cloud projects (`projects/*/assets`).
 
-1. **Directly from the Code Editor (`Cmd + Enter` / `Ctrl + Enter`):**
-   Type any CLI command directly on any line of your `.gee` script (e.g. `ls`, `du`, `pwd`, `find *`) and press `Cmd + Enter`. GEE IDE intelligently detects the command and runs it in the `gee>` Console without throwing syntax errors.
-2. **Bash-Style `!` Prefix in Scripts:**
-   Prefix lines with `!` to execute terminal commands seamlessly within your scripts:
-   ```javascript
-   // js
-   !mkdir seasonal_analysis_2024
-   !touch seasonal_analysis_2024/cloud_masks
-   !ls seasonal_analysis_2024
-   ```
-3. **Programmatic Automation in JavaScript (Loops & Batch Operations):**
-   Automate large-scale asset creation or deletion using native helper functions (`cli()`, `mkdir()`, `rm()`, `ls()`, `touch()`, `du()`, `mv()`, `cp()`, `find()`):
-   ```javascript
-   // Create 5 recurring directories programmatically
-   for (var i = 1; i <= 5; i++) {
-       mkdir('test_season_' + i);
-   }
+### 2. Cloud Tasks Manager (Minimalist Tree UI)
+* **Compact Tree Design:** Seamlessly matches the Asset Manager's `.tree-item` layout, left-aligned and dynamically styled for dark and light VS Code themes.
+* **Live Status & Duration:** View task execution durations (e.g. `(1m)`), types (`EXPORT_IMAGE`, `EXPORT_TABLE`), and real-time states (`READY`, `RUNNING`, `COMPLETED`, `FAILED`).
+* **Optimistic Instant Updates:** Immediate reactive insertion (`🔄 Submitting to GEE...`) with multi-stage exponential polling bursts upon script evaluation.
+* **Native Desktop OS Notifications:** Receives native OS banner alerts upon task completion (`✅ GEE Task completed`) or failure (`❌ GEE Task failed`) with intelligent memory diagnostic suggestions (`tileScale: 4`).
+* **1-Click Contextual Actions:**
+  * 🛑 **Cancel Task:** Immediately abort running or queued tasks.
+  * 📁 **Google Drive Search:** Instantly opens a filtered search in Google Drive for exported image files.
+  * 📋 **Copy Task ID:** Copies the unique cloud task identifier to the clipboard.
+  * ⚠️ **Copy Error:** Copies sanitized, multi-line error traces from failed operations.
 
-   // Batch recursive delete with wildcards in 1 line
-   rm('test_season_*', true); // true = recursive (-r)
-   ```
+### 3. Interactive Virtual CLI Filesystem
+Execute terminal-grade filesystem operations directly against Google Earth Engine servers:
 
----
-
-### 🛠️ Complete CLI Command Reference & Examples
+* **3 Ways to Execute CLI Commands:**
+  1. **Directly from the Code Editor (`Cmd + Enter` / `Ctrl + Enter`):** Type any CLI command on any line of your `.gee` script (e.g. `ls`, `du`, `pwd`, `find *`) and execute it.
+  2. **Bash-Style `!` Prefix in Scripts:** Prefix lines with `!` to execute terminal commands inside your workflows (e.g. `!mkdir seasonal_2024`).
+  3. **Programmatic Automation in JavaScript:** Automate batch tasks with native helper functions (`cli()`, `mkdir()`, `rm()`, `ls()`, `touch()`, `du()`, `mv()`, `cp()`, `find()`).
 
 | Command | Official GEE API Equivalent (`ee.data.*`) | Syntax / Flags | Description & Practical Examples |
 | :--- | :--- | :--- | :--- |
@@ -395,19 +434,18 @@ Manage cloud storage assets directly from your editor workspace:
 
 ---
 
-## 🌐 Earth Engine Public Data Catalog Search (+1,100 Datasets)
+## 🌐 Smart Auto-Plotting Engine & Public Data Catalog Search (+1,100 Datasets)
 
-Query and discover over 1,100 official public Google Earth Engine datasets (Sentinel, Landsat, MODIS, ERA5, SRTM, Dynamic World, WorldCover, etc.) without switching to a web browser:
+Query and discover over 1,100 official public Google Earth Engine datasets (Sentinel, Landsat, MODIS, ERA5, SRTM, Dynamic World, WorldCover, etc.) and auto-visualize spatial objects without friction:
 
 ### 1. Interactive Command Palette Search (`Cmd+Shift+P`)
 * Press `Cmd+Shift+P` ➔ **`GEE IDE: Search Data Catalog`**.
 * Search in real-time by mission, sensor, variable, band, or tag (e.g. `sentinel 2`, `landsat 8`, `elevation`, `srtm`, `modis ndvi`, `landcover`).
 * Inspect temporal coverage, data type, and band summaries.
 * **One-Click Actions:**
-  * **Insertar y Visualizar en Mapa (Smart Auto-Plot):** Inserts the dataset declaration AND automatically appends `Map.centerObject()` and `Map.addLayer()` code. It includes a **Smart VisParams Guesser** that automatically detects the dataset type (e.g. NDVI, Elevation, Water, LST) and generates the correct visualization ranges and professional color palettes. For collections, it intelligently appends `.first()` to ensure instant visualization.
-  * **Insert in Editor:** Automatically inserts language-aware declarations (`var s2 = ee.ImageCollection('...')` in JS, Python, or R) at your active cursor.
-  * **Copy Snippet:** Copies the dataset declaration to your system clipboard.
-  * **Open in Earth Engine Catalog:** Opens the official Google documentation page in your browser.
+  * **Insert & Auto-Plot on Map:** Inserts the dataset declaration AND automatically appends `Map.centerObject()` and `Map.addLayer()` code. Includes a **Smart VisParams Guesser** that detects dataset type (NDVI, Elevation, Water, LST) and configures calibrated ranges and professional palettes.
+  * **Insert in Editor:** Inserts language-aware declarations (`var s2 = ee.ImageCollection('...')` in JS, Python, or R) at active cursor.
+  * **Copy Snippet & Open in Web:** Copies snippet to clipboard or opens the official Google documentation page.
 
 ### 2. Interactive CLI Search via `gee>` Console
 * **Direct commands:**
@@ -415,68 +453,16 @@ Query and discover over 1,100 official public Google Earth Engine datasets (Sent
   gee> catalog sentinel 2
   gee> search modis ndvi
   gee> catalog srtm -type image
-  ```
-* **Unified via `find` flag:**
-  ```text
   gee> find -catalog "land cover"
-  gee> find -c elevation
   ```
 * Prints dataset IDs, descriptions, temporal ranges, band lists, and runnable code snippets directly to the console canvas.
 
 ### 3. Smart Console Auto-Plot (RStudio UX)
-When evaluating any Earth Engine spatial variable or expression (`ee.Image`, `ee.FeatureCollection`, `ee.Geometry`) directly in the interactive `gee>` REPL, the IDE will automatically plot it on the Map Viewer and center the camera without requiring explicit `Map.addLayer()` commands.
+Evaluating any Earth Engine spatial expression or native GeoJSON structure in the interactive `gee>` REPL automatically plots it on the Map Viewer and centers the camera without requiring explicit `Map.addLayer()`:
+* **Supported Geometries:** Native support for `ee.Image`, `ee.ImageCollection`, `ee.FeatureCollection`, `ee.Feature`, `ee.Geometry` and raw GeoJSON `{"type": "Polygon", ...}`.
+* **Intelligent True Color RGB Prioritization:** Automatically detects natural color band sets (`B4`/`B3`/`B2`, `B4_median`/`B3_median`/`B2_median`) and prioritizes them over thermal or QA bands, avoiding false gray scale previews.
+* **Live Color Chips:** Auto-plots include representative color chips in the Layer Manager.
 
-### 4. Built-in Global Palettes (`palettes`)
-GEE IDE automatically injects a curated collection of professional color palettes into your local execution context. You can use them directly in your scripts without having to copy-paste long HEX strings:
-* **Vegetation/NDVI:** `palettes.ndvi`
-* **Water/NDWI:** `palettes.water`
-* **Elevation/DEM:** `palettes.dem`
-* **Temperature/LST:** `palettes.temperature`
-* **Fire/Burn:** `palettes.fire`
-* **Bare Soil/Agriculture:** `palettes.soil`
-* **Snow/Ice:** `palettes.snow`
-* **Urban/Impervious:** `palettes.urban`
-
-*Example usage:*
-```javascript
-Map.addLayer(ndvi_image, {min: -1, max: 1, palette: palettes.ndvi}, 'My NDVI');
-```
-
-### 5. Swipe Tool (Split Panel)
-Compare two raster layers effortlessly using the built-in Swipe Tool. Click the 🔀 icon in the bottom right toolbar of the map to activate it. A slider will appear allowing you to visually compare the top two visible layers. Hold `Shift` to toggle the slider between vertical and horizontal modes.
-
-### 6. Automatic Map Legends
-When adding a layer via `Map.addLayer` that contains a `palette` (e.g. `palettes.ndvi`), a beautiful color-gradient legend (with min/max values) is automatically generated directly inside the Layer Manager panel under the layer name.
-
-### 7. Interactive Pixel Inspector (Point & Click)
-Click anywhere on the Map Viewer to instantly inspect the pixel values of all currently active raster layers at that precise coordinate. 
-* **Precision Crosshair:** Hold down `Alt`, `Cmd`, or `Ctrl` while hovering over the map to switch your cursor to a precision crosshair, preventing accidental map dragging.
-* **Smart Concurrency:** Automatically fetches values concurrently for `ee.Image` and `ee.ImageCollection` layers present on the map.
-* **Ergonomic UI:** Generates an interactive, dark-themed Leaflet popup. Layers are organized into collapsible accordions to keep the UI compact regardless of how many bands are loaded.
-* **Export & Copy:** Quickly copy the raw coordinate `[lon, lat]` or click **"📋 Copiar Todo (JSON)"** to copy the entire pixel dataset to your clipboard.
-* **Fly to Google Earth Pro:** `Cmd + Shift + Click` (macOS) or `Ctrl + Shift + Click` (Windows/Linux) directly on the map to instantly open Google Earth Desktop and automatically fly the 3D camera to that precise coordinate.
-* **Console History:** Every inspected point is automatically logged into the `gee>` Console (Quadrant 2), creating a persistent history of your analysis without cluttering your workspace tabs.
-* **Quick Close:** Press `Esc` at any time to immediately close the inspector popup.
-
-### 8. Advanced GEE Tools Panel (Tasks & Assets)
-Manage your cloud resources and monitor long-running processes directly from Quadrant 4 without ever switching to a web browser.
-
-**Cloud Tasks Manager (Minimalist Tree UI):**
-* **Compact Tree Design:** Seamlessly matches the Asset Manager's `.tree-item` layout, left-aligned and dynamically styled for dark and light VS Code themes.
-* **Live Status & Duration:** View task execution durations (e.g. `(1m)`), types (`EXPORT_IMAGE`, `EXPORT_TABLE`), and real-time states (`READY`, `RUNNING`, `COMPLETED`, `FAILED`).
-* **1-Click Contextual Actions:**
-  * 🛑 **Cancel Task:** Immediately abort running or queued tasks.
-  * 📁 **Google Drive Search:** Instantly opens a filtered search in Google Drive for exported image files.
-  * 📋 **Copy Task ID:** Copies the unique cloud task identifier to the clipboard.
-  * ⚠️ **Copy Error:** Copies sanitized, multi-line error traces from failed operations.
-
-**Cloud Asset Manager:**
-* **Persistent Tree View:** An elegant, native-feeling hierarchical directory tree that remembers open folders across workspace reloads and script executions.
-* **Two-Step Secure Folder Creation:** Click the `📁+` button in the header (or press `Cmd+Shift+N` / `Ctrl+Shift+N`) to trigger an interactive workflow: first select the parent project via a native `QuickPick` dropdown, then specify the new folder name. This prevents accidental creation attempts on read-only public catalogs.
-* **Asset Details Modal:** Double-click any image or table to open an overlay modal displaying its complete cloud metadata, bands, properties, and dimensions.
-* **Insert in Editor:** Click the `➕` button on any asset to insert its cloud identifier directly at your cursor in the `.gee` script.
-* **Copy & Delete:** Quick-action buttons to copy the asset ID (`📋`) or safely delete assets (`❌`) directly from the panel.
-* **Robust Cloud v1 API Normalization:** Built-in payload adaptation ensuring full compatibility with both legacy (`users/*`) and modern Google Cloud projects (`projects/*/assets`).
 ---
 
 ## ⌨️ Keyboard Shortcuts Cheat Sheet
