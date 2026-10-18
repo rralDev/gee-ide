@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import * as vscode from 'vscode';
 
 export class MapView {
@@ -335,17 +337,31 @@ export class MapView {
     }
 
     private getHtml() {
+        let leafletCss = "";
+        let leafletJs = "";
+        let leafletDrawCss = "";
+        let leafletDrawJs = "";
+        try {
+            const mediaDir = path.join(this.context.extensionPath, "media", "leaflet");
+            leafletCss = fs.readFileSync(path.join(mediaDir, "leaflet.css"), "utf8");
+            leafletJs = fs.readFileSync(path.join(mediaDir, "leaflet.js"), "utf8");
+            leafletDrawCss = fs.readFileSync(path.join(mediaDir, "leaflet.draw.css"), "utf8");
+            leafletDrawJs = fs.readFileSync(path.join(mediaDir, "leaflet.draw.js"), "utf8");
+        } catch (e) {
+            console.error("[GEE Map] Error reading local leaflet media:", e);
+        }
         return `
             <!DOCTYPE html>
             <html lang="en">
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob: vscode-webview:; script-src * 'unsafe-inline' 'unsafe-eval' vscode-webview:; style-src * 'unsafe-inline' vscode-webview:; img-src * data: blob: https: vscode-webview:; connect-src *;">
                 <title>GEE Map Pro</title>
-                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
-                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
-                <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
-                <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+                ${leafletCss ? `<style>${leafletCss}</style>` : `<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />`}
+                ${leafletDrawCss ? `<style>${leafletDrawCss}</style>` : `<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />`}
+                ${leafletJs ? `<script>${leafletJs}</script>` : `<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>`}
+                ${leafletDrawJs ? `<script>${leafletDrawJs}</script>` : `<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>`}
                 <style>
                     html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #1e1e1e; }
                     #map { position: absolute; top: 0; bottom: 0; left: 0; right: 0; width: 100%; height: 100%; z-index: 1; }
