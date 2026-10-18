@@ -2113,7 +2113,10 @@ export class MapView {
                             const msgEl = document.getElementById("geeWebviewErrorMessage");
                             if (overlay && msgEl) {
                                 overlay.style.display = "block";
-                                msgEl.textContent = String(message) + " (Line " + lineno + ", Col " + colno + ")\n" + (error ? error.stack : "");
+                                msgEl.textContent = String(message) + " (Line " + lineno + ", Col " + colno + ")";
+                                if (error && error.stack) {
+                                    msgEl.textContent += " - " + error.stack;
+                                }
                             }
                         } catch(e) {}
                         try {
@@ -3019,14 +3022,14 @@ export class MapView {
                             return 'var ' + name + ' = /* color: ' + color + ' */ ' + geomConstructor + ';';
                         } else if (type === 'Feature') {
                             const propsStr = Object.keys(props).length > 0 ? JSON.stringify(props, null, 2) : '{}';
-                            return 'var ' + name + ' = /* color: ' + color + ' */ ee.Feature(\n    ' + geomConstructor + ',\n    ' + propsStr + ');';
+                            return 'var ' + name + ' = /* color: ' + color + ' */ ee.Feature(\\n    ' + geomConstructor + ',\\n    ' + propsStr + ');';
                         } else if (type === 'FeatureCollection') {
                             const propsStr = Object.keys(props).length > 0 ? JSON.stringify(props) : '{}';
                             const features = layer.shapes.map(s => {
                                 const sc = shapeToJsConstructor(s);
                                 return '    ee.Feature(' + sc + ', ' + propsStr + ')';
-                            }).join(',\n');
-                            return 'var ' + name + ' = /* color: ' + color + ' */ ee.FeatureCollection([\n' + features + '\n]);';
+                            }).join(',\\n');
+                            return 'var ' + name + ' = /* color: ' + color + ' */ ee.FeatureCollection([\\n' + features + '\\n]);';
                         }
                         return '';
                     }
@@ -3058,7 +3061,7 @@ export class MapView {
                         const codes = geometryLayers
                             .map(l => generateGeeLayerCode(l))
                             .filter(c => c.length > 0)
-                            .join('\n\n');
+                            .join('\\n\\n');
 
                         if (!codes) {
                             showHud('⚠️ Draw at least one shape first');
@@ -3076,7 +3079,7 @@ export class MapView {
                         const codes = geometryLayers
                             .map(l => generateGeeLayerCode(l))
                             .filter(c => c.length > 0)
-                            .join('\n\n');
+                            .join('\\n\\n');
 
                         if (!codes) {
                             showHud('⚠️ Draw at least one shape first');
@@ -6863,7 +6866,9 @@ export class MapView {
                     // Notify extension that webview Leaflet map is fully initialized and ready
                     setTimeout(() => {
                         map.invalidateSize();
-                        vscode.postMessage({ command: 'ready' });
+                        if (vscode && vscode.postMessage) {
+                            vscode.postMessage({ command: 'ready' });
+                        }
                     }, 100);
                 </script>
             </body>
