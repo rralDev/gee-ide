@@ -215,12 +215,455 @@ export class MapView {
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>GEE Map Pro</title>
                 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+                <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
                 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-                <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+                <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
                 <style>
                     body { margin: 0; padding: 0; height: 100vh; background: #1e1e1e; }
                     #map { height: 100%; width: 100%; }
+                    /* Google Earth Engine Geometry Toolbar & Imports System */
+                    .gee-geom-container {
+                        position: absolute;
+                        top: 10px;
+                        left: 10px;
+                        z-index: 1000;
+                        display: flex;
+                        align-items: flex-start;
+                        gap: 8px;
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                        pointer-events: none;
+                    }
+                    .gee-geom-container > * {
+                        pointer-events: auto;
+                    }
+
+                    .gee-draw-toolbar {
+                        display: flex;
+                        background: #252526;
+                        border: 1px solid #3c3c3c;
+                        border-radius: 4px;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.45);
+                        overflow: hidden;
+                        height: 30px;
+                    }
+                    .gee-draw-btn {
+                        width: 32px;
+                        height: 30px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        background: transparent;
+                        border: none;
+                        border-right: 1px solid rgba(255,255,255,0.08);
+                        color: #cccccc;
+                        cursor: pointer;
+                        transition: background 0.12s, color 0.12s;
+                        padding: 0;
+                    }
+                    .gee-draw-btn:last-child {
+                        border-right: none;
+                    }
+                    .gee-draw-btn:hover {
+                        background: #37373d;
+                        color: #ffffff;
+                    }
+                    .gee-draw-btn.active {
+                        background: #0e639c !important;
+                        color: #ffffff !important;
+                    }
+
+                    .gee-geom-dock {
+                        width: 220px;
+                        background: #252526;
+                        border: 1px solid #3c3c3c;
+                        border-radius: 4px;
+                        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+                        overflow: hidden;
+                        display: flex;
+                        flex-direction: column;
+                    }
+                    .gee-geom-dock.collapsed .gee-geom-body {
+                        display: none !important;
+                    }
+                    .gee-geom-header {
+                        background: #1a73e8;
+                        color: #ffffff;
+                        height: 30px;
+                        display: flex;
+                        align-items: center;
+                        padding: 0 8px;
+                        gap: 6px;
+                        user-select: none;
+                        box-sizing: border-box;
+                    }
+                    .gee-geom-title {
+                        font-size: 12.5px;
+                        font-weight: 600;
+                        flex: 1;
+                        cursor: pointer;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+                    .gee-geom-header-actions {
+                        display: flex;
+                        align-items: center;
+                        gap: 2px;
+                    }
+                    .gee-geom-header-btn {
+                        background: transparent;
+                        border: none;
+                        color: #ffffff;
+                        font-size: 11px;
+                        width: 20px;
+                        height: 20px;
+                        border-radius: 3px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        cursor: pointer;
+                        transition: background 0.15s;
+                        padding: 0;
+                    }
+                    .gee-geom-header-btn:hover {
+                        background: rgba(255,255,255,0.22);
+                    }
+                    .gee-geom-body {
+                        display: flex;
+                        flex-direction: column;
+                        max-height: 240px;
+                    }
+                    .gee-geom-layers-list {
+                        overflow-y: auto;
+                        max-height: 195px;
+                    }
+                    .gee-geom-layer-row {
+                        display: flex;
+                        align-items: center;
+                        gap: 7px;
+                        padding: 5px 8px;
+                        cursor: pointer;
+                        border-bottom: 1px solid rgba(255,255,255,0.05);
+                        transition: background 0.12s;
+                        font-size: 12px;
+                        color: #cccccc;
+                        box-sizing: border-box;
+                    }
+                    .gee-geom-layer-row:hover {
+                        background: rgba(255,255,255,0.06);
+                    }
+                    .gee-geom-layer-row.active {
+                        background: rgba(26, 115, 232, 0.18);
+                        color: #ffffff;
+                        font-weight: 700;
+                    }
+                    .gee-geom-layer-name {
+                        flex: 1;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+                    .gee-geom-layer-swatch {
+                        width: 16px;
+                        height: 16px;
+                        border-radius: 3px;
+                        border: 1px solid rgba(255,255,255,0.25);
+                        cursor: pointer;
+                        flex-shrink: 0;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+                    }
+                    .gee-geom-layer-gear {
+                        font-size: 11px;
+                        opacity: 0.6;
+                        cursor: pointer;
+                        padding: 0 2px;
+                    }
+                    .gee-geom-layer-gear:hover {
+                        opacity: 1;
+                    }
+                    .gee-geom-footer {
+                        padding: 6px 8px;
+                        background: rgba(0,0,0,0.15);
+                        border-top: 1px solid rgba(255,255,255,0.08);
+                    }
+                    .gee-geom-add-link {
+                        color: #388bfd;
+                        font-size: 11.5px;
+                        font-weight: 600;
+                        cursor: pointer;
+                        text-decoration: none;
+                        display: inline-block;
+                    }
+                    .gee-geom-add-link:hover {
+                        text-decoration: underline;
+                    }
+
+                    .gee-draw-banner {
+                        background: #fef0cd;
+                        border: 1px solid #ffd351;
+                        color: #202124;
+                        border-radius: 4px;
+                        padding: 3px 8px;
+                        font-size: 12px;
+                        font-weight: 500;
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+                        height: 30px;
+                        box-sizing: border-box;
+                    }
+                    .gee-banner-btn {
+                        background: rgba(0,0,0,0.08);
+                        border: 1px solid rgba(0,0,0,0.18);
+                        border-radius: 3px;
+                        font-size: 11px;
+                        padding: 2px 6px;
+                        cursor: pointer;
+                        color: #202124;
+                        transition: background 0.12s;
+                    }
+                    .gee-banner-btn:hover {
+                        background: rgba(0,0,0,0.16);
+                    }
+                    .gee-banner-btn.exit-btn {
+                        font-weight: 600;
+                        background: #ffffff;
+                    }
+
+                    /* Configure Geometry Import Modal */
+                    .gee-geom-backdrop {
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        background: rgba(0, 0, 0, 0.55);
+                        z-index: 2190;
+                        backdrop-filter: blur(2px);
+                    }
+                    .gee-geom-modal {
+                        position: fixed;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        z-index: 2200;
+                        width: 450px;
+                        background: #252526;
+                        border: 1px solid #3c3c3c;
+                        border-radius: 6px;
+                        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+                        color: #e0e0e0;
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                        display: flex;
+                        flex-direction: column;
+                        overflow: hidden;
+                    }
+                    .gee-geom-modal-header {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        padding: 10px 14px;
+                        border-bottom: 1px solid rgba(255,255,255,0.1);
+                        font-size: 13.5px;
+                        font-weight: 600;
+                    }
+                    .gee-geom-modal-close {
+                        background: transparent;
+                        border: none;
+                        color: #aaa;
+                        cursor: pointer;
+                        font-size: 14px;
+                    }
+                    .gee-geom-modal-close:hover {
+                        color: #fff;
+                    }
+                    .gee-geom-modal-body {
+                        display: flex;
+                        gap: 16px;
+                        padding: 14px;
+                    }
+                    .gee-geom-modal-col.left {
+                        flex: 1.2;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 10px;
+                    }
+                    .gee-geom-modal-col.right {
+                        flex: 0.9;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 10px;
+                    }
+                    .gee-geom-field {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                    }
+                    .gee-geom-field label {
+                        font-size: 11px;
+                        color: #999;
+                        font-weight: 600;
+                        text-transform: uppercase;
+                        letter-spacing: 0.4px;
+                    }
+                    .gee-geom-field input[type="text"],
+                    .gee-geom-field select {
+                        background: #18181b;
+                        border: 1px solid rgba(255,255,255,0.18);
+                        border-radius: 4px;
+                        color: #fff;
+                        padding: 5px 8px;
+                        font-size: 12px;
+                        outline: none;
+                    }
+                    .gee-geom-field input[type="text"]:focus,
+                    .gee-geom-field select:focus {
+                        border-color: #1a73e8;
+                    }
+                    .gee-geom-props-box {
+                        background: rgba(0,0,0,0.25);
+                        border: 1px solid rgba(255,255,255,0.1);
+                        border-radius: 4px;
+                        padding: 6px;
+                        max-height: 100px;
+                        overflow-y: auto;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                        font-size: 11.5px;
+                        color: #aaa;
+                    }
+                    .gee-geom-prop-row {
+                        display: flex;
+                        align-items: center;
+                        gap: 4px;
+                    }
+                    .gee-geom-prop-input {
+                        background: #18181b;
+                        border: 1px solid rgba(255,255,255,0.15);
+                        border-radius: 3px;
+                        color: #fff;
+                        font-size: 11px;
+                        padding: 3px 5px;
+                        width: 45%;
+                    }
+                    .gee-geom-prop-del {
+                        background: transparent;
+                        border: none;
+                        color: #e51400;
+                        cursor: pointer;
+                        font-size: 11px;
+                        padding: 0 2px;
+                    }
+                    .gee-geom-prop-add-btn {
+                        background: transparent;
+                        border: none;
+                        color: #388bfd;
+                        font-size: 11px;
+                        font-weight: 600;
+                        cursor: pointer;
+                        padding: 0;
+                    }
+                    .gee-geom-prop-add-btn:hover {
+                        text-decoration: underline;
+                    }
+                    .gee-geom-modal-swatch {
+                        width: 30px;
+                        height: 30px;
+                        border-radius: 4px;
+                        border: 1px solid rgba(255,255,255,0.3);
+                        flex-shrink: 0;
+                    }
+                    .gee-geom-spectrum-trigger {
+                        cursor: pointer;
+                        width: 28px;
+                        height: 28px;
+                        border-radius: 4px;
+                        background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        border: 1px solid rgba(255,255,255,0.3);
+                        position: relative;
+                        overflow: hidden;
+                        flex-shrink: 0;
+                    }
+                    .gee-geom-spectrum-trigger input[type="color"] {
+                        opacity: 0;
+                        position: absolute;
+                        width: 100%;
+                        height: 100%;
+                        cursor: pointer;
+                        top: 0;
+                        left: 0;
+                        border: none;
+                        padding: 0;
+                    }
+                    .gee-geom-presets-grid {
+                        display: grid;
+                        grid-template-columns: repeat(5, 1fr);
+                        gap: 5px;
+                        margin-top: 4px;
+                    }
+                    .gee-geom-preset-dot {
+                        width: 22px;
+                        height: 22px;
+                        border-radius: 4px;
+                        border: 1px solid rgba(255,255,255,0.3);
+                        cursor: pointer;
+                        transition: transform 0.12s;
+                        box-sizing: border-box;
+                    }
+                    .gee-geom-preset-dot:hover {
+                        transform: scale(1.18);
+                        box-shadow: 0 0 6px rgba(255,255,255,0.6);
+                    }
+                    .gee-geom-modal-footer {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        padding: 10px 14px;
+                        border-top: 1px solid rgba(255,255,255,0.1);
+                        background: rgba(0,0,0,0.15);
+                    }
+                    .gee-geom-btn {
+                        padding: 6px 14px;
+                        border-radius: 4px;
+                        font-size: 12px;
+                        font-weight: 600;
+                        cursor: pointer;
+                        border: none;
+                        transition: background 0.15s;
+                    }
+                    .gee-geom-btn.primary {
+                        background: #1a73e8;
+                        color: #fff;
+                    }
+                    .gee-geom-btn.primary:hover {
+                        background: #1558b0;
+                    }
+                    .gee-geom-btn.secondary {
+                        background: rgba(255,255,255,0.1);
+                        color: #ddd;
+                        border: 1px solid rgba(255,255,255,0.15);
+                    }
+                    .gee-geom-btn.secondary:hover {
+                        background: rgba(255,255,255,0.18);
+                        color: #fff;
+                    }
+                    .gee-geom-btn.danger {
+                        background: transparent;
+                        color: #e51400;
+                        border: 1px solid rgba(229,20,0,0.3);
+                        padding: 6px 10px;
+                        font-size: 13px;
+                    }
+                    .gee-geom-btn.danger:hover {
+                        background: rgba(229,20,0,0.15);
+                    }
+
+                    
                     /* Custom Leaflet Design */
                     .leaflet-bar { border: none !important; box-shadow: 0 4px 15px rgba(0,0,0,0.5) !important; }
                     .leaflet-bar a { background-color: #252526 !important; color: #cccccc !important; border-bottom: 1px solid #383838 !important; }
@@ -337,9 +780,9 @@ export class MapView {
 
                     .coords-label {
                         position: absolute;
-                        top: 12px;
-                        left: 52px;
-                        transform: none;
+                        bottom: 12px;
+                        left: 50%;
+                        transform: translateX(-50%);
                         z-index: 1000;
                         background: rgba(15, 15, 15, 0.85);
                         backdrop-filter: blur(8px);
@@ -1066,369 +1509,843 @@ export class MapView {
                         });
                     }
 
-                    const defaultPinIcon = createPinIcon('#2A81CB');
+                    const defaultPinIcon = createPinIcon('#d63000');
                     L.Marker.prototype.options.icon = defaultPinIcon;
 
-                    // Drawing Implementation & Localization
-                    if (window.L && L.drawLocal) {
-                        L.drawLocal.draw.toolbar.buttons.polygon = 'Draw Polygon';
-                        L.drawLocal.draw.toolbar.buttons.polyline = 'Draw Polyline';
-                        L.drawLocal.draw.toolbar.buttons.rectangle = 'Draw Rectangle';
-                        L.drawLocal.draw.toolbar.buttons.marker = 'Place Marker / Point';
+                    // =========================================================================
+                    // GOOGLE EARTH ENGINE GEOMETRY IMPORTS & VECTOR DRAWING SYSTEM
+                    // =========================================================================
+                    const GEE_PRESET_COLORS = [
+                        '#d63000', // GEE Red (Default)
+                        '#98ff00', // GEE Lime
+                        '#0b4a8b', // GEE Dark Blue
+                        '#ffc82d', // GEE Yellow / Orange
+                        '#00ffff', // Cyan
+                        '#ff00ff', // Magenta
+                        '#00e676', // Emerald Green
+                        '#ff9800', // Amber Orange
+                        '#9c27b0', // Purple
+                        '#ffffff'  // White
+                    ];
+
+                    let geomColorIndex = 1;
+                    function getNextGeomColor() {
+                        const col = GEE_PRESET_COLORS[geomColorIndex % GEE_PRESET_COLORS.length];
+                        geomColorIndex++;
+                        return col;
                     }
 
-                    const drawnItems = new L.FeatureGroup();
-                    map.addLayer(drawnItems);
+                    // Master state of all geometry import layers
+                    let geometryLayers = [
+                        {
+                            id: 'geom_layer_1',
+                            name: 'geometry',
+                            type: 'Geometry', // 'Geometry' | 'Feature' | 'FeatureCollection'
+                            color: '#d63000',
+                            visible: true,
+                            properties: {},
+                            shapes: [], // { id, type, coordinates, layerInstance }
+                            featureGroup: new L.FeatureGroup()
+                        }
+                    ];
+                    map.addLayer(geometryLayers[0].featureGroup);
 
-                    // Left toolbar only keeps geometry creation tools (cleaner UI)
-                    const drawControl = new L.Control.Draw({
-                        edit: false,
-                        draw: {
-                            polygon: true,
-                            polyline: true,
-                            rectangle: true,
-                            circle: false,
-                            marker: { icon: defaultPinIcon },
-                            circlemarker: false
+                    let activeGeomLayerId = 'geom_layer_1';
+                    let activeDrawer = null;
+                    let activeDrawMode = 'pan'; // 'pan' | 'marker' | 'polyline' | 'polygon' | 'rectangle'
+                    let isGeometryLocked = false;
+                    let modalEditingLayerId = null;
+
+                    function getActiveGeomLayer() {
+                        let l = geometryLayers.find(x => x.id === activeGeomLayerId);
+                        if (!l && geometryLayers.length > 0) {
+                            l = geometryLayers[0];
+                            activeGeomLayerId = l.id;
+                        }
+                        return l;
+                    }
+
+                    function setActiveGeomLayer(id) {
+                        activeGeomLayerId = id;
+                        renderGeometryImportsUI();
+                        if (activeDrawMode !== 'pan') {
+                            setGeomDrawMode(activeDrawMode);
+                        }
+                    }
+
+                    function setGeomDrawMode(mode) {
+                        if (activeDrawer) {
+                            try { activeDrawer.disable(); } catch (e) {}
+                            activeDrawer = null;
+                        }
+
+                        activeDrawMode = mode;
+
+                        ['btnGeomPan', 'btnGeomPoint', 'btnGeomLine', 'btnGeomPolygon', 'btnGeomRect'].forEach(id => {
+                            const btn = document.getElementById(id);
+                            if (btn) btn.classList.remove('active');
+                        });
+
+                        const banner = document.getElementById('geeDrawStatusBanner');
+                        const label = document.getElementById('geeDrawStatusLabel');
+
+                        if (mode === 'pan') {
+                            const btn = document.getElementById('btnGeomPan');
+                            if (btn) btn.classList.add('active');
+                            if (banner) banner.style.display = 'none';
+                            return;
+                        }
+
+                        const activeLayer = getActiveGeomLayer();
+                        if (!activeLayer) return;
+
+                        if (banner) banner.style.display = 'flex';
+
+                        const col = activeLayer.color || '#d63000';
+                        const commonOpts = {
+                            shapeOptions: {
+                                color: col,
+                                fillColor: col,
+                                fillOpacity: 0.25,
+                                weight: 2.5
+                            }
+                        };
+
+                        if (mode !== 'pan' && (typeof L === 'undefined' || !L.Draw)) {
+                            showHud('⚠️ Drawing tools loading, please wait...');
+                            return;
+                        }
+
+                        if (mode === 'marker') {
+                            const btn = document.getElementById('btnGeomPoint');
+                            if (btn) btn.classList.add('active');
+                            if (label) label.textContent = 'Point placement.';
+                            activeDrawer = new L.Draw.Marker(map, { icon: createPinIcon(col) });
+                        } else if (mode === 'polyline') {
+                            const btn = document.getElementById('btnGeomLine');
+                            if (btn) btn.classList.add('active');
+                            if (label) label.textContent = 'Line drawing.';
+                            activeDrawer = new L.Draw.Polyline(map, { shapeOptions: { color: col, weight: 3 } });
+                        } else if (mode === 'polygon') {
+                            const btn = document.getElementById('btnGeomPolygon');
+                            if (btn) btn.classList.add('active');
+                            if (label) label.textContent = 'Polygon drawing.';
+                            activeDrawer = new L.Draw.Polygon(map, commonOpts);
+                        } else if (mode === 'rectangle') {
+                            const btn = document.getElementById('btnGeomRect');
+                            if (btn) btn.classList.add('active');
+                            if (label) label.textContent = 'Rectangle drawing.';
+                            activeDrawer = new L.Draw.Rectangle(map, commonOpts);
+                        }
+
+                        if (activeDrawer) {
+                            activeDrawer.enable();
+                        }
+                    }
+
+                    function exitGeomDrawMode() {
+                        setGeomDrawMode('pan');
+                    }
+
+                    function toggleGeomLock() {
+                        isGeometryLocked = !isGeometryLocked;
+                        const btn = document.getElementById('btnGeomLock');
+                        if (btn) {
+                            btn.innerHTML = isGeometryLocked ? '🔒' : '🔓';
+                            btn.title = isGeometryLocked ? 'Locked (shape editing disabled)' : 'Unlocked (click shape to edit vertices)';
+                        }
+                        showHud(isGeometryLocked ? '🔒 Geometry editing locked' : '🔓 Geometry editing unlocked');
+                    }
+
+                    map.on('draw:created', function (event) {
+                        const layer = event.layer;
+                        const activeLayer = getActiveGeomLayer();
+                        if (!activeLayer) return;
+
+                        if (!map.hasLayer(activeLayer.featureGroup)) {
+                            map.addLayer(activeLayer.featureGroup);
+                            activeLayer.visible = true;
+                        }
+
+                        activeLayer.featureGroup.addLayer(layer);
+                        layer._customColor = activeLayer.color;
+                        layer._layerId = activeLayer.id;
+
+                        let shapeType = 'Polygon';
+                        let coords = null;
+
+                        if (event.layerType === 'marker') {
+                            shapeType = 'Point';
+                            const ll = layer.getLatLng();
+                            coords = [Number(ll.lng.toFixed(6)), Number(ll.lat.toFixed(6))];
+                        } else if (event.layerType === 'polyline') {
+                            shapeType = 'LineString';
+                            coords = layer.getLatLngs().map(ll => [Number(ll.lng.toFixed(6)), Number(ll.lat.toFixed(6))]);
+                        } else if (event.layerType === 'rectangle') {
+                            shapeType = 'Rectangle';
+                            const b = layer.getBounds();
+                            coords = [
+                                Number(b.getWest().toFixed(6)),
+                                Number(b.getSouth().toFixed(6)),
+                                Number(b.getEast().toFixed(6)),
+                                Number(b.getNorth().toFixed(6))
+                            ];
+                        } else {
+                            shapeType = 'Polygon';
+                            const latlngs = layer.getLatLngs();
+                            const ring = (Array.isArray(latlngs[0]) ? latlngs[0] : latlngs).map(ll => [Number(ll.lng.toFixed(6)), Number(ll.lat.toFixed(6))]);
+                            if (ring.length > 0) {
+                                const f = ring[0];
+                                const l = ring[ring.length - 1];
+                                if (f[0] !== l[0] || f[1] !== l[1]) {
+                                    ring.push([f[0], f[1]]);
+                                }
+                            }
+                            coords = [ring];
+                        }
+
+                        const shapeId = 'shape_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+                        const shapeObj = {
+                            id: shapeId,
+                            type: shapeType,
+                            coordinates: coords,
+                            layerInstance: layer
+                        };
+                        layer._shapeId = shapeId;
+                        activeLayer.shapes.push(shapeObj);
+
+                        attachGeometryPopup(layer, activeLayer, shapeObj);
+                        renderGeometryImportsUI();
+                        syncGeometriesToExtension();
+                        showHud('Added to ' + activeLayer.name);
+
+                        if (activeDrawMode !== 'pan') {
+                            setTimeout(() => {
+                                if (activeDrawMode !== 'pan') {
+                                    setGeomDrawMode(activeDrawMode);
+                                }
+                            }, 100);
                         }
                     });
-                    map.addControl(drawControl);
 
-                    // Contextual Mini-Toolbar for Individual Geometries (Ultra-compact & Elevated)
-                    function attachGeometryPopup(layer) {
+                    function attachGeometryPopup(layer, geomLayer, shapeObj) {
                         const isMarker = layer instanceof L.Marker;
                         const popupOffset = isMarker ? [0, -8] : [0, -18];
 
                         layer.bindPopup(function() {
+                            if (isGeometryLocked) {
+                                const c = document.createElement('div');
+                                c.style.cssText = 'padding: 4px 6px; font-size: 11px; color: #ffcc00; display: flex; align-items: center; gap: 4px;';
+                                c.innerHTML = '🔒 Layer locked. Unlock in top banner to edit.';
+                                return c;
+                            }
+
                             const container = document.createElement('div');
                             container.style.cssText = 'display: flex; flex-direction: column; gap: 2px; padding: 2px; align-items: center;';
 
                             const row = document.createElement('div');
                             row.style.cssText = 'display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%;';
 
-                            // 1. Edit / Save button (only affects this specific object)
                             const isEditing = layer._isEditing || false;
                             const btnEdit = document.createElement('button');
-                            btnEdit.title = isEditing ? 'Save changes' : 'Edit / Move shape';
+                            btnEdit.title = isEditing ? 'Save changes' : 'Edit / Move vertices';
                             btnEdit.innerHTML = isEditing ? '💾' : '✏️';
                             btnEdit.style.cssText = 'width: 22px; height: 22px; border-radius: 4px; border: ' + (isEditing ? '1px solid rgba(78, 201, 176, 0.5)' : 'none') + '; background: ' + (isEditing ? 'rgba(78, 201, 176, 0.25)' : 'transparent') + '; color: #fff; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s ease; padding: 0;';
-                            
-                            btnEdit.onmouseover = function() {
-                                if (!layer._isEditing) btnEdit.style.background = 'rgba(255, 255, 255, 0.15)';
-                            };
-                            btnEdit.onmouseout = function() {
-                                if (!layer._isEditing) btnEdit.style.background = 'transparent';
-                            };
 
                             btnEdit.onclick = function(e) {
                                 e.stopPropagation();
                                 if (layer._isEditing) {
-                                    // Save edit
-                                    if (layer instanceof L.Marker) {
-                                        if (layer.dragging) layer.dragging.disable();
-                                    } else if (layer.editing) {
-                                        layer.editing.disable();
-                                    }
+                                    if (layer instanceof L.Marker && layer.dragging) layer.dragging.disable();
+                                    if (layer.editing) layer.editing.disable();
                                     layer._isEditing = false;
                                     btnEdit.innerHTML = '✏️';
-                                    btnEdit.title = 'Edit / Move shape';
+                                    btnEdit.title = 'Edit / Move vertices';
                                     btnEdit.style.background = 'transparent';
                                     btnEdit.style.border = 'none';
-                                    showHud('💾 Geometry saved');
-                                    vscode.postMessage({
-                                        command: 'geometryEdited',
-                                        geometry: layer.toGeoJSON()
-                                    });
+
+                                    updateShapeCoordsFromLayer(shapeObj, layer);
+                                    syncGeometriesToExtension();
+                                    showHud('💾 Geometry updated');
                                 } else {
-                                    // Start edit
-                                    if (layer instanceof L.Marker) {
-                                        if (layer.dragging) layer.dragging.enable();
-                                    } else if (layer.editing) {
-                                        layer.editing.enable();
-                                    }
+                                    if (layer instanceof L.Marker && layer.dragging) layer.dragging.enable();
+                                    if (layer.editing) layer.editing.enable();
                                     layer._isEditing = true;
                                     btnEdit.innerHTML = '💾';
-                                    btnEdit.title = 'Guardar cambios';
+                                    btnEdit.title = 'Save changes';
                                     btnEdit.style.background = 'rgba(78, 201, 176, 0.3)';
                                     btnEdit.style.border = '1px solid rgba(78, 201, 176, 0.6)';
-                                    showHud(layer instanceof L.Marker ? '📍 Arrastra el marcador para moverlo' : '✏️ Arrastra los vértices para editar');
+                                    showHud(layer instanceof L.Marker ? '📍 Drag marker to move' : '✏️ Drag vertices to reshape');
                                 }
                             };
 
-                            function applyColorToLayer(layer, col) {
-                                if (!col) return;
-                                if (!col.startsWith('#')) col = '#' + col;
-                                layer._customColor = col;
-                                if (layer instanceof L.Marker) {
-                                    layer.setIcon(createPinIcon(col));
-                                } else if (layer.setStyle) {
-                                    layer.setStyle({ color: col, fillColor: col });
-                                }
-                                showHud('🎨 Color: ' + col.toUpperCase());
-                            }
-
-                            // 2. Color picker button
-                            const btnColor = document.createElement('button');
-                            btnColor.title = 'Cambiar color';
-                            btnColor.innerHTML = '🎨';
-                            btnColor.style.cssText = 'width: 22px; height: 22px; border-radius: 4px; border: none; background: transparent; color: #fff; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s ease; padding: 0;';
-                            btnColor.onmouseover = function() { btnColor.style.background = 'rgba(255, 255, 255, 0.15)'; };
-                            btnColor.onmouseout = function() { if (colorPalette.style.display !== 'flex') btnColor.style.background = 'transparent'; };
-
-                            const colorPalette = document.createElement('div');
-                            colorPalette.style.cssText = 'display: none; flex-direction: column; gap: 4px; margin-top: 3px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.12); width: 130px; box-sizing: border-box;';
-
-                            // Row 1: Extended Preset Dots (10 colors in 2 rows of 5)
-                            const dotsGrid = document.createElement('div');
-                            dotsGrid.style.cssText = 'display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; justify-items: center; width: 100%;';
-
-                            const presetColors = [
-                                '#2A81CB', // Ocean Blue
-                                '#00BCD4', // Cyan
-                                '#00E676', // Emerald
-                                '#FFEA00', // Yellow
-                                '#FF9800', // Orange
-                                '#F44336', // Red
-                                '#E91E63', // Magenta Pink
-                                '#9C27B0', // Purple
-                                '#607D8B', // Slate / Gray
-                                '#FFFFFF'  // White
-                            ];
-
-                            presetColors.forEach(col => {
-                                const dot = document.createElement('div');
-                                dot.style.cssText = 'width: 12px; height: 12px; border-radius: 50%; background: ' + col + '; cursor: pointer; border: 1px solid rgba(255,255,255,0.35); transition: transform 0.1s ease; box-sizing: border-box;';
-                                dot.title = col;
-                                dot.onmouseover = function() { dot.style.transform = 'scale(1.3)'; };
-                                dot.onmouseout = function() { dot.style.transform = 'scale(1.0)'; };
-                                dot.onclick = function(e) {
-                                    e.stopPropagation();
-                                    applyColorToLayer(layer, col);
-                                    colorPalette.style.display = 'none';
-                                    btnColor.style.background = 'transparent';
-                                };
-                                dotsGrid.appendChild(dot);
-                            });
-                            colorPalette.appendChild(dotsGrid);
-
-                            // Row 2: Custom HTML/HEX Input + Native Color Picker
-                            const customRow = document.createElement('div');
-                            customRow.style.cssText = 'display: flex; align-items: center; gap: 4px; margin-top: 2px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.08); width: 100%; box-sizing: border-box;';
-
-                            // Rainbow native picker trigger
-                            const pickerLabel = document.createElement('label');
-                            pickerLabel.title = 'Selector visual / Espectro de color';
-                            pickerLabel.style.cssText = 'cursor: pointer; width: 18px; height: 18px; border-radius: 4px; background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red); display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.3); position: relative; overflow: hidden; flex-shrink: 0;';
-
-                            const nativeColorInput = document.createElement('input');
-                            nativeColorInput.type = 'color';
-                            nativeColorInput.value = layer._customColor || '#2A81CB';
-                            nativeColorInput.style.cssText = 'opacity: 0; position: absolute; width: 100%; height: 100%; cursor: pointer; top: 0; left: 0; border: none; padding: 0;';
-                            pickerLabel.appendChild(nativeColorInput);
-
-                            // Hex code text input (accepts full HTML color with #, e.g. #F46D43)
-                            const hexWrap = document.createElement('div');
-                            hexWrap.style.cssText = 'display: flex; align-items: center; background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 4px; padding: 1px 4px; flex: 1; min-width: 0;';
-
-                            const hexInput = document.createElement('input');
-                            hexInput.type = 'text';
-                            hexInput.placeholder = '#F46D43';
-                            hexInput.maxLength = 16;
-                            const curHex = (layer._customColor || '#2A81CB').toUpperCase();
-                            hexInput.value = curHex.startsWith('#') ? curHex : '#' + curHex;
-                            hexInput.style.cssText = 'width: 100%; min-width: 48px; background: transparent; border: none; outline: none; color: #fff; font-family: "JetBrains Mono", "Consolas", monospace; font-size: 10px; text-transform: uppercase; padding: 0;';
-
-                            function normalizeHtmlColor(str) {
-                                if (!str) return null;
-                                let clean = str.trim().replace(/['"]/g, '');
-                                if (/^#?([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(clean)) {
-                                    if (!clean.startsWith('#')) clean = '#' + clean;
-                                    if (clean.length === 4) {
-                                        clean = '#' + clean[1] + clean[1] + clean[2] + clean[2] + clean[3] + clean[3];
-                                    }
-                                    return clean.toUpperCase();
-                                }
-                                const testEl = document.createElement('div');
-                                testEl.style.color = clean;
-                                if (testEl.style.color) {
-                                    return clean.toLowerCase();
-                                }
-                                return null;
-                            }
-
-                            const applyHex = function(closePanel = true) {
-                                const norm = normalizeHtmlColor(hexInput.value);
-                                if (norm) {
-                                    if (norm.startsWith('#')) {
-                                        hexInput.value = norm;
-                                        if (norm.length === 7) nativeColorInput.value = norm;
-                                    }
-                                    applyColorToLayer(layer, norm);
-                                    if (closePanel) {
-                                        colorPalette.style.display = 'none';
-                                        btnColor.style.background = 'transparent';
-                                    }
-                                } else if (closePanel) {
-                                    showHud('⚠️ Invalid HTML/HEX color (e.g. #F46D43)');
-                                }
-                            };
-
-                            hexInput.oninput = function(e) {
+                            const btnConfig = document.createElement('button');
+                            btnConfig.title = 'Configure layer';
+                            btnConfig.innerHTML = '⚙️';
+                            btnConfig.style.cssText = 'width: 22px; height: 22px; border-radius: 4px; border: none; background: transparent; color: #fff; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;';
+                            btnConfig.onclick = function(e) {
                                 e.stopPropagation();
-                                const norm = normalizeHtmlColor(hexInput.value);
-                                if (norm) {
-                                    applyColorToLayer(layer, norm);
-                                    if (norm.startsWith('#') && norm.length === 7) {
-                                        nativeColorInput.value = norm;
-                                    }
-                                }
+                                map.closePopup();
+                                openGeomConfigModal(geomLayer.id);
                             };
 
-                            nativeColorInput.oninput = function(e) {
-                                e.stopPropagation();
-                                const val = e.target.value.toUpperCase();
-                                hexInput.value = val;
-                                applyColorToLayer(layer, val);
-                            };
-
-                            hexInput.onkeydown = function(e) {
-                                e.stopPropagation();
-                                if (e.key === 'Enter') {
-                                    applyHex(true);
-                                }
-                            };
-
-                            hexWrap.appendChild(hexInput);
-
-                            // Apply button (check mark)
-                            const btnApply = document.createElement('button');
-                            btnApply.title = 'Apply HTML / HEX color';
-                            btnApply.innerHTML = '✓';
-                            btnApply.style.cssText = 'width: 18px; height: 18px; border-radius: 4px; border: 1px solid rgba(78, 201, 176, 0.5); background: rgba(78, 201, 176, 0.25); color: #4ec9b0; font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0; font-weight: bold;';
-                            btnApply.onmouseover = function() { btnApply.style.background = 'rgba(78, 201, 176, 0.4)'; };
-                            btnApply.onmouseout = function() { btnApply.style.background = 'rgba(78, 201, 176, 0.25)'; };
-                            btnApply.onclick = function(e) {
-                                e.stopPropagation();
-                                applyHex(true);
-                            };
-
-                            customRow.appendChild(pickerLabel);
-                            customRow.appendChild(hexWrap);
-                            customRow.appendChild(btnApply);
-                            colorPalette.appendChild(customRow);
-
-                            btnColor.onclick = function(e) {
-                                e.stopPropagation();
-                                const isOpen = colorPalette.style.display === 'flex';
-                                colorPalette.style.display = isOpen ? 'none' : 'flex';
-                                btnColor.style.background = isOpen ? 'transparent' : 'rgba(255, 255, 255, 0.18)';
-                                if (!isOpen) {
-                                    const cur = (layer._customColor || (layer instanceof L.Marker ? '#2A81CB' : '#3388FF')).toUpperCase();
-                                    hexInput.value = cur.startsWith('#') ? cur : '#' + cur;
-                                    if (cur.startsWith('#') && cur.length === 7) {
-                                        nativeColorInput.value = cur;
-                                    }
-                                }
-                            };
-
-                            // 3. Delete button & Inline Confirmation Row
                             const btnDelete = document.createElement('button');
-                            btnDelete.title = 'Delete object';
+                            btnDelete.title = 'Delete this shape';
                             btnDelete.innerHTML = '🗑️';
-                            btnDelete.style.cssText = 'width: 22px; height: 22px; border-radius: 4px; border: none; background: transparent; color: #fff; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s ease; padding: 0;';
-                            btnDelete.onmouseover = function() { btnDelete.style.background = 'rgba(235, 60, 60, 0.3)'; };
-                            btnDelete.onmouseout = function() { btnDelete.style.background = 'transparent'; };
-
-                            // Confirmation row (initially hidden, prevents accidental deletions)
-                            const confirmRow = document.createElement('div');
-                            confirmRow.style.cssText = 'display: none; align-items: center; justify-content: center; gap: 5px; padding: 1px 2px;';
-
-                            const confirmLabel = document.createElement('span');
-                            confirmLabel.textContent = 'Delete?';
-                            confirmLabel.style.cssText = 'font-size: 11px; color: #ff6b6b; font-weight: 600; white-space: nowrap;';
-
-                            const btnConfirmYes = document.createElement('button');
-                            btnConfirmYes.title = 'Yes, delete permanently';
-                            btnConfirmYes.textContent = '✓';
-                            btnConfirmYes.style.cssText = 'width: 20px; height: 20px; border-radius: 4px; border: none; background: #e51400; color: #fff; font-size: 11px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; transition: background 0.15s ease;';
-                            btnConfirmYes.onmouseover = function() { btnConfirmYes.style.background = '#ff2a1a'; };
-                            btnConfirmYes.onmouseout = function() { btnConfirmYes.style.background = '#e51400'; };
-
-                            const btnConfirmNo = document.createElement('button');
-                            btnConfirmNo.title = 'Cancel';
-                            btnConfirmNo.textContent = '✕';
-                            btnConfirmNo.style.cssText = 'width: 20px; height: 20px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.1); color: #ccc; font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; transition: all 0.15s ease;';
-                            btnConfirmNo.onmouseover = function() { btnConfirmNo.style.background = 'rgba(255,255,255,0.2)'; btnConfirmNo.style.color = '#fff'; };
-                            btnConfirmNo.onmouseout = function() { btnConfirmNo.style.background = 'rgba(255,255,255,0.1)'; btnConfirmNo.style.color = '#ccc'; };
-
-                            confirmRow.appendChild(confirmLabel);
-                            confirmRow.appendChild(btnConfirmYes);
-                            confirmRow.appendChild(btnConfirmNo);
-
+                            btnDelete.style.cssText = 'width: 22px; height: 22px; border-radius: 4px; border: none; background: transparent; color: #fff; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;';
                             btnDelete.onclick = function(e) {
-                                e.stopPropagation();
-                                colorPalette.style.display = 'none';
-                                btnColor.style.background = 'transparent';
-                                row.style.display = 'none';
-                                confirmRow.style.display = 'flex';
-                            };
-
-                            btnConfirmNo.onclick = function(e) {
-                                e.stopPropagation();
-                                confirmRow.style.display = 'none';
-                                row.style.display = 'flex';
-                            };
-
-                            btnConfirmYes.onclick = function(e) {
                                 e.stopPropagation();
                                 if (layer._isEditing) {
                                     if (layer instanceof L.Marker && layer.dragging) layer.dragging.disable();
                                     if (layer.editing) layer.editing.disable();
                                 }
-                                drawnItems.removeLayer(layer);
+                                geomLayer.featureGroup.removeLayer(layer);
+                                geomLayer.shapes = geomLayer.shapes.filter(s => s.id !== shapeObj.id);
                                 map.closePopup();
-                                showHud('🗑️ Geometry deleted');
-                                vscode.postMessage({
-                                    command: 'geometryDeleted',
-                                    layers: drawnItems.toGeoJSON()
-                                });
+                                renderGeometryImportsUI();
+                                syncGeometriesToExtension();
+                                showHud('🗑️ Shape removed');
                             };
 
                             row.appendChild(btnEdit);
-                            row.appendChild(btnColor);
+                            row.appendChild(btnConfig);
                             row.appendChild(btnDelete);
                             container.appendChild(row);
-                            container.appendChild(confirmRow);
-                            container.appendChild(colorPalette);
 
                             return container;
-                        }, { closeButton: false, offset: popupOffset, maxWidth: 300, minWidth: 50 });
+                        }, { closeButton: false, offset: popupOffset, maxWidth: 200, minWidth: 40 });
 
                         if (layer instanceof L.Marker) {
                             layer.on('dragend', function() {
-                                showHud('📍 Position updated');
-                                vscode.postMessage({
-                                    command: 'geometryEdited',
-                                    geometry: layer.toGeoJSON()
-                                });
-                                setTimeout(() => {
-                                    layer.openPopup();
-                                }, 50);
+                                updateShapeCoordsFromLayer(shapeObj, layer);
+                                syncGeometriesToExtension();
+                                showHud('📍 Marker moved');
                             });
                         }
                     }
 
-                    map.on(L.Draw.Event.CREATED, function (event) {
-                        const layer = event.layer;
-                        drawnItems.addLayer(layer);
-                        attachGeometryPopup(layer);
+                    function updateShapeCoordsFromLayer(shapeObj, layer) {
+                        if (shapeObj.type === 'Point') {
+                            const ll = layer.getLatLng();
+                            shapeObj.coordinates = [Number(ll.lng.toFixed(6)), Number(ll.lat.toFixed(6))];
+                        } else if (shapeObj.type === 'LineString') {
+                            shapeObj.coordinates = layer.getLatLngs().map(ll => [Number(ll.lng.toFixed(6)), Number(ll.lat.toFixed(6))]);
+                        } else if (shapeObj.type === 'Rectangle') {
+                            const b = layer.getBounds();
+                            shapeObj.coordinates = [
+                                Number(b.getWest().toFixed(6)),
+                                Number(b.getSouth().toFixed(6)),
+                                Number(b.getEast().toFixed(6)),
+                                Number(b.getNorth().toFixed(6))
+                            ];
+                        } else if (shapeObj.type === 'Polygon') {
+                            const latlngs = layer.getLatLngs();
+                            const ring = (Array.isArray(latlngs[0]) ? latlngs[0] : latlngs).map(ll => [Number(ll.lng.toFixed(6)), Number(ll.lat.toFixed(6))]);
+                            if (ring.length > 0) {
+                                const f = ring[0];
+                                const l = ring[ring.length - 1];
+                                if (f[0] !== l[0] || f[1] !== l[1]) ring.push([f[0], f[1]]);
+                            }
+                            shapeObj.coordinates = [ring];
+                        }
+                    }
+
+                    function renderGeometryImportsUI() {
+                        const listEl = document.getElementById('geeGeomLayersList');
+                        if (!listEl) return;
+
+                        listEl.innerHTML = '';
+                        const masterChk = document.getElementById('chkGeomMaster');
+                        let allChecked = geometryLayers.length > 0;
+
+                        geometryLayers.forEach(l => {
+                            if (!l.visible) allChecked = false;
+
+                            const row = document.createElement('div');
+                            row.className = 'gee-geom-layer-row' + (l.id === activeGeomLayerId ? ' active' : '');
+                            row.title = 'Click to set ' + l.name + ' as active drawing layer';
+
+                            const chk = document.createElement('input');
+                            chk.type = 'checkbox';
+                            chk.checked = l.visible;
+                            chk.title = 'Toggle layer visibility';
+                            chk.onchange = function(e) {
+                                e.stopPropagation();
+                                l.visible = chk.checked;
+                                if (l.visible) {
+                                    if (!map.hasLayer(l.featureGroup)) map.addLayer(l.featureGroup);
+                                } else {
+                                    if (map.hasLayer(l.featureGroup)) map.removeLayer(l.featureGroup);
+                                }
+                                renderGeometryImportsUI();
+                            };
+
+                            const nameSpan = document.createElement('span');
+                            nameSpan.className = 'gee-geom-layer-name';
+                            nameSpan.textContent = l.name;
+                            if (l.shapes && l.shapes.length > 0) {
+                                nameSpan.textContent += ' (' + l.shapes.length + ')';
+                            }
+                            nameSpan.onclick = function() {
+                                setActiveGeomLayer(l.id);
+                            };
+
+                            const swatch = document.createElement('div');
+                            swatch.className = 'gee-geom-layer-swatch';
+                            swatch.style.background = l.color || '#d63000';
+                            swatch.title = 'Configure ' + l.name + ' (' + l.color + ')';
+                            swatch.onclick = function(e) {
+                                e.stopPropagation();
+                                openGeomConfigModal(l.id);
+                            };
+
+                            const gear = document.createElement('span');
+                            gear.className = 'gee-geom-layer-gear';
+                            gear.innerHTML = '⚙️';
+                            gear.title = 'Configure geometry import';
+                            gear.onclick = function(e) {
+                                e.stopPropagation();
+                                openGeomConfigModal(l.id);
+                            };
+
+                            row.appendChild(chk);
+                            row.appendChild(nameSpan);
+                            row.appendChild(swatch);
+                            row.appendChild(gear);
+                            listEl.appendChild(row);
+                        });
+
+                        if (masterChk) {
+                            masterChk.checked = allChecked;
+                        }
+                    }
+
+                    function toggleAllGeomLayers(checked) {
+                        geometryLayers.forEach(l => {
+                            l.visible = checked;
+                            if (checked) {
+                                if (!map.hasLayer(l.featureGroup)) map.addLayer(l.featureGroup);
+                            } else {
+                                if (map.hasLayer(l.featureGroup)) map.removeLayer(l.featureGroup);
+                            }
+                        });
+                        renderGeometryImportsUI();
+                    }
+
+                    function toggleGeomDockCollapse() {
+                        const dock = document.getElementById('geeGeometryDock');
+                        const btn = document.getElementById('btnGeomCollapse');
+                        if (dock) {
+                            const isCollapsed = dock.classList.toggle('collapsed');
+                            if (btn) btn.innerHTML = isCollapsed ? '▸' : '▾';
+                        }
+                    }
+
+                    function createNewGeomLayer(customName) {
+                        let newName = customName;
+                        if (!newName) {
+                            if (!geometryLayers.some(l => l.name === 'geometry')) {
+                                newName = 'geometry';
+                            } else {
+                                let n = 2;
+                                while (geometryLayers.some(l => l.name === 'geometry' + n)) {
+                                    n++;
+                                }
+                                newName = 'geometry' + n;
+                            }
+                        }
+
+                        const fg = new L.FeatureGroup();
+                        map.addLayer(fg);
+
+                        const newLayer = {
+                            id: 'geom_layer_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                            name: newName,
+                            type: 'Geometry',
+                            color: getNextGeomColor(),
+                            visible: true,
+                            properties: {},
+                            shapes: [],
+                            featureGroup: fg
+                        };
+
+                        geometryLayers.push(newLayer);
+                        setActiveGeomLayer(newLayer.id);
+                        showHud('Created layer: ' + newLayer.name);
+                        syncGeometriesToExtension();
+                    }
+
+                    function openGeomConfigModal(layerId) {
+                        const layer = geometryLayers.find(l => l.id === layerId);
+                        if (!layer) return;
+
+                        modalEditingLayerId = layerId;
+
+                        const modal = document.getElementById('geeGeomModal');
+                        const backdrop = document.getElementById('geeGeomModalBackdrop');
+                        const nameInput = document.getElementById('geomModalName');
+                        const typeSelect = document.getElementById('geomModalType');
+                        const swatch = document.getElementById('geomModalColorSwatch');
+                        const hexInput = document.getElementById('geomModalColorHex');
+                        const nativePicker = document.getElementById('geomModalNativePicker');
+                        const presetsBox = document.getElementById('geomModalPresets');
+
+                        if (nameInput) nameInput.value = layer.name;
+                        if (typeSelect) typeSelect.value = layer.type || 'Geometry';
+                        if (swatch) swatch.style.background = layer.color;
+                        if (hexInput) hexInput.value = layer.color.toUpperCase();
+                        if (nativePicker) nativePicker.value = layer.color;
+
+                        renderGeomModalProperties(layer.properties || {});
+
+                        if (presetsBox) {
+                            presetsBox.innerHTML = '';
+                            GEE_PRESET_COLORS.forEach(c => {
+                                const dot = document.createElement('div');
+                                dot.className = 'gee-geom-preset-dot';
+                                dot.style.background = c;
+                                dot.title = c;
+                                dot.onclick = function() {
+                                    hexInput.value = c.toUpperCase();
+                                    swatch.style.background = c;
+                                    nativePicker.value = c;
+                                };
+                                presetsBox.appendChild(dot);
+                            });
+                        }
+
+                        if (modal) modal.style.display = 'flex';
+                        if (backdrop) backdrop.style.display = 'block';
+                    }
+
+                    function closeGeomConfigModal() {
+                        const modal = document.getElementById('geeGeomModal');
+                        const backdrop = document.getElementById('geeGeomModalBackdrop');
+                        if (modal) modal.style.display = 'none';
+                        if (backdrop) backdrop.style.display = 'none';
+                        modalEditingLayerId = null;
+                    }
+
+                    function onGeomModalHexInput(val) {
+                        if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+                            const s = document.getElementById('geomModalColorSwatch');
+                            const p = document.getElementById('geomModalNativePicker');
+                            if (s) s.style.background = val;
+                            if (p) p.value = val;
+                        }
+                    }
+
+                    function onGeomModalNativePicker(val) {
+                        const s = document.getElementById('geomModalColorSwatch');
+                        const h = document.getElementById('geomModalColorHex');
+                        if (s) s.style.background = val;
+                        if (h) h.value = val.toUpperCase();
+                    }
+
+                    function renderGeomModalProperties(props) {
+                        const box = document.getElementById('geomModalPropertiesBox');
+                        if (!box) return;
+
+                        box.innerHTML = '';
+                        const keys = Object.keys(props);
+                        if (keys.length === 0) {
+                            box.innerHTML = '<span style="font-style: italic; color: #888;">No properties.</span>';
+                            return;
+                        }
+
+                        keys.forEach(k => {
+                            const row = document.createElement('div');
+                            row.className = 'gee-geom-prop-row';
+
+                            const kInput = document.createElement('input');
+                            kInput.type = 'text';
+                            kInput.className = 'gee-geom-prop-input prop-key';
+                            kInput.value = k;
+                            kInput.placeholder = 'key';
+
+                            const vInput = document.createElement('input');
+                            vInput.type = 'text';
+                            vInput.className = 'gee-geom-prop-input prop-val';
+                            vInput.value = props[k];
+                            vInput.placeholder = 'value';
+
+                            const del = document.createElement('button');
+                            del.className = 'gee-geom-prop-del';
+                            del.innerHTML = '✕';
+                            del.title = 'Remove property';
+                            del.onclick = function() {
+                                row.remove();
+                                if (box.children.length === 0) {
+                                    box.innerHTML = '<span style="font-style: italic; color: #888;">No properties.</span>';
+                                }
+                            };
+
+                            row.appendChild(kInput);
+                            row.appendChild(vInput);
+                            row.appendChild(del);
+                            box.appendChild(row);
+                        });
+                    }
+
+                    function addGeomModalProperty() {
+                        const box = document.getElementById('geomModalPropertiesBox');
+                        if (!box) return;
+                        if (box.querySelector('span')) {
+                            box.innerHTML = '';
+                        }
+
+                        const row = document.createElement('div');
+                        row.className = 'gee-geom-prop-row';
+
+                        const kInput = document.createElement('input');
+                        kInput.type = 'text';
+                        kInput.className = 'gee-geom-prop-input prop-key';
+                        kInput.placeholder = 'property';
+
+                        const vInput = document.createElement('input');
+                        vInput.type = 'text';
+                        vInput.className = 'gee-geom-prop-input prop-val';
+                        vInput.placeholder = 'value';
+
+                        const del = document.createElement('button');
+                        del.className = 'gee-geom-prop-del';
+                        del.innerHTML = '✕';
+                        del.title = 'Remove property';
+                        del.onclick = function() {
+                            row.remove();
+                            if (box.children.length === 0) {
+                                box.innerHTML = '<span style="font-style: italic; color: #888;">No properties.</span>';
+                            }
+                        };
+
+                        row.appendChild(kInput);
+                        row.appendChild(vInput);
+                        row.appendChild(del);
+                        box.appendChild(row);
+                        kInput.focus();
+                    }
+
+                    function saveGeomConfigModal() {
+                        const layer = geometryLayers.find(l => l.id === modalEditingLayerId);
+                        if (!layer) {
+                            closeGeomConfigModal();
+                            return;
+                        }
+
+                        const nameInput = document.getElementById('geomModalName');
+                        const typeSelect = document.getElementById('geomModalType');
+                        const hexInput = document.getElementById('geomModalColorHex');
+
+                        let newName = (nameInput?.value || '').trim();
+                        if (!newName) newName = layer.name;
+                        newName = newName.replace(/[^a-zA-Z0-9_]/g, '_');
+                        if (/^[0-9]/.test(newName)) newName = '_' + newName;
+
+                        const newType = typeSelect?.value || 'Geometry';
+                        let newColor = (hexInput?.value || '').trim();
+                        if (!/^#[0-9A-Fa-f]{6}$/.test(newColor)) newColor = layer.color;
+
+                        const newProps = {};
+                        const propRows = document.querySelectorAll('#geomModalPropertiesBox .gee-geom-prop-row');
+                        propRows.forEach(r => {
+                            const k = (r.querySelector('.prop-key')?.value || '').trim();
+                            let v = (r.querySelector('.prop-val')?.value || '').trim();
+                            if (k) {
+                                if (!isNaN(v) && v !== '') v = Number(v);
+                                newProps[k] = v;
+                            }
+                        });
+
+                        layer.name = newName;
+                        layer.type = newType;
+                        layer.color = newColor;
+                        layer.properties = newProps;
+
+                        layer.shapes.forEach(s => {
+                            if (s.layerInstance) {
+                                if (s.layerInstance instanceof L.Marker) {
+                                    s.layerInstance.setIcon(createPinIcon(newColor));
+                                } else if (s.layerInstance.setStyle) {
+                                    s.layerInstance.setStyle({ color: newColor, fillColor: newColor });
+                                }
+                            }
+                        });
+
+                        closeGeomConfigModal();
+                        renderGeometryImportsUI();
+                        syncGeometriesToExtension();
+                        showHud('Updated ' + layer.name);
+                    }
+
+                    function confirmDeleteGeomLayer() {
+                        const layer = geometryLayers.find(l => l.id === modalEditingLayerId);
+                        if (!layer) return;
+
+                        if (confirm('Delete layer "' + layer.name + '" and all its geometries?')) {
+                            if (map.hasLayer(layer.featureGroup)) {
+                                map.removeLayer(layer.featureGroup);
+                            }
+                            geometryLayers = geometryLayers.filter(l => l.id !== layer.id);
+
+                            if (geometryLayers.length === 0) {
+                                createNewGeomLayer('geometry');
+                            } else {
+                                setActiveGeomLayer(geometryLayers[0].id);
+                            }
+
+                            closeGeomConfigModal();
+                            renderGeometryImportsUI();
+                            syncGeometriesToExtension();
+                            showHud('🗑️ Layer deleted');
+                        }
+                    }
+
+                    function shapeToJsConstructor(shape) {
+                        if (shape.type === 'Point') {
+                            return 'ee.Geometry.Point([' + shape.coordinates[0] + ', ' + shape.coordinates[1] + '])';
+                        } else if (shape.type === 'LineString') {
+                            return 'ee.Geometry.LineString(' + JSON.stringify(shape.coordinates) + ')';
+                        } else if (shape.type === 'Polygon') {
+                            return 'ee.Geometry.Polygon(' + JSON.stringify(shape.coordinates) + ')';
+                        } else if (shape.type === 'Rectangle') {
+                            return 'ee.Geometry.Rectangle([' + shape.coordinates[0] + ', ' + shape.coordinates[1] + ', ' + shape.coordinates[2] + ', ' + shape.coordinates[3] + '])';
+                        }
+                        return 'ee.Geometry()';
+                    }
+
+                    function generateGeeLayerCode(layer) {
+                        if (!layer || !layer.shapes || layer.shapes.length === 0) return '';
+                        const name = layer.name || 'geometry';
+                        const color = layer.color || '#d63000';
+                        const type = layer.type || 'Geometry';
+                        const props = layer.properties || {};
+
+                        let geomConstructor = '';
+                        if (layer.shapes.length === 1) {
+                            geomConstructor = shapeToJsConstructor(layer.shapes[0]);
+                        } else {
+                            const allPolys = layer.shapes.every(s => s.type === 'Polygon' || s.type === 'Rectangle');
+                            const allPts = layer.shapes.every(s => s.type === 'Point');
+                            const allLines = layer.shapes.every(s => s.type === 'LineString');
+
+                            if (allPolys) {
+                                const rings = layer.shapes.map(s => s.type === 'Rectangle' ? [
+                                    [s.coordinates[0], s.coordinates[1]],
+                                    [s.coordinates[0], s.coordinates[3]],
+                                    [s.coordinates[2], s.coordinates[3]],
+                                    [s.coordinates[2], s.coordinates[1]],
+                                    [s.coordinates[0], s.coordinates[1]]
+                                ] : s.coordinates[0]);
+                                geomConstructor = 'ee.Geometry.MultiPolygon(' + JSON.stringify(rings) + ')';
+                            } else if (allPts) {
+                                const pts = layer.shapes.map(s => s.coordinates);
+                                geomConstructor = 'ee.Geometry.MultiPoint(' + JSON.stringify(pts) + ')';
+                            } else if (allLines) {
+                                const lines = layer.shapes.map(s => s.coordinates);
+                                geomConstructor = 'ee.Geometry.MultiLineString(' + JSON.stringify(lines) + ')';
+                            } else {
+                                const collection = layer.shapes.map(s => shapeToJsConstructor(s));
+                                geomConstructor = 'ee.Geometry.GeometryCollection([' + collection.join(', ') + '])';
+                            }
+                        }
+
+                        if (type === 'Geometry') {
+                            return 'var ' + name + ' = /* color: ' + color + ' */ ' + geomConstructor + ';';
+                        } else if (type === 'Feature') {
+                            const propsStr = Object.keys(props).length > 0 ? JSON.stringify(props, null, 2) : '{}';
+                            return 'var ' + name + ' = /* color: ' + color + ' */ ee.Feature(\n    ' + geomConstructor + ',\n    ' + propsStr + ');';
+                        } else if (type === 'FeatureCollection') {
+                            const propsStr = Object.keys(props).length > 0 ? JSON.stringify(props) : '{}';
+                            const features = layer.shapes.map(s => {
+                                const sc = shapeToJsConstructor(s);
+                                return '    ee.Feature(' + sc + ', ' + propsStr + ')';
+                            }).join(',\n');
+                            return 'var ' + name + ' = /* color: ' + color + ' */ ee.FeatureCollection([\n' + features + '\n]);';
+                        }
+                        return '';
+                    }
+
+                    function getGeometryLayersSummary() {
+                        return geometryLayers.map(l => ({
+                            id: l.id,
+                            name: l.name,
+                            type: l.type,
+                            color: l.color,
+                            visible: l.visible,
+                            properties: l.properties,
+                            shapes: l.shapes.map(s => ({
+                                id: s.id,
+                                type: s.type,
+                                coordinates: s.coordinates
+                            }))
+                        }));
+                    }
+
+                    function syncGeometriesToExtension() {
+                        vscode.postMessage({
+                            command: 'syncGeometryImports',
+                            layers: getGeometryLayersSummary()
+                        });
+                    }
+
+                    function insertGeometryCodeToEditor() {
+                        const codes = geometryLayers
+                            .map(l => generateGeeLayerCode(l))
+                            .filter(c => c.length > 0)
+                            .join('\n\n');
+
+                        if (!codes) {
+                            showHud('⚠️ Draw at least one shape first');
+                            return;
+                        }
 
                         vscode.postMessage({
-                            command: 'geometryCreated',
-                            type: event.layerType,
-                            geometry: layer.toGeoJSON()
+                            command: 'insertGeometryCode',
+                            code: codes,
+                            layers: getGeometryLayersSummary()
                         });
-                    });
+                    }
+
+                    function copyGeometryCode() {
+                        const codes = geometryLayers
+                            .map(l => generateGeeLayerCode(l))
+                            .filter(c => c.length > 0)
+                            .join('\n\n');
+
+                        if (!codes) {
+                            showHud('⚠️ Draw at least one shape first');
+                            return;
+                        }
+
+                        vscode.postMessage({
+                            command: 'copyToClipboard',
+                            text: codes
+                        });
+                        showHud('📋 Code copied to clipboard');
+                    }
+
+                    // Attach Geometry functions to window for onclick handlers
+                    window.setGeomDrawMode = setGeomDrawMode;
+                    window.exitGeomDrawMode = exitGeomDrawMode;
+                    window.toggleGeomLock = toggleGeomLock;
+                    window.toggleAllGeomLayers = toggleAllGeomLayers;
+                    window.toggleGeomDockCollapse = toggleGeomDockCollapse;
+                    window.createNewGeomLayer = createNewGeomLayer;
+                    window.openGeomConfigModal = openGeomConfigModal;
+                    window.closeGeomConfigModal = closeGeomConfigModal;
+                    window.saveGeomConfigModal = saveGeomConfigModal;
+                    window.confirmDeleteGeomLayer = confirmDeleteGeomLayer;
+                    window.insertGeometryCodeToEditor = insertGeometryCodeToEditor;
+                    window.copyGeometryCode = copyGeometryCode;
+                    window.addGeomModalProperty = addGeomModalProperty;
+                    window.onGeomModalHexInput = onGeomModalHexInput;
+                    window.onGeomModalNativePicker = onGeomModalNativePicker;
+
+                    // Initial render of Geometry Imports UI dock (safe try/catch)
+                    try {
+                        renderGeometryImportsUI();
+                    } catch (e) {
+                        console.error('Geometry Imports UI render error:', e);
+                    }
 
                     const coordsDiv = document.getElementById('coords');
 

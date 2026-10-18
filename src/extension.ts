@@ -372,6 +372,20 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.commands.executeCommand('gee-pro.runSelection');
         } else if (message.command === 'reset') {
             vscode.commands.executeCommand('gee-pro.reset');
+        } else if (message.command === 'syncGeometryImports') {
+            if (runtime && runtime.isInitialized && Array.isArray(message.layers)) {
+                runtime.updateGeometryImports(message.layers);
+            }
+        } else if (message.command === 'insertGeometryCode') {
+            const editor = vscode.window.activeTextEditor;
+            if (editor && message.code) {
+                editor.edit(editBuilder => {
+                    editBuilder.insert(new vscode.Position(0, 0), message.code + '\n\n');
+                });
+                vscode.window.showInformationMessage('📥 Declaraciones de geometría insertadas al inicio del script');
+            } else if (!editor) {
+                vscode.window.showWarningMessage('Abre un archivo de script para insertar las geometrías');
+            }
         }
     });
 

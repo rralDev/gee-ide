@@ -25,7 +25,7 @@ const SYSTEM_BUILTINS = new Set([
     'ee', 'Map', 'ui', 'Export', 'print', 'require', 'global', 'console', 'window',
     'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Buffer', 'process', 'palettes',
     'cli', 'cd', 'pwd', 'mkdir', 'rm', 'ls', 'touch', 'du', 'mv', 'cp', 'find', 'quota',
-    'snippets', 'indices', 'index'
+    'snippets', 'indices', 'index', 'loadShapefile', 'loadKMZ', 'loadKML', 'loadLocalVector', 'loadGeoJSON'
 ]);
 
 export class GEERuntime {
@@ -36,9 +36,20 @@ export class GEERuntime {
     private snippetsManager: any;
     private catalogManager: any;
     public activeLayers: Map<string, any> = new Map();
+    public activeScriptName: string = '';
     private onTaskStartedCallback?: (desc?: string) => void;
+    private driveExportQueue: Array<{ id: string; description: string; folder: string; createdMs: number; startNow: () => void }> = [];
+    private activeDriveTaskDesc: string | null = null;
+    private driveQueueTimer: NodeJS.Timeout | null = null;
     private currentCenter: { lat: number; lng: number; zoom: number } = { lat: -12.0464, lng: -77.0428, zoom: 6 };
     private currentBounds: [number, number, number, number] | null = null;
+    private layerQueue: Promise<void> = Promise.resolve();
+
+    public setActiveScript(name: string) {
+        if (name) {
+            this.activeScriptName = name.replace(/\.[^/.]+$/, '').trim();
+        }
+    }
 
     private getEstimatedBounds(): [number, number, number, number] {
         if (this.currentBounds) return this.currentBounds;
@@ -76,6 +87,7 @@ export class GEERuntime {
     }
 
     private resetContext() {
+        this.layerQueue = Promise.resolve();
         const eeInstance = getEE();
         const ctx = {
             ee: eeInstance,
@@ -132,32 +144,124 @@ export class GEERuntime {
             find: async (patternOrFlag: string = '') => {
                 await this.handleCommand(`find ${patternOrFlag}`);
             },
+            loadShapefile: (filePath: string) => {
+                const fs = require('fs');
+                const cp = require('child_process');
+                if (!fs.existsSync(filePath)) {
+                    throw new Error(`Archivo vectorial no encontrado: ${filePath}`);
+                }
+                const extMatch = filePath.match(/\.(shp|kmz|kml|gpkg)$/i);
+                let targetGeoJson = filePath;
+
+                if (extMatch) {
+                    const ext = extMatch[1].toLowerCase();
+                    const geojsonPath = filePath.replace(/\.(shp|kmz|kml|gpkg)$/i, '.geojson');
+                    const needConversion = !fs.existsSync(geojsonPath) ||
+                        fs.statSync(filePath).mtimeMs > fs.statSync(geojsonPath).mtimeMs;
+
+                    if (needConversion) {
+                        try {
+                            if (fs.existsSync(geojsonPath)) fs.unlinkSync(geojsonPath);
+                            cp.execSync(`ogr2ogr -f GeoJSON -dim XY -t_srs EPSG:4326 "${geojsonPath}" "${filePath}"`);
+                        } catch (e: any) {
+                            if (ext === 'kmz' || ext === 'kml') {
+                                try {
+                                    const kmlText = ext === 'kmz'
+                                        ? cp.execSync(`unzip -p "${filePath}" "*.kml"`, { encoding: 'utf8' })
+                                        : fs.readFileSync(filePath, 'utf8');
+                                    const features: any[] = [];
+                                    const parseCoords = (raw: string) => raw.trim().split(/\s+/).map(t => {
+                                        const p = t.split(',').map(Number);
+                                        return [p[0], p[1]];
+                                    }).filter(c => !isNaN(c[0]) && !isNaN(c[1]));
+
+                                    const polyRx = /<Polygon[\s\S]*?<coordinates>([\s\S]*?)<\/coordinates>[\s\S]*?<\/Polygon>/gi;
+                                    const lineRx = /<LineString[\s\S]*?<coordinates>([\s\S]*?)<\/coordinates>[\s\S]*?<\/LineString>/gi;
+                                    const ptRx = /<Point[\s\S]*?<coordinates>([\s\S]*?)<\/coordinates>[\s\S]*?<\/Point>/gi;
+                                    let m: RegExpExecArray | null;
+                                    while ((m = polyRx.exec(kmlText)) !== null) {
+                                        const pts = parseCoords(m[1]);
+                                        if (pts.length >= 3) features.push({ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [pts] } });
+                                    }
+                                    while ((m = lineRx.exec(kmlText)) !== null) {
+                                        const pts = parseCoords(m[1]);
+                                        if (pts.length >= 2) features.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: pts } });
+                                    }
+                                    while ((m = ptRx.exec(kmlText)) !== null) {
+                                        const pts = parseCoords(m[1]);
+                                        if (pts.length >= 1) features.push({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: pts[0] } });
+                                    }
+                                    if (features.length > 0) {
+                                        fs.writeFileSync(geojsonPath, JSON.stringify({ type: 'FeatureCollection', features }, null, 2), 'utf8');
+                                    }
+                                } catch (kErr: any) {
+                                    this.consoleView.append(`[Aviso loadShapefile KMZ/KML]: ${kErr?.message || kErr}`);
+                                }
+                            } else {
+                                this.consoleView.append(`[Aviso loadShapefile] ogr2ogr: ${e?.message || e}`);
+                            }
+                        }
+                    }
+                    targetGeoJson = geojsonPath;
+                }
+
+                if (fs.existsSync(targetGeoJson)) {
+                    const raw = fs.readFileSync(targetGeoJson, 'utf8');
+                    const json = JSON.parse(raw);
+                    // shortcut: strip 3D altitude [lon,lat,z] -> [lon,lat] since GEE FeatureCollection rejects 3D coords
+                    const strip3D = (coords: any): any =>
+                        Array.isArray(coords)
+                            ? (typeof coords[0] === 'number' ? [coords[0], coords[1]] : coords.map(strip3D))
+                            : coords;
+                    if (json.type === 'FeatureCollection' && Array.isArray(json.features)) {
+                        json.features.forEach((f: any) => {
+                            if (f.geometry && f.geometry.coordinates) {
+                                f.geometry.coordinates = strip3D(f.geometry.coordinates);
+                            }
+                        });
+                    } else if (json.coordinates) {
+                        json.coordinates = strip3D(json.coordinates);
+                    }
+                    return eeInstance.FeatureCollection(json);
+                }
+                throw new Error(`No se pudo procesar el archivo vectorial: ${filePath}`);
+            },
+            loadKMZ: function(this: any, filePath: string) { return (ctx as any).loadShapefile(filePath); },
+            loadKML: function(this: any, filePath: string) { return (ctx as any).loadShapefile(filePath); },
+            loadLocalVector: function(this: any, filePath: string) { return (ctx as any).loadShapefile(filePath); },
+            loadGeoJSON: function(this: any, filePath: string) { return (ctx as any).loadShapefile(filePath); },
             Map: {
-                addLayer: async (element: any, visParams?: any, name?: string, shown: boolean = true, opacity: number = 1.0) => {
+                addLayer: (element: any, visParams?: any, name?: string, shown: boolean = true, opacity: number = 1.0) => {
                     const layerName = name || 'unnamed';
                     this.consoleView.append(`Adding layer: ${layerName}...`);
                     this.activeLayers.set(layerName, element);
-                    try {
-                        let targetElement = element;
-                        // Geometry does not have getMapId in GEE JS SDK; wrap into Feature
-                        if (targetElement && typeof targetElement.getMapId !== 'function') {
-                            if (eeInstance && typeof eeInstance.Feature === 'function') {
-                                targetElement = eeInstance.Feature(targetElement);
+
+                    const task = async () => {
+                        try {
+                            let targetElement = element;
+                            // Geometry does not have getMapId in GEE JS SDK; wrap into Feature
+                            if (targetElement && typeof targetElement.getMapId !== 'function') {
+                                if (eeInstance && typeof eeInstance.Feature === 'function') {
+                                    targetElement = eeInstance.Feature(targetElement);
+                                }
                             }
-                        }
 
-                        const resolvedVis = await this.resolveSmartVisParams(element, visParams, layerName);
+                            const resolvedVis = await this.resolveSmartVisParams(element, visParams, layerName);
 
-                        const mapId = await new Promise((resolve, reject) => {
-                            targetElement.getMapId(resolvedVis, (res: any, err: any) => {
-                                if (err) reject(err);
-                                else resolve(res);
+                            const mapId = await new Promise((resolve, reject) => {
+                                targetElement.getMapId(resolvedVis, (res: any, err: any) => {
+                                    if (err) reject(err);
+                                    else resolve(res);
+                                });
                             });
-                        });
-                        this.mapView.addLayer(mapId, layerName, shown, opacity, resolvedVis);
-                    } catch (err: any) {
-                        this.consoleView.append(`Error adding layer: ${err?.message || err}`);
-                    }
+                            this.mapView.addLayer(mapId, layerName, shown, opacity, resolvedVis);
+                        } catch (err: any) {
+                            this.consoleView.append(`Error adding layer: ${err?.message || err}`);
+                        }
+                    };
+
+                    this.layerQueue = this.layerQueue.then(task, task);
+                    return this.layerQueue;
                 },
                 setCenter: (lon: number, lat: number, zoom?: number) => {
                     const targetZoom = typeof zoom === 'number' ? zoom : 10;
@@ -431,6 +535,7 @@ export class GEERuntime {
                     if (!resetContext && result !== undefined && !(result instanceof Promise)) {
                         this.handleEvaluatedResult(result, cleanCode);
                     }
+                    await this.layerQueue;
                 }
             }
         } catch (err: any) {
@@ -2049,27 +2154,78 @@ export class GEERuntime {
 
     private _startExportTask(params: any, exportFunc: Function, label: string) {
         if (params && params.description) {
-            if (label.includes('Drive') && !params.fileNamePrefix && !params.filenamePrefix) {
-                params.fileNamePrefix = params.description;
+            if (label.includes('Drive')) {
+                const rootFolder = 'GEE_IDE_Exports';
+                let subProject = this.activeScriptName || '';
+                if (!subProject && params.folder && params.folder !== 'GEE_IDE_Exports' && params.folder !== 'GEE_Exports') {
+                    subProject = params.folder;
+                }
+                params.folder = rootFolder;
+
+                let basePrefix = params.fileNamePrefix || params.filenamePrefix || params.description;
+                if (subProject) {
+                    const clean = basePrefix.replace(new RegExp(`^${subProject}[/\\s_]?`), '');
+                    params.fileNamePrefix = `${subProject}_${clean}`;
+                } else {
+                    params.fileNamePrefix = basePrefix;
+                }
             }
             if (label.includes('Asset') && !params.assetId) {
                 params.assetId = params.description;
             }
         }
 
-        const start = (p: any) => {
+        const launchNow = (p: any) => {
             try {
                 const task = exportFunc(p);
                 task.start(() => {
-                    this.consoleView.append(`✅ [Export Task Started]: ${label} - ${p.description || 'unnamed'}`);
+                    const destInfo = label.includes('Drive') ? ` [Drive: ${p.folder}/${p.fileNamePrefix || p.description || ''}]` : '';
+                    this.consoleView.append(`✅ [Export Task Started]: ${label} - ${p.description || 'unnamed'}${destInfo}`);
                     if (this.onTaskStartedCallback) {
                         this.onTaskStartedCallback(p.description);
                     }
                 }, (err: any) => {
                     this.consoleView.append(`❌ [Export Task Error]: ${err}`);
+                    if (label.includes('Drive') && this.activeDriveTaskDesc === (p.description || 'unnamed')) {
+                        this._advanceDriveQueue();
+                    }
                 });
             } catch (e: any) {
                 this.consoleView.append(`❌ [Export Task Error]: ${e.message}`);
+                if (label.includes('Drive') && this.activeDriveTaskDesc === (p.description || 'unnamed')) {
+                    this._advanceDriveQueue();
+                }
+            }
+        };
+
+        const enqueueOrStart = (p: any) => {
+            if (!label.includes('Drive')) {
+                launchNow(p);
+                return;
+            }
+            const desc = p.description || 'unnamed';
+            // Deduplicate if user re-runs script while same description is already queued
+            this.driveExportQueue = this.driveExportQueue.filter(q => q.description !== desc);
+
+            if (!this.activeDriveTaskDesc) {
+                this.activeDriveTaskDesc = desc;
+                (this as any)._activeDriveTaskStartMs = Date.now();
+                launchNow(p);
+                this._ensureDriveQueueMonitor();
+            } else {
+                const qId = `QUEUED_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+                this.driveExportQueue.push({
+                    id: qId,
+                    description: desc,
+                    folder: p.folder || 'GEE_IDE_Exports',
+                    createdMs: Date.now(),
+                    startNow: () => launchNow(p)
+                });
+                this.consoleView.append(`⏳ [Cola Anti-Duplicados Drive]: ${desc} (en turno para usar la misma carpeta '${p.folder}')`);
+                if (this.onTaskStartedCallback) {
+                    this.onTaskStartedCallback(desc);
+                }
+                this._ensureDriveQueueMonitor();
             }
         };
 
@@ -2079,15 +2235,55 @@ export class GEERuntime {
                     this.consoleView.append(`❌ [Export Task Error]: No se pudo evaluar la región - ${err}`);
                 } else {
                     params.region = geom;
-                    start(params);
+                    enqueueOrStart(params);
                 }
             });
         } else {
-            start(params);
+            enqueueOrStart(params);
         }
     }
 
-    public async getTasks(): Promise<any[]> {
+    private _advanceDriveQueue() {
+        const next = this.driveExportQueue.shift();
+        if (next) {
+            this.activeDriveTaskDesc = next.description;
+            (this as any)._activeDriveTaskStartMs = Date.now();
+            setTimeout(() => {
+                next.startNow();
+            }, 2500);
+        } else {
+            this.activeDriveTaskDesc = null;
+            if (this.driveQueueTimer) {
+                clearInterval(this.driveQueueTimer);
+                this.driveQueueTimer = null;
+            }
+        }
+    }
+
+    private _ensureDriveQueueMonitor() {
+        if (this.driveQueueTimer) return;
+        this.driveQueueTimer = setInterval(async () => {
+            if (!this.activeDriveTaskDesc) {
+                this._advanceDriveQueue();
+                return;
+            }
+            const elapsed = Date.now() - ((this as any)._activeDriveTaskStartMs || 0);
+            if (elapsed < 6000) return; // Give GEE 6s to register task in getTaskList
+
+            try {
+                const rawList = await this._fetchRawTasks();
+                const matching = rawList.find((t: any) =>
+                    t && t.description === this.activeDriveTaskDesc &&
+                    (t.state === 'READY' || t.state === 'RUNNING')
+                );
+                if (!matching) {
+                    this._advanceDriveQueue();
+                }
+            } catch {}
+        }, 4000);
+    }
+
+    private _fetchRawTasks(): Promise<any[]> {
         return new Promise((resolve, reject) => {
             if (!this.isInitialized) {
                 return reject(new Error('GEE no está inicializado.'));
@@ -2107,7 +2303,23 @@ export class GEERuntime {
         });
     }
 
+    public async getTasks(): Promise<any[]> {
+        const list = await this._fetchRawTasks();
+        const queuedItems = this.driveExportQueue.map(q => ({
+            id: q.id,
+            description: q.description,
+            state: 'READY',
+            task_type: 'EXPORT_IMAGE (En cola anti-duplicados)',
+            creation_timestamp_ms: q.createdMs
+        }));
+        return [...queuedItems, ...list];
+    }
+
     public async cancelTask(taskId: string): Promise<void> {
+        if (taskId.startsWith('QUEUED_')) {
+            this.driveExportQueue = this.driveExportQueue.filter(q => q.id !== taskId);
+            return;
+        }
         return new Promise((resolve, reject) => {
             if (!this.isInitialized) {
                 return reject(new Error('GEE no está inicializado.'));
@@ -2123,6 +2335,43 @@ export class GEERuntime {
             } catch (e: any) {
                 reject(e);
             }
+        });
+    }
+
+    public async sampleElevationProfile(samples: Array<{ lon: number; lat: number; dist: number }>): Promise<Array<{ dist: number; elev: number }>> {
+        if (!this.isInitialized) {
+            throw new Error('GEE no está autenticado.');
+        }
+        const eeInstance = getEE();
+        const features = samples.map((s, idx) =>
+            eeInstance.Feature(eeInstance.Geometry.Point([s.lon, s.lat]), { idx, dist: s.dist })
+        );
+        const fc = eeInstance.FeatureCollection(features);
+        const srtm = eeInstance.Image('USGS/SRTMGL1_003').select(['elevation'], ['elev']);
+        const fabdem = eeInstance.ImageCollection('projects/sat-io/open-datasets/FABDEM')
+            .filterBounds(fc.geometry().bounds())
+            .mosaic()
+            .select([0], ['elev']);
+        const demImg = srtm.blend(fabdem);
+        const reduced = demImg.reduceRegions({
+            collection: fc,
+            reducer: eeInstance.Reducer.first(),
+            scale: 30
+        });
+        return new Promise((resolve, reject) => {
+            reduced.evaluate((res: any, err: any) => {
+                if (err || !res || !Array.isArray(res.features)) {
+                    return reject(new Error(err || 'No se pudo obtener perfil DEM'));
+                }
+                const pts = res.features
+                    .map((f: any) => ({
+                        idx: f.properties?.idx ?? 0,
+                        dist: Number(f.properties?.dist ?? 0),
+                        elev: Number(f.properties?.first ?? f.properties?.elev ?? 0)
+                    }))
+                    .sort((a: any, b: any) => a.idx - b.idx);
+                resolve(pts);
+            });
         });
     }
 
@@ -2539,5 +2788,76 @@ export class GEERuntime {
                 resolve(res);
             });
         });
+    }
+
+    public updateGeometryImports(layers: any[]) {
+        if (!this.context) return;
+        const ee = getEE();
+        if (!ee || !ee.Geometry) return;
+
+        for (const l of layers) {
+            if (!l.name || !Array.isArray(l.shapes) || l.shapes.length === 0) continue;
+            try {
+                const eeObj = this.buildEEGeometryObject(ee, l);
+                if (eeObj) {
+                    this.context[l.name] = eeObj;
+                }
+            } catch (e: any) {
+                console.warn(`[GEE Runtime] Error importing geometry ${l.name}:`, e.message);
+            }
+        }
+    }
+
+    private buildEEGeometryObject(ee: any, layer: any): any {
+        const shapes = layer.shapes;
+        const type = layer.type || 'Geometry';
+        const props = layer.properties || {};
+
+        const buildShape = (s: any) => {
+            if (s.type === 'Point') {
+                return ee.Geometry.Point(s.coordinates);
+            } else if (s.type === 'LineString') {
+                return ee.Geometry.LineString(s.coordinates);
+            } else if (s.type === 'Polygon') {
+                return ee.Geometry.Polygon(s.coordinates);
+            } else if (s.type === 'Rectangle') {
+                return ee.Geometry.Rectangle(s.coordinates);
+            }
+            return null;
+        };
+
+        if (type === 'FeatureCollection') {
+            const features = shapes.map((s: any) => {
+                const g = buildShape(s);
+                return g ? ee.Feature(g, props) : null;
+            }).filter((f: any) => f !== null);
+            return ee.FeatureCollection(features);
+        }
+
+        let geom: any = null;
+        if (shapes.length === 1) {
+            geom = buildShape(shapes[0]);
+        } else {
+            const allPolys = shapes.every((s: any) => s.type === 'Polygon' || s.type === 'Rectangle');
+            const allPts = shapes.every((s: any) => s.type === 'Point');
+            const allLines = shapes.every((s: any) => s.type === 'LineString');
+
+            if (allPolys) {
+                geom = ee.Geometry.MultiPolygon(shapes.map((s: any) => s.coordinates));
+            } else if (allPts) {
+                geom = ee.Geometry.MultiPoint(shapes.map((s: any) => s.coordinates));
+            } else if (allLines) {
+                geom = ee.Geometry.MultiLineString(shapes.map((s: any) => s.coordinates));
+            } else {
+                geom = ee.Geometry.MultiPolygon(
+                    shapes.filter((s: any) => s.type === 'Polygon' || s.type === 'Rectangle').map((s: any) => s.coordinates)
+                );
+            }
+        }
+
+        if (type === 'Feature') {
+            return ee.Feature(geom, props);
+        }
+        return geom;
     }
 }
