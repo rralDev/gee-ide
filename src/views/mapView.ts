@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { LEAFLET_CSS, LEAFLET_DRAW_CSS, LEAFLET_JS, LEAFLET_DRAW_JS } from './leafletBundle';
 
 export class MapView {
     private panel: vscode.WebviewPanel | undefined;
@@ -337,19 +338,10 @@ export class MapView {
     }
 
     private getHtml() {
-        let leafletCss = "";
-        let leafletJs = "";
-        let leafletDrawCss = "";
-        let leafletDrawJs = "";
-        try {
-            const mediaDir = path.join(this.context.extensionPath, "media", "leaflet");
-            leafletCss = fs.readFileSync(path.join(mediaDir, "leaflet.css"), "utf8");
-            leafletJs = fs.readFileSync(path.join(mediaDir, "leaflet.js"), "utf8");
-            leafletDrawCss = fs.readFileSync(path.join(mediaDir, "leaflet.draw.css"), "utf8");
-            leafletDrawJs = fs.readFileSync(path.join(mediaDir, "leaflet.draw.js"), "utf8");
-        } catch (e) {
-            console.error("[GEE Map] Error reading local leaflet media:", e);
-        }
+        const leafletCss = LEAFLET_CSS;
+        const leafletJs = LEAFLET_JS;
+        const leafletDrawCss = LEAFLET_DRAW_CSS;
+        const leafletDrawJs = LEAFLET_DRAW_JS;
         return `
             <!DOCTYPE html>
             <html lang="en">
@@ -358,10 +350,10 @@ export class MapView {
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob: vscode-webview:; script-src * 'unsafe-inline' 'unsafe-eval' vscode-webview:; style-src * 'unsafe-inline' vscode-webview:; img-src * data: blob: https: vscode-webview:; connect-src *;">
                 <title>GEE Map Pro</title>
-                ${leafletCss ? `<style>${leafletCss}</style>` : `<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />`}
-                ${leafletDrawCss ? `<style>${leafletDrawCss}</style>` : `<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />`}
-                ${leafletJs ? `<script>${leafletJs}</script>` : `<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>`}
-                ${leafletDrawJs ? `<script>${leafletDrawJs}</script>` : `<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>`}
+                <style>${leafletCss}</style>
+                <style>${leafletDrawCss}</style>
+                <script>${leafletJs}</script>
+                <script>${leafletDrawJs}</script>
                 <style>
                     html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #1e1e1e; }
                     #map { position: absolute; top: 0; bottom: 0; left: 0; right: 0; width: 100%; height: 100%; z-index: 1; }
@@ -1769,6 +1761,10 @@ export class MapView {
             </head>
             <body>
                 <div id="map" tabindex="0" style="outline: none;"></div>
+                <div id="geeWebviewErrorOverlay" style="display:none; position:fixed; top:20px; left:20px; right:20px; background:rgba(180, 20, 20, 0.95); border: 2px solid #ff4444; color:#fff; padding:14px; border-radius:8px; z-index:99999999; font-family:monospace; font-size:12px; box-shadow:0 8px 30px rgba(0,0,0,0.8);">
+                    <div style="font-weight:bold; font-size:13px; margin-bottom:6px;">⚠️ GEE Map Webview Error:</div>
+                    <div id="geeWebviewErrorMessage" style="white-space:pre-wrap; max-height: 200px; overflow-y: auto;"></div>
+                </div>
                 <div id="coords" class="coords-label">Lat: 0.0000, Lng: 0.0000</div>
                 <div id="mapHud" class="gee-hud"></div>
 
@@ -2112,6 +2108,14 @@ export class MapView {
                     window.__vscodeApi = vscode;
 
                     window.onerror = function(message, source, lineno, colno, error) {
+                        try {
+                            const overlay = document.getElementById("geeWebviewErrorOverlay");
+                            const msgEl = document.getElementById("geeWebviewErrorMessage");
+                            if (overlay && msgEl) {
+                                overlay.style.display = "block";
+                                msgEl.textContent = String(message) + " (Line " + lineno + ", Col " + colno + ")\n" + (error ? error.stack : "");
+                            }
+                        } catch(e) {}
                         try {
                             if (vscode && vscode.postMessage) {
                                 vscode.postMessage({
