@@ -3347,6 +3347,23 @@ export class MapView {
                                 exitGeomDrawMode();
                                 showHud('🖐️ Modo Navegación (Manito)');
                             }
+                            if (typeof window.toggleRulerMode === 'function' && typeof rulerMode !== 'undefined' && rulerMode) {
+                                window.toggleRulerMode(false);
+                            }
+                            const snapModal = document.getElementById('snapshotModal');
+                            if (snapModal && snapModal.style.display !== 'none') {
+                                snapModal.style.display = 'none';
+                            }
+                            const resetModal = document.getElementById('resetConfirmModal');
+                            if (resetModal && resetModal.style.display !== 'none') {
+                                resetModal.style.display = 'none';
+                            }
+                            if (typeof swipeMode !== 'undefined' && swipeMode && typeof toggleSwipeMode === 'function') {
+                                toggleSwipeMode(false);
+                            }
+                            if (typeof clearAllGridSelections === 'function') {
+                                clearAllGridSelections(true);
+                            }
                             return;
                         }
 
@@ -4651,15 +4668,6 @@ export class MapView {
                         }
 
                         const isCmdOrCtrl = e.metaKey || e.ctrlKey;
-                        if (isCmdOrCtrl && ['1', '2', '3', '4'].includes(e.key)) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            vscode.postMessage({
-                                command: 'focusQuadrant',
-                                quadrant: Number(e.key)
-                            });
-                            return;
-                        }
 
                         // Map keyboard navigation: pan & zoom
                         const panStep = 80;

@@ -274,25 +274,25 @@
         "command": "gee-pro.drawPoint",
         "key": "ctrl+1",
         "mac": "ctrl+1",
-        "when": "focusedView == 'geeMap' || activeWebviewPanelId == 'geeMap'"
+        "when": "activeCustomEditorId == 'geeMap' || activeEditor == 'geeMap' || activeWebviewPanelId == 'geeMap' || focusedView == 'geeMap'"
       },
       {
         "command": "gee-pro.drawLine",
         "key": "ctrl+2",
         "mac": "ctrl+2",
-        "when": "focusedView == 'geeMap' || activeWebviewPanelId == 'geeMap'"
+        "when": "activeCustomEditorId == 'geeMap' || activeEditor == 'geeMap' || activeWebviewPanelId == 'geeMap' || focusedView == 'geeMap'"
       },
       {
         "command": "gee-pro.drawPolygon",
         "key": "ctrl+3",
         "mac": "ctrl+3",
-        "when": "focusedView == 'geeMap' || activeWebviewPanelId == 'geeMap'"
+        "when": "activeCustomEditorId == 'geeMap' || activeEditor == 'geeMap' || activeWebviewPanelId == 'geeMap' || focusedView == 'geeMap'"
       },
       {
         "command": "gee-pro.drawRectangle",
         "key": "ctrl+4",
         "mac": "ctrl+4",
-        "when": "focusedView == 'geeMap' || activeWebviewPanelId == 'geeMap'"
+        "when": "activeCustomEditorId == 'geeMap' || activeEditor == 'geeMap' || activeWebviewPanelId == 'geeMap' || focusedView == 'geeMap'"
       },
       {
         "command": "gee-pro.clearConsole",
