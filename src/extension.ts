@@ -18,6 +18,7 @@ import { CatalogManager } from './catalogManager';
 import { SpectralIndicesManager } from './spectralIndices';
 import { exchangeCodeForToken, refreshAccessToken, getUserInfo, getAvailableCloudProjects, autoDetectCloudProject } from './auth';
 import { TaskNotifier } from './taskNotifier';
+import { ProjectManager } from './projectManager';
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -132,6 +133,12 @@ export function activate(context: vscode.ExtensionContext) {
     const aiView = new AIView(context);
     const taskNotifier = new TaskNotifier();
     context.subscriptions.push(taskNotifier);
+
+    const projectManager = ProjectManager.initialize(context, mapView, consoleView);
+    projectManager.loadProject();
+    vscode.workspace.onDidChangeWorkspaceFolders(() => {
+        projectManager.loadProject();
+    }, null, context.subscriptions);
 
     function attachTaskNotifierToRuntime(rt: any) {
         if (!rt) return;
@@ -1648,11 +1655,40 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
+    let newProjectCommand = vscode.commands.registerCommand('gee-pro.newProject', async () => {
+        await projectManager.createNewProject();
+    });
+
+    let openProjectSettingsCommand = vscode.commands.registerCommand('gee-pro.openProjectSettings', async () => {
+        await projectManager.openProjectSettings();
+    });
+
+    let setProjectMapCenterCommand = vscode.commands.registerCommand('gee-pro.setProjectMapCenter', async () => {
+        const current = projectManager.getCurrentProject();
+        if (!current) {
+            vscode.window.showWarningMessage('No hay un proyecto GEE activo en este espacio de trabajo.');
+            return;
+        }
+        const coordsInput = await vscode.window.showInputBox({
+            prompt: 'Ingresa Longitud, Latitud, Zoom para guardar como vista predeterminada de este proyecto',
+            value: current.map ? `${current.map.center[0]}, ${current.map.center[1]}, ${current.map.zoom}` : '-75.0, -10.0, 10',
+            placeHolder: 'longitud, latitud, zoom'
+        });
+        if (coordsInput) {
+            const parts = coordsInput.split(',').map(s => Number(s.trim()));
+            if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                const zoom = parts.length >= 3 && !isNaN(parts[2]) ? parts[2] : 10;
+                await projectManager.setProjectMapCenter(parts[0], parts[1], zoom);
+            }
+        }
+    });
+
     context.subscriptions.push(
         startCommand, authCommand, loginCommand, logoutCommand, runCommand, runSelectionCommand, resetCommand, setProjectCommand,
         focusEditorCommand, focusConsoleCommand, focusMapCommand, focusAICommand,
         clearConsoleCommand, saveLayoutCommand, resetLayoutCommand, editSnippetsCommand, listSnippetsCommand,
-        searchCatalogCommand, insertSpectralIndexCommand, openDemosCommand
+        searchCatalogCommand, insertSpectralIndexCommand, openDemosCommand,
+        newProjectCommand, openProjectSettingsCommand, setProjectMapCenterCommand
     );
     logStep('>>> ACTIVATE() COMPLETED SUCCESSFULLY — All commands ready');
 }

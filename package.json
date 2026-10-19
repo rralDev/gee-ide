@@ -59,6 +59,9 @@
     "onCommand:gee-pro.searchCatalog",
     "onCommand:gee-pro.insertSpectralIndex",
     "onCommand:gee-pro.openDemos",
+    "onCommand:gee-pro.newProject",
+    "onCommand:gee-pro.openProjectSettings",
+    "onCommand:gee-pro.setProjectMapCenter",
     "onWebviewPanel:geeMap",
     "onWebviewPanel:geeConsole",
     "onWebviewPanel:geeAI"
@@ -211,6 +214,24 @@
         "command": "gee-pro.openDemos",
         "title": "Open Demo Scripts",
         "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.newProject",
+        "title": "New Project... (Nuevo Proyecto)",
+        "category": "GEE IDE",
+        "icon": "$(project)"
+      },
+      {
+        "command": "gee-pro.openProjectSettings",
+        "title": "Open Project Settings (.geeproj)",
+        "category": "GEE IDE",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "gee-pro.setProjectMapCenter",
+        "title": "Set Map View as Project Default",
+        "category": "GEE IDE",
+        "icon": "$(globe)"
       }
     ],
     "keybindings": [

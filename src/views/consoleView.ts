@@ -239,7 +239,12 @@ export class ConsoleView {
     public getHistoryFilePath(): string | null {
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (workspaceFolders && workspaceFolders.length > 0) {
-            return path.join(workspaceFolders[0].uri.fsPath, '.gee_history');
+            const root = workspaceFolders[0].uri.fsPath;
+            const geehistory = path.join(root, '.geehistory');
+            if (fs.existsSync(geehistory)) return geehistory;
+            const geeOldHistory = path.join(root, '.gee_history');
+            if (fs.existsSync(geeOldHistory)) return geeOldHistory;
+            return geehistory;
         }
         return null;
     }
