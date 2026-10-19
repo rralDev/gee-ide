@@ -315,7 +315,12 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     mapView.onMessage(async (message: any) => {
-        if (message.command === 'focusQuadrant') {
+        if (message.command === 'ready') {
+            const savedLayers = context.workspaceState.get<any[]>('gee_geometries_backup');
+            if (savedLayers && Array.isArray(savedLayers) && savedLayers.length > 0) {
+                mapView.sendMessage({ command: 'restoreGeometries', layers: savedLayers });
+            }
+        } else if (message.command === 'focusQuadrant') {
             switchQuadrant(message.quadrant);
         } else if (message.command === 'mapClicked') {
             if (runtime && runtime.isInitialized) {

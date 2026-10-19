@@ -2268,23 +2268,44 @@ export class MapView {
                         }, 1400);
                     }
 
-                    // Custom SVG Marker Icon Generator (Crisp HD & Safe Base64 Data URI)
+                    // Custom SVG Marker Icon Generator (Crisp HD Apple/Figma Precision Pin)
                     function createPinIcon(fillColor = '#2A81CB') {
-                        const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 25 41" width="25" height="41">' +
-                            '<path d="M12.5 0C5.6 0 0 5.6 0 12.5C0 21.9 12.5 41 12.5 41S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0Z" fill="' + fillColor + '" stroke="#FFFFFF" stroke-width="1.5"/>' +
-                            '<circle cx="12.5" cy="12.5" r="4.5" fill="#FFFFFF"/>' +
+                        const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26 32" width="26" height="32">' +
+                            '<defs>' +
+                            '<filter id="pinShadow" x="-30%" y="-20%" width="160%" height="150%">' +
+                            '<feDropShadow dx="0" dy="1.5" stdDeviation="1.2" flood-color="#000000" flood-opacity="0.35"/>' +
+                            '</filter>' +
+                            '</defs>' +
+                            '<path d="M 13 31 C 12.2 26 3 17.5 3 11 A 10 10 0 1 1 23 11 C 23 17.5 13.8 26 13 31 Z" fill="' + fillColor + '" stroke="#FFFFFF" stroke-width="2" stroke-linejoin="round" filter="url(#pinShadow)"/>' +
+                            '<circle cx="13" cy="11" r="4.2" fill="#FFFFFF"/>' +
+                            '<circle cx="13" cy="11" r="2" fill="' + fillColor + '"/>' +
                             '</svg>';
                         return L.icon({
                             iconUrl: 'data:image/svg+xml;base64,' + btoa(svg),
-                            iconSize: [25, 41],
-                            iconAnchor: [12, 41],
-                            popupAnchor: [0, -42],
+                            iconSize: [26, 32],
+                            iconAnchor: [13, 31],
+                            popupAnchor: [0, -32],
                             shadowUrl: ''
                         });
                     }
 
                     const defaultPinIcon = createPinIcon('#d63000');
                     L.Marker.prototype.options.icon = defaultPinIcon;
+
+                    // Toggle visibility of the Geo. Imports dock
+                    function toggleGeomDockVisibility() {
+                        const dock = document.getElementById('geeGeometryDock');
+                        const toggleBtn = document.getElementById('btnToggleGeomDock');
+                        if (!dock) return;
+                        const isHidden = dock.style.display === 'none' || getComputedStyle(dock).display === 'none';
+                        if (isHidden) {
+                            dock.style.display = 'flex';
+                            if (toggleBtn) toggleBtn.classList.add('active');
+                        } else {
+                            dock.style.display = 'none';
+                            if (toggleBtn) toggleBtn.classList.remove('active');
+                        }
+                    }
 
                     // =========================================================================
                     // GOOGLE EARTH ENGINE GEOMETRY IMPORTS & VECTOR DRAWING SYSTEM
@@ -2362,13 +2383,21 @@ export class MapView {
 
                         const banner = document.getElementById('geeDrawStatusBanner');
                         const label = document.getElementById('geeDrawStatusLabel');
+                        const dock = document.getElementById('geeGeometryDock');
+                        const toggleBtn = document.getElementById('btnToggleGeomDock');
 
                         if (mode === 'pan') {
                             const btn = document.getElementById('btnGeomPan');
                             if (btn) btn.classList.add('active');
                             if (banner) banner.style.display = 'none';
+                            if (dock) dock.style.display = 'none';
+                            if (toggleBtn) toggleBtn.classList.remove('active');
                             return;
                         }
+
+                        // Activate dock when a drawing tool is selected
+                        if (dock) dock.style.display = 'flex';
+                        if (toggleBtn) toggleBtn.classList.add('active');
 
                         const activeLayer = getActiveGeomLayer();
                         if (!activeLayer) return;
@@ -3055,10 +3084,158 @@ export class MapView {
                     }
 
                     function syncGeometriesToExtension() {
+                        const summary = getGeometryLayersSummary();
+                        try {
+                            localStorage.setItem('gee_geom_imports_backup', JSON.stringify(summary));
+                        } catch (e) {}
                         vscode.postMessage({
                             command: 'syncGeometryImports',
-                            layers: getGeometryLayersSummary()
+                            layers: summary
                         });
+                    }
+
+                    function exportGeometriesToGeoJSON() {
+                        const features = [];
+                        geometryLayers.forEach(layer => {
+                            if (!layer.shapes || layer.shapes.length === 0) return;
+                            layer.shapes.forEach(shape => {
+                                let geom = null;
+                                if (shape.type === 'Point' && shape.coordinates) {
+                                    geom = { type: 'Point', coordinates: shape.coordinates };
+                                } else if (shape.type === 'LineString' && shape.coordinates) {
+                                    geom = { type: 'LineString', coordinates: shape.coordinates };
+                                } else if (shape.type === 'Rectangle' && shape.coordinates && shape.coordinates.length === 4) {
+                                    const [w, s, e, n] = shape.coordinates;
+                                    geom = {
+                                        type: 'Polygon',
+                                        coordinates: [[[w, s], [e, s], [e, n], [w, n], [w, s]]]
+                                    };
+                                } else if (shape.type === 'Polygon' && shape.coordinates) {
+                                    geom = { type: 'Polygon', coordinates: shape.coordinates };
+                                }
+
+                                if (geom) {
+                                    features.push({
+                                        type: 'Feature',
+                                        properties: {
+                                            id: shape.id,
+                                            layer: layer.name,
+                                            layerType: layer.type,
+                                            color: layer.color,
+                                            ...(layer.properties || {})
+                                        },
+                                        geometry: geom
+                                    });
+                                }
+                            });
+                        });
+
+                        if (features.length === 0) {
+                            showHud('⚠️ Dibuja al menos una geometría para exportar');
+                            return;
+                        }
+
+                        const geojson = {
+                            type: 'FeatureCollection',
+                            features: features
+                        };
+
+                        vscode.postMessage({
+                            command: 'saveMeasureGeoJSON',
+                            geojson: JSON.stringify(geojson, null, 2),
+                            filename: 'gee_geometries.geojson'
+                        });
+                        showHud('💾 Exportando GeoJSON...');
+                    }
+
+                    function restoreSavedGeomState(savedLayers) {
+                        if (!savedLayers) {
+                            try {
+                                const raw = localStorage.getItem('gee_geom_imports_backup');
+                                if (raw) savedLayers = JSON.parse(raw);
+                            } catch (e) {}
+                        }
+                        if (!Array.isArray(savedLayers) || savedLayers.length === 0) return;
+
+                        // Clear existing geometry feature groups from map
+                        geometryLayers.forEach(l => {
+                            if (l.featureGroup && map.hasLayer(l.featureGroup)) {
+                                map.removeLayer(l.featureGroup);
+                            }
+                        });
+
+                        const newLayers = [];
+                        savedLayers.forEach(l => {
+                            const fg = new L.FeatureGroup();
+                            const geomLayer = {
+                                id: l.id || ('geom_layer_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4)),
+                                name: l.name || 'geometry',
+                                type: l.type || 'Geometry',
+                                color: l.color || '#d63000',
+                                visible: l.visible !== false,
+                                properties: l.properties || {},
+                                shapes: [],
+                                featureGroup: fg
+                            };
+
+                            if (Array.isArray(l.shapes)) {
+                                l.shapes.forEach(s => {
+                                    try {
+                                        let leafLayer = null;
+                                        const coords = s.coordinates;
+                                        if (s.type === 'Point' && coords && coords.length >= 2) {
+                                            leafLayer = L.marker([coords[1], coords[0]], { icon: createPinIcon(geomLayer.color) });
+                                        } else if (s.type === 'LineString' && Array.isArray(coords)) {
+                                            leafLayer = L.polyline(coords.map(c => [c[1], c[0]]), { color: geomLayer.color, weight: 3 });
+                                        } else if (s.type === 'Rectangle' && Array.isArray(coords) && coords.length === 4) {
+                                            leafLayer = L.rectangle([[coords[1], coords[0]], [coords[3], coords[2]]], {
+                                                color: geomLayer.color,
+                                                fillColor: geomLayer.color,
+                                                fillOpacity: 0.25,
+                                                weight: 2.5
+                                            });
+                                        } else if (s.type === 'Polygon' && Array.isArray(coords)) {
+                                            const ring = Array.isArray(coords[0]) ? coords[0] : coords;
+                                            leafLayer = L.polygon(ring.map(c => [c[1], c[0]]), {
+                                                color: geomLayer.color,
+                                                fillColor: geomLayer.color,
+                                                fillOpacity: 0.25,
+                                                weight: 2.5
+                                            });
+                                        }
+
+                                        if (leafLayer) {
+                                            leafLayer._customColor = geomLayer.color;
+                                            leafLayer._layerId = geomLayer.id;
+                                            leafLayer._shapeId = s.id;
+                                            fg.addLayer(leafLayer);
+
+                                            const shapeObj = {
+                                                id: s.id,
+                                                type: s.type,
+                                                coordinates: s.coordinates,
+                                                layerInstance: leafLayer
+                                            };
+                                            geomLayer.shapes.push(shapeObj);
+                                            attachGeometryPopup(leafLayer, geomLayer, shapeObj);
+                                        }
+                                    } catch (shapeErr) {
+                                        console.warn('Error restoring shape:', shapeErr);
+                                    }
+                                });
+                            }
+
+                            if (geomLayer.visible) {
+                                map.addLayer(fg);
+                            }
+                            newLayers.push(geomLayer);
+                        });
+
+                        if (newLayers.length > 0) {
+                            geometryLayers = newLayers;
+                            activeGeomLayerId = newLayers[0].id;
+                            renderGeometryImportsUI();
+                        }
                     }
 
                     function insertGeometryCodeToEditor() {
@@ -3103,6 +3280,7 @@ export class MapView {
                     window.toggleGeomLock = toggleGeomLock;
                     window.toggleAllGeomLayers = toggleAllGeomLayers;
                     window.toggleGeomDockCollapse = toggleGeomDockCollapse;
+                    window.toggleGeomDockVisibility = toggleGeomDockVisibility;
                     window.createNewGeomLayer = createNewGeomLayer;
                     window.openGeomConfigModal = openGeomConfigModal;
                     window.closeGeomConfigModal = closeGeomConfigModal;
@@ -3110,15 +3288,18 @@ export class MapView {
                     window.confirmDeleteGeomLayer = confirmDeleteGeomLayer;
                     window.insertGeometryCodeToEditor = insertGeometryCodeToEditor;
                     window.copyGeometryCode = copyGeometryCode;
+                    window.exportGeometriesToGeoJSON = exportGeometriesToGeoJSON;
+                    window.restoreSavedGeomState = restoreSavedGeomState;
                     window.addGeomModalProperty = addGeomModalProperty;
                     window.onGeomModalHexInput = onGeomModalHexInput;
                     window.onGeomModalNativePicker = onGeomModalNativePicker;
 
-                    // Initial render of Geometry Imports UI dock (safe try/catch)
+                    // Initial render and restoration of Geometry Imports
                     try {
                         renderGeometryImportsUI();
+                        restoreSavedGeomState();
                     } catch (e) {
-                        console.error('Geometry Imports UI render error:', e);
+                        console.error('Geometry Imports UI render/restore error:', e);
                     }
 
                     const coordsDiv = document.getElementById('coords');
@@ -3127,16 +3308,41 @@ export class MapView {
                         coordsDiv.innerHTML = 'Lat: ' + e.latlng.lat.toFixed(4) + ', Lng: ' + e.latlng.lng.toFixed(4);
                     });
 
-                    // Pixel Inspector: Listen for modifier keys to toggle crosshair
+                    // Pixel Inspector & Keyboard Shortcuts (Quadrant 3 - Map)
                     document.addEventListener('keydown', (e) => {
-                        if (e.altKey || e.metaKey || e.ctrlKey) {
-                            document.getElementById('map').classList.add('crosshair-mode');
-                        }
+                        const tag = (document.activeElement && document.activeElement.tagName) ? document.activeElement.tagName.toLowerCase() : '';
+                        const isEditingText = tag === 'input' || tag === 'textarea';
+
                         if (e.key === 'Escape') {
                             map.closePopup();
-                            closeGeomConfigModal();
+                            if (typeof closeGeomConfigModal === 'function') closeGeomConfigModal();
                             if (activeDrawMode !== 'pan') {
                                 exitGeomDrawMode();
+                            }
+                            return;
+                        }
+
+                        if (isEditingText) return;
+
+                        if (e.altKey || e.metaKey || e.ctrlKey) {
+                            const mapEl = document.getElementById('map');
+                            if (mapEl) mapEl.classList.add('crosshair-mode');
+                        }
+
+                        // Geometry drawing shortcuts (Quadrant 3)
+                        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+                            if (e.key === '1') {
+                                e.preventDefault();
+                                setGeomDrawMode('marker');
+                            } else if (e.key === '2') {
+                                e.preventDefault();
+                                setGeomDrawMode('polyline');
+                            } else if (e.key === '3') {
+                                e.preventDefault();
+                                setGeomDrawMode('polygon');
+                            } else if (e.key === '4') {
+                                e.preventDefault();
+                                setGeomDrawMode('rectangle');
                             }
                         }
                     });
@@ -3789,6 +3995,12 @@ export class MapView {
                                 if (message.grid === 'landsat') toggleLandsatGrid(message.active);
                                 else if (message.grid === 'modis') toggleModisGrid(message.active);
                                 else if (message.grid === 'mgrs') toggleMgrsGrid(message.active);
+                                break;
+                            }
+                            case 'restoreGeometries': {
+                                if (message.layers && Array.isArray(message.layers) && message.layers.length > 0) {
+                                    restoreSavedGeomState(message.layers);
+                                }
                                 break;
                             }
                         }
