@@ -1683,12 +1683,29 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
+    let drawPanCommand = vscode.commands.registerCommand('gee-pro.drawPan', () => {
+        mapView.setDrawMode('pan');
+    });
+    let drawPointCommand = vscode.commands.registerCommand('gee-pro.drawPoint', () => {
+        mapView.setDrawMode('marker');
+    });
+    let drawLineCommand = vscode.commands.registerCommand('gee-pro.drawLine', () => {
+        mapView.setDrawMode('polyline');
+    });
+    let drawPolygonCommand = vscode.commands.registerCommand('gee-pro.drawPolygon', () => {
+        mapView.setDrawMode('polygon');
+    });
+    let drawRectCommand = vscode.commands.registerCommand('gee-pro.drawRectangle', () => {
+        mapView.setDrawMode('rectangle');
+    });
+
     context.subscriptions.push(
         startCommand, authCommand, loginCommand, logoutCommand, runCommand, runSelectionCommand, resetCommand, setProjectCommand,
         focusEditorCommand, focusConsoleCommand, focusMapCommand, focusAICommand,
         clearConsoleCommand, saveLayoutCommand, resetLayoutCommand, editSnippetsCommand, listSnippetsCommand,
         searchCatalogCommand, insertSpectralIndexCommand, openDemosCommand,
-        newProjectCommand, openProjectSettingsCommand, setProjectMapCenterCommand
+        newProjectCommand, openProjectSettingsCommand, setProjectMapCenterCommand,
+        drawPanCommand, drawPointCommand, drawLineCommand, drawPolygonCommand, drawRectCommand
     );
     logStep('>>> ACTIVATE() COMPLETED SUCCESSFULLY — All commands ready');
 }

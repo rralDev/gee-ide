@@ -97,6 +97,13 @@ export class MapView {
         }
     }
 
+    public setDrawMode(mode: 'pan' | 'marker' | 'polyline' | 'polygon' | 'rectangle') {
+        if (!this.panel) {
+            this.show(vscode.ViewColumn.Three);
+        }
+        this.sendMessage({ command: 'setGeomDrawMode', mode });
+    }
+
     public attachPanel(panel: vscode.WebviewPanel) {
         if (this.panel && this.panel !== panel) {
             this.panel.dispose();
@@ -1772,19 +1779,19 @@ export class MapView {
                 <div id="geeGeometryContainer" class="gee-geom-container">
                     <!-- 1. Drawing Tools Toolbar (Pan, Point, Line, Polygon, Rectangle, Toggle Dock) -->
                     <div id="geeDrawToolbar" class="gee-draw-toolbar">
-                        <button id="btnGeomPan" class="gee-draw-btn active" title="Navegar mapa / Manito (Esc)" onclick="setGeomDrawMode('pan')">
+                        <button id="btnGeomPan" class="gee-draw-btn active" title="Navegar mapa / Manito (Esc o 0)" onclick="setGeomDrawMode('pan')">
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>
                         </button>
-                        <button id="btnGeomPoint" class="gee-draw-btn" title="Puntos / Marcador (Ctrl+1)" onclick="setGeomDrawMode('marker')">
+                        <button id="btnGeomPoint" class="gee-draw-btn" title="Puntos / Marcador (1 / Ctrl+1)" onclick="setGeomDrawMode('marker')">
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
                         </button>
-                        <button id="btnGeomLine" class="gee-draw-btn" title="Línea / Polilínea (Ctrl+2)" onclick="setGeomDrawMode('polyline')">
+                        <button id="btnGeomLine" class="gee-draw-btn" title="Línea / Polilínea (2 / Ctrl+2)" onclick="setGeomDrawMode('polyline')">
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><circle cx="3" cy="17" r="2"/><circle cx="9" cy="11" r="2"/><circle cx="13" cy="15" r="2"/><circle cx="21" cy="7" r="2"/></svg>
                         </button>
-                        <button id="btnGeomPolygon" class="gee-draw-btn" title="Polígono (Ctrl+3)" onclick="setGeomDrawMode('polygon')">
+                        <button id="btnGeomPolygon" class="gee-draw-btn" title="Polígono (3 / Ctrl+3)" onclick="setGeomDrawMode('polygon')">
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 18 20 6 20 2 8.5"/></svg>
                         </button>
-                        <button id="btnGeomRect" class="gee-draw-btn" title="Rectángulo (Ctrl+4)" onclick="setGeomDrawMode('rectangle')">
+                        <button id="btnGeomRect" class="gee-draw-btn" title="Rectángulo (4 / Ctrl+4)" onclick="setGeomDrawMode('rectangle')">
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>
                         </button>
                         <button id="btnToggleGeomDock" class="gee-draw-btn" title="Mostrar / Ocultar Geo. Imports" onclick="toggleGeomDockVisibility()">
@@ -3309,7 +3316,7 @@ export class MapView {
                     });
 
                     // Pixel Inspector & Keyboard Shortcuts (Quadrant 3 - Map)
-                    document.addEventListener('keydown', (e) => {
+                    function handleMapKeydown(e) {
                         const tag = (document.activeElement && document.activeElement.tagName) ? document.activeElement.tagName.toLowerCase() : '';
                         const isEditingText = tag === 'input' || tag === 'textarea';
 
@@ -3318,6 +3325,7 @@ export class MapView {
                             if (typeof closeGeomConfigModal === 'function') closeGeomConfigModal();
                             if (activeDrawMode !== 'pan') {
                                 exitGeomDrawMode();
+                                showHud('🖐️ Modo Navegación (Manito)');
                             }
                             return;
                         }
@@ -3330,22 +3338,45 @@ export class MapView {
                         }
 
                         // Geometry drawing shortcuts (Quadrant 3)
-                        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
-                            if (e.key === '1') {
+                        // Supports pure numbers (1, 2, 3, 4, 0) AND modifiers (Ctrl+1, Cmd+1, Alt+1)
+                        if (!e.shiftKey) {
+                            const is1 = e.key === '1' || e.code === 'Digit1' || e.code === 'Numpad1';
+                            const is2 = e.key === '2' || e.code === 'Digit2' || e.code === 'Numpad2';
+                            const is3 = e.key === '3' || e.code === 'Digit3' || e.code === 'Numpad3';
+                            const is4 = e.key === '4' || e.code === 'Digit4' || e.code === 'Numpad4';
+                            const is0 = e.key === '0' || e.code === 'Digit0' || e.key === 'h' || e.key === 'H';
+
+                            if (is1) {
                                 e.preventDefault();
+                                e.stopPropagation();
                                 setGeomDrawMode('marker');
-                            } else if (e.key === '2') {
+                                showHud('📍 Marcador / Punto activado (1)');
+                            } else if (is2) {
                                 e.preventDefault();
+                                e.stopPropagation();
                                 setGeomDrawMode('polyline');
-                            } else if (e.key === '3') {
+                                showHud('📈 Línea activada (2)');
+                            } else if (is3) {
                                 e.preventDefault();
+                                e.stopPropagation();
                                 setGeomDrawMode('polygon');
-                            } else if (e.key === '4') {
+                                showHud('⬡ Polígono activado (3)');
+                            } else if (is4) {
                                 e.preventDefault();
+                                e.stopPropagation();
                                 setGeomDrawMode('rectangle');
+                                showHud('▢ Rectángulo activado (4)');
+                            } else if (is0) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setGeomDrawMode('pan');
+                                showHud('🖐️ Modo Navegación / Manito (0 / Esc)');
                             }
                         }
-                    });
+                    }
+
+                    window.addEventListener('keydown', handleMapKeydown, true);
+                    document.addEventListener('keydown', handleMapKeydown, true);
                     document.addEventListener('keyup', (e) => {
                         if (!e.altKey && !e.metaKey && !e.ctrlKey) {
                             document.getElementById('map').classList.remove('crosshair-mode');
@@ -4000,6 +4031,17 @@ export class MapView {
                             case 'restoreGeometries': {
                                 if (message.layers && Array.isArray(message.layers) && message.layers.length > 0) {
                                     restoreSavedGeomState(message.layers);
+                                }
+                                break;
+                            }
+                            case 'setGeomDrawMode': {
+                                if (message.mode) {
+                                    setGeomDrawMode(message.mode);
+                                    if (message.mode === 'marker') showHud('📍 Marcador / Punto activado (1)');
+                                    else if (message.mode === 'polyline') showHud('📈 Línea activada (2)');
+                                    else if (message.mode === 'polygon') showHud('⬡ Polígono activado (3)');
+                                    else if (message.mode === 'rectangle') showHud('▢ Rectángulo activado (4)');
+                                    else if (message.mode === 'pan') showHud('🖐️ Modo Navegación (Manito)');
                                 }
                                 break;
                             }
