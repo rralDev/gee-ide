@@ -373,16 +373,36 @@ export function activate(context: vscode.ExtensionContext) {
         } else if (message.command === 'reset') {
             vscode.commands.executeCommand('gee-pro.reset');
         } else if (message.command === 'syncGeometryImports') {
+            if (context && context.workspaceState && Array.isArray(message.layers)) {
+                context.workspaceState.update('gee_geometries_backup', message.layers);
+            }
             if (runtime && runtime.isInitialized && Array.isArray(message.layers)) {
                 runtime.updateGeometryImports(message.layers);
             }
         } else if (message.command === 'insertGeometryCode') {
             const editor = vscode.window.activeTextEditor;
             if (editor && message.code) {
-                editor.edit(editBuilder => {
-                    editBuilder.insert(new vscode.Position(0, 0), message.code + '\n\n');
-                });
-                vscode.window.showInformationMessage('📥 Declaraciones de geometría insertadas al inicio del script');
+                const START_MARKER = '// --- GEE IDE GEOMETRY IMPORTS START ---';
+                const END_MARKER = '// --- GEE IDE GEOMETRY IMPORTS END ---';
+                const text = editor.document.getText();
+                const startIdx = text.indexOf(START_MARKER);
+                const endIdx = text.indexOf(END_MARKER);
+
+                const blockContent = `${START_MARKER}\n${message.code}\n${END_MARKER}`;
+
+                if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+                    const startPos = editor.document.positionAt(startIdx);
+                    const endPos = editor.document.positionAt(endIdx + END_MARKER.length);
+                    editor.edit(editBuilder => {
+                        editBuilder.replace(new vscode.Range(startPos, endPos), blockContent);
+                    });
+                    vscode.window.showInformationMessage('🔄 Declaraciones de geometría actualizadas en el script');
+                } else {
+                    editor.edit(editBuilder => {
+                        editBuilder.insert(new vscode.Position(0, 0), blockContent + '\n\n');
+                    });
+                    vscode.window.showInformationMessage('📥 Declaraciones de geometría insertadas al inicio del script');
+                }
             } else if (!editor) {
                 vscode.window.showWarningMessage('Abre un archivo de script para insertar las geometrías');
             }

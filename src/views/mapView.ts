@@ -1770,34 +1770,38 @@ export class MapView {
 
                 <!-- Google Earth Engine Style Geometry Drawing & Imports System -->
                 <div id="geeGeometryContainer" class="gee-geom-container">
-                    <!-- 1. Drawing Tools Toolbar (Pan, Point, Line, Polygon, Rectangle) -->
+                    <!-- 1. Drawing Tools Toolbar (Pan, Point, Line, Polygon, Rectangle, Toggle Dock) -->
                     <div id="geeDrawToolbar" class="gee-draw-toolbar">
-                        <button id="btnGeomPan" class="gee-draw-btn active" title="Pan map (Hand)" onclick="setGeomDrawMode('pan')">
+                        <button id="btnGeomPan" class="gee-draw-btn active" title="Navegar mapa / Manito (Esc)" onclick="setGeomDrawMode('pan')">
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>
                         </button>
-                        <button id="btnGeomPoint" class="gee-draw-btn" title="Place marker / Point" onclick="setGeomDrawMode('marker')">
+                        <button id="btnGeomPoint" class="gee-draw-btn" title="Puntos / Marcador (Ctrl+1)" onclick="setGeomDrawMode('marker')">
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
                         </button>
-                        <button id="btnGeomLine" class="gee-draw-btn" title="Draw line / Polyline" onclick="setGeomDrawMode('polyline')">
+                        <button id="btnGeomLine" class="gee-draw-btn" title="Línea / Polilínea (Ctrl+2)" onclick="setGeomDrawMode('polyline')">
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><circle cx="3" cy="17" r="2"/><circle cx="9" cy="11" r="2"/><circle cx="13" cy="15" r="2"/><circle cx="21" cy="7" r="2"/></svg>
                         </button>
-                        <button id="btnGeomPolygon" class="gee-draw-btn" title="Draw shape / Polygon" onclick="setGeomDrawMode('polygon')">
+                        <button id="btnGeomPolygon" class="gee-draw-btn" title="Polígono (Ctrl+3)" onclick="setGeomDrawMode('polygon')">
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 18 20 6 20 2 8.5"/></svg>
                         </button>
-                        <button id="btnGeomRect" class="gee-draw-btn" title="Draw rectangle" onclick="setGeomDrawMode('rectangle')">
+                        <button id="btnGeomRect" class="gee-draw-btn" title="Rectángulo (Ctrl+4)" onclick="setGeomDrawMode('rectangle')">
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>
+                        </button>
+                        <button id="btnToggleGeomDock" class="gee-draw-btn" title="Mostrar / Ocultar Geo. Imports" onclick="toggleGeomDockVisibility()">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                         </button>
                     </div>
 
-                    <!-- 2. Geometry Imports Dock -->
-                    <div id="geeGeometryDock" class="gee-geom-dock">
+                    <!-- 2. Geometry Imports Dock (Geo. Imports) -->
+                    <div id="geeGeometryDock" class="gee-geom-dock" style="display: none;">
                         <div id="geeGeometryDockHeader" class="gee-geom-header">
-                            <input type="checkbox" id="chkGeomMaster" checked title="Show/Hide all geometry imports" onchange="toggleAllGeomLayers(this.checked)" />
-                            <span class="gee-geom-title" onclick="toggleGeomDockCollapse()">Geometry Imports</span>
+                            <input type="checkbox" id="chkGeomMaster" checked title="Mostrar/Ocultar todas las capas" onchange="toggleAllGeomLayers(this.checked)" />
+                            <span class="gee-geom-title" onclick="toggleGeomDockCollapse()">Geo. Imports</span>
                             <div class="gee-geom-header-actions">
-                                <button class="gee-geom-header-btn" onclick="insertGeometryCodeToEditor()" title="Insert variable declarations into active script (📥)">📥</button>
-                                <button class="gee-geom-header-btn" onclick="copyGeometryCode()" title="Copy Earth Engine code to clipboard (📋)">📋</button>
-                                <button class="gee-geom-header-btn" id="btnGeomCollapse" onclick="toggleGeomDockCollapse()" title="Collapse / Expand dock">▾</button>
+                                <button class="gee-geom-header-btn" onclick="exportGeometriesToGeoJSON()" title="Exportar a GeoJSON (.geojson)">💾</button>
+                                <button class="gee-geom-header-btn" onclick="insertGeometryCodeToEditor()" title="Insertar en script activo (Smart Replace)">📥</button>
+                                <button class="gee-geom-header-btn" onclick="copyGeometryCode()" title="Copiar código al portapapeles">📋</button>
+                                <button class="gee-geom-header-btn" id="btnGeomCollapse" onclick="toggleGeomDockCollapse()" title="Minimizar / Expandir panel">▾</button>
                             </div>
                         </div>
                         <div id="geeGeometryDockBody" class="gee-geom-body">
