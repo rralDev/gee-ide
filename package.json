@@ -272,26 +272,6 @@
     "keybindings": [
       {
         "command": "gee-pro.drawPoint",
-        "key": "alt+1",
-        "mac": "alt+1"
-      },
-      {
-        "command": "gee-pro.drawLine",
-        "key": "alt+2",
-        "mac": "alt+2"
-      },
-      {
-        "command": "gee-pro.drawPolygon",
-        "key": "alt+3",
-        "mac": "alt+3"
-      },
-      {
-        "command": "gee-pro.drawRectangle",
-        "key": "alt+4",
-        "mac": "alt+4"
-      },
-      {
-        "command": "gee-pro.drawPoint",
         "key": "ctrl+1",
         "mac": "ctrl+1",
         "when": "focusedView == 'geeMap' || activeWebviewPanelId == 'geeMap'"

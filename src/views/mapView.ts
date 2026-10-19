@@ -48,6 +48,16 @@ export class MapView {
                     this.handleSaveSnapshot(message);
                 } else if (message.command === 'saveMeasureGeoJSON') {
                     this.handleSaveMeasureGeoJSON(message);
+                } else if (message.command === 'focusQuadrant') {
+                    if (message.quadrant === 1) {
+                        vscode.commands.executeCommand('gee-pro.focusEditor');
+                    } else if (message.quadrant === 2) {
+                        vscode.commands.executeCommand('gee-pro.focusConsole');
+                    } else if (message.quadrant === 3) {
+                        vscode.commands.executeCommand('gee-pro.focusMap');
+                    } else if (message.quadrant === 4) {
+                        vscode.commands.executeCommand('gee-pro.focusAI');
+                    }
                 }
                 if (this.messageCallback) this.messageCallback(message);
             }, undefined, this.context.subscriptions);
@@ -125,6 +135,16 @@ export class MapView {
                 this.handleSaveSnapshot(message);
             } else if (message.command === 'saveMeasureGeoJSON') {
                 this.handleSaveMeasureGeoJSON(message);
+            } else if (message.command === 'focusQuadrant') {
+                if (message.quadrant === 1) {
+                    vscode.commands.executeCommand('gee-pro.focusEditor');
+                } else if (message.quadrant === 2) {
+                    vscode.commands.executeCommand('gee-pro.focusConsole');
+                } else if (message.quadrant === 3) {
+                    vscode.commands.executeCommand('gee-pro.focusMap');
+                } else if (message.quadrant === 4) {
+                    vscode.commands.executeCommand('gee-pro.focusAI');
+                }
             }
             if (this.messageCallback) this.messageCallback(message);
         }, undefined, this.context.subscriptions);
@@ -3332,14 +3352,29 @@ export class MapView {
 
                         if (isEditingText) return;
 
+                        // 1. Quadrant Navigation (Cmd + 1, 2, 3, 4 on Mac)
+                        // Must NEVER trigger geometry tools; delegating to VS Code
+                        if (e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+                            const qKey = (e.key === '1' || e.code === 'Digit1' || e.code === 'Numpad1') ? 1 :
+                                         (e.key === '2' || e.code === 'Digit2' || e.code === 'Numpad2') ? 2 :
+                                         (e.key === '3' || e.code === 'Digit3' || e.code === 'Numpad3') ? 3 :
+                                         (e.key === '4' || e.code === 'Digit4' || e.code === 'Numpad4') ? 4 : 0;
+                            if (qKey > 0) {
+                                if (vscode && vscode.postMessage) {
+                                    vscode.postMessage({ command: 'focusQuadrant', quadrant: qKey });
+                                }
+                                return;
+                            }
+                        }
+
                         if (e.altKey || e.metaKey || e.ctrlKey) {
                             const mapEl = document.getElementById('map');
                             if (mapEl) mapEl.classList.add('crosshair-mode');
                         }
 
-                        // Geometry drawing shortcuts (Quadrant 3)
-                        // Supports pure numbers (1, 2, 3, 4, 0) AND modifiers (Ctrl+1, Cmd+1, Alt+1)
-                        if (!e.shiftKey) {
+                        // 2. Geometry Drawing Shortcuts: EXCLUSIVELY with Control key (Ctrl + 1, 2, 3, 4)
+                        // Rejects Command (metaKey) to prevent quadrant/system collision
+                        if (e.ctrlKey && !e.metaKey && !e.shiftKey) {
                             const is1 = e.key === '1' || e.code === 'Digit1' || e.code === 'Numpad1';
                             const is2 = e.key === '2' || e.code === 'Digit2' || e.code === 'Numpad2';
                             const is3 = e.key === '3' || e.code === 'Digit3' || e.code === 'Numpad3';
@@ -3350,27 +3385,27 @@ export class MapView {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 setGeomDrawMode('marker');
-                                showHud('📍 Marcador / Punto activado (1)');
+                                showHud('📍 Marcador / Punto activado (Ctrl+1)');
                             } else if (is2) {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 setGeomDrawMode('polyline');
-                                showHud('📈 Línea activada (2)');
+                                showHud('📈 Línea activada (Ctrl+2)');
                             } else if (is3) {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 setGeomDrawMode('polygon');
-                                showHud('⬡ Polígono activado (3)');
+                                showHud('⬡ Polígono activado (Ctrl+3)');
                             } else if (is4) {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 setGeomDrawMode('rectangle');
-                                showHud('▢ Rectángulo activado (4)');
+                                showHud('▢ Rectángulo activado (Ctrl+4)');
                             } else if (is0) {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 setGeomDrawMode('pan');
-                                showHud('🖐️ Modo Navegación / Manito (0 / Esc)');
+                                showHud('🖐️ Modo Navegación / Manito (Esc)');
                             }
                         }
                     }
