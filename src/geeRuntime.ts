@@ -1498,6 +1498,7 @@ export class GEERuntime {
                 const userVars = Object.keys(this.context).filter(k => !SYSTEM_BUILTINS.has(k) && !k.startsWith('_'));
                 if (userVars.length === 0) {
                     this.consoleView.append('  (no user variables currently in memory)');
+                    this.consoleView.append('  💡 Tip: Ejecuta un script (Cmd+Shift+Enter) o selecciona código (Cmd+Enter) para cargar variables en memoria.');
                 } else {
                     this.consoleView.append(`📊 Variables en memoria (${userVars.length}):`);
                     userVars.forEach(k => {

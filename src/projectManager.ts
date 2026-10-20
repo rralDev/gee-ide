@@ -137,6 +137,11 @@ export class ProjectManager {
                 }, 400);
             }
 
+            // Automatically open project main script instead of .geeproj JSON
+            setTimeout(() => {
+                this.openMainScript().catch(() => {});
+            }, 300);
+
             return parsed;
         } catch (err: any) {
             vscode.window.showErrorMessage(`Error al leer archivo .geeproj: ${err.message}`);
@@ -472,22 +477,175 @@ cat("✅ Proyecto R inicializado: ${cleanName}\\n")
     }
 
     /**
-     * Opens .geeproj in editor.
+     * Opens the main script associated with this project.
      */
-    public async openProjectSettings(): Promise<void> {
-        if (!this.projectFilePath || !fs.existsSync(this.projectFilePath)) {
-            const createChoice = await vscode.window.showWarningMessage(
-                'No hay un proyecto GEE activo en este espacio de trabajo. ¿Deseas crear uno nuevo?',
-                'Crear Proyecto GEE',
-                'Cancelar'
+    public async openMainScript(): Promise<void> {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) return;
+        const rootPath = workspaceFolders[0].uri.fsPath;
+
+        let scriptToOpen: string | null = null;
+        if (this.currentProject?.defaultScript) {
+            const candidate = path.isAbsolute(this.currentProject.defaultScript) ? this.currentProject.defaultScript : path.join(rootPath, this.currentProject.defaultScript);
+            if (fs.existsSync(candidate)) {
+                scriptToOpen = candidate;
+            }
+        }
+        if (!scriptToOpen) {
+            const fallbackFiles = [
+                'scripts/main.gee', 'scripts/main.js', 'scripts/main.py', 'scripts/main.R',
+                'main.gee', 'main.js', 'main.py', 'main.R',
+                'welcome_to_gee_ide.gee'
+            ];
+            for (const fb of fallbackFiles) {
+                const fullFb = path.join(rootPath, fb);
+                if (fs.existsSync(fullFb)) {
+                    scriptToOpen = fullFb;
+                    break;
+                }
+            }
+        }
+        if (scriptToOpen) {
+            const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(scriptToOpen));
+            await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.One, preview: false });
+        }
+    }
+
+    /**
+     * Browse file system to select and open any existing GEE Project folder or .geeproj file.
+     */
+    public async openExistingProject(): Promise<void> {
+        const uris = await vscode.window.showOpenDialog({
+            canSelectFiles: true,
+            canSelectFolders: true,
+            canSelectMany: false,
+            openLabel: 'Abrir Proyecto GEE',
+            title: 'Selecciona la carpeta del proyecto o el archivo .geeproj',
+            filters: {
+                'Archivos de Proyecto GEE': ['geeproj', 'json']
+            }
+        });
+
+        if (!uris || uris.length === 0) return;
+
+        const selectedPath = uris[0].fsPath;
+        let projectFolder = selectedPath;
+        try {
+            const stat = fs.statSync(selectedPath);
+            if (stat.isFile()) {
+                projectFolder = path.dirname(selectedPath);
+            }
+        } catch (e) {}
+
+        const projectUri = vscode.Uri.file(projectFolder);
+        const hasOpenFolder = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0;
+        if (!hasOpenFolder) {
+            await vscode.commands.executeCommand('vscode.openFolder', projectUri, false);
+            return;
+        }
+
+        const choice = await vscode.window.showInformationMessage(
+            `¿Cómo deseas abrir el proyecto "${path.basename(projectFolder)}"?`,
+            'En esta Ventana',
+            'En Nueva Ventana'
+        );
+
+        if (choice === 'En esta Ventana') {
+            await vscode.commands.executeCommand('vscode.openFolder', projectUri, false);
+        } else if (choice === 'En Nueva Ventana') {
+            await vscode.commands.executeCommand('vscode.openFolder', projectUri, true);
+        }
+    }
+
+    /**
+     * Shows an interactive project menu (RStudio style) with quick actions.
+     */
+    public async showProjectMenu(): Promise<void> {
+        if (!this.currentProject || !this.projectFilePath) {
+            const choice = await vscode.window.showQuickPick(
+                [
+                    { label: '$(folder-opened) Abrir Proyecto GEE Existente...', description: 'Buscar carpeta de proyecto o archivo .geeproj en tu disco', action: 'open' },
+                    { label: '$(add) Crear Nuevo Proyecto GEE...', description: 'Crear un nuevo proyecto estructurado con asistente', action: 'new' }
+                ],
+                { placeHolder: 'No hay un proyecto GEE activo en este espacio de trabajo' }
             );
-            if (createChoice === 'Crear Proyecto GEE') {
+            if (choice?.action === 'open') {
+                await this.openExistingProject();
+            } else if (choice?.action === 'new') {
                 await this.createNewProject();
             }
             return;
         }
 
-        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(this.projectFilePath));
-        await vscode.window.showTextDocument(doc, { preview: false });
+        const items: (vscode.QuickPickItem & { action: string })[] = [
+            {
+                label: `$(file-code) Abrir Script Principal`,
+                description: this.currentProject.defaultScript || 'scripts/main.js',
+                action: 'openScript'
+            },
+            {
+                label: `$(play) Ejecutar Script Completo`,
+                description: 'Ejecutar script en la consola y cargar capas/variables en memoria',
+                action: 'runScript'
+            },
+            {
+                label: `$(globe) Centrar Mapa en Proyecto`,
+                description: this.currentProject.map ? `[${this.currentProject.map.center.join(', ')}] zoom ${this.currentProject.map.zoom}` : 'Coordenadas del proyecto',
+                action: 'centerMap'
+            },
+            {
+                label: `$(folder-opened) Abrir Otro Proyecto GEE...`,
+                description: 'Seleccionar otra carpeta o archivo .geeproj del disco',
+                action: 'openOther'
+            },
+            {
+                label: `$(add) Crear Nuevo Proyecto GEE...`,
+                description: 'Crear un nuevo proyecto con asistente estructurado',
+                action: 'new'
+            },
+            {
+                label: `$(gear) Editar Configuración (.geeproj)`,
+                description: 'Abrir el archivo JSON de configuración .geeproj',
+                action: 'editConfig'
+            }
+        ];
+
+        const selected = await vscode.window.showQuickPick(items, {
+            placeHolder: `Proyecto GEE: ${this.currentProject.name}`
+        });
+
+        if (!selected) return;
+
+        if (selected.action === 'openScript') {
+            await this.openMainScript();
+        } else if (selected.action === 'runScript') {
+            await this.openMainScript();
+            await vscode.commands.executeCommand('gee-pro.run');
+        } else if (selected.action === 'centerMap') {
+            if (this.currentProject.map && this.mapView) {
+                this.mapView.sendMessage({
+                    command: 'setCenter',
+                    lat: this.currentProject.map.center[1],
+                    lng: this.currentProject.map.center[0],
+                    zoom: this.currentProject.map.zoom || 10
+                });
+            }
+        } else if (selected.action === 'openOther') {
+            await this.openExistingProject();
+        } else if (selected.action === 'new') {
+            await this.createNewProject();
+        } else if (selected.action === 'editConfig') {
+            if (this.projectFilePath && fs.existsSync(this.projectFilePath)) {
+                const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(this.projectFilePath));
+                await vscode.window.showTextDocument(doc, { preview: false });
+            }
+        }
+    }
+
+    /**
+     * Opens .geeproj or shows project menu.
+     */
+    public async openProjectSettings(): Promise<void> {
+        await this.showProjectMenu();
     }
 }

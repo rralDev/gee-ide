@@ -134,6 +134,53 @@ export function activate(context: vscode.ExtensionContext) {
     const taskNotifier = new TaskNotifier();
     context.subscriptions.push(taskNotifier);
 
+    async function getTargetEditor(): Promise<vscode.TextEditor | undefined> {
+        let editor = vscode.window.activeTextEditor;
+        if (editor && !editor.document.isClosed && !editor.document.uri.scheme.includes('output') && !editor.document.uri.scheme.includes('ai')) {
+            return editor;
+        }
+        if (lastActiveEditor && !lastActiveEditor.document.isClosed) {
+            try {
+                return await vscode.window.showTextDocument(lastActiveEditor.document, lastActiveEditor.viewColumn || vscode.ViewColumn.One, false);
+            } catch (e) {
+                return lastActiveEditor;
+            }
+        }
+        editor = vscode.window.visibleTextEditors.find(e => 
+            !e.document.isClosed && 
+            !e.document.uri.scheme.includes('output') && 
+            !e.document.uri.scheme.includes('ai') &&
+            e.document.uri.scheme !== 'vscode-userdata'
+        );
+        if (editor) return editor;
+
+        for (const group of vscode.window.tabGroups.all) {
+            for (const tab of group.tabs) {
+                if (tab.input instanceof vscode.TabInputText) {
+                    const uri = tab.input.uri;
+                    if (!uri.scheme.includes('output') && !uri.scheme.includes('ai') && uri.scheme !== 'vscode-userdata') {
+                        try {
+                            const doc = await vscode.workspace.openTextDocument(uri);
+                            return await vscode.window.showTextDocument(doc, group.viewColumn || vscode.ViewColumn.One, false);
+                        } catch (e) {}
+                    }
+                }
+            }
+        }
+
+        let targetDoc = vscode.workspace.textDocuments.find(d => 
+            !d.isClosed && 
+            !d.uri.scheme.includes('output') &&
+            (d.languageId === 'javascript' || d.languageId === 'gee' || d.languageId === 'python' || d.languageId === 'r' || d.fileName.endsWith('.gee') || d.fileName.endsWith('.js') || d.fileName.endsWith('.py') || d.fileName.endsWith('.r') || d.isUntitled)
+        );
+        if (targetDoc) {
+            try {
+                return await vscode.window.showTextDocument(targetDoc, vscode.ViewColumn.One, false);
+            } catch (e) {}
+        }
+        return undefined;
+    }
+
     const projectManager = ProjectManager.initialize(context, mapView, consoleView);
     projectManager.loadProject();
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
@@ -387,6 +434,23 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.commands.executeCommand('gee-pro.runSelection');
         } else if (message.command === 'reset') {
             vscode.commands.executeCommand('gee-pro.reset');
+        } else if (message.command === 'insertCode') {
+            const codeToInsert = message.code || message.text;
+            if (!codeToInsert) {
+                vscode.window.showWarningMessage('No hay código para insertar.');
+                return;
+            }
+            await vscode.env.clipboard.writeText(codeToInsert);
+            const ed = await getTargetEditor();
+            if (ed) {
+                await ed.edit(editBuilder => {
+                    const pos = ed.selection.active || new vscode.Position(ed.document.lineCount, 0);
+                    editBuilder.insert(pos, '\n' + codeToInsert + '\n');
+                });
+                vscode.window.showInformationMessage('✅ Filtro de grilla insertado en el editor (y copiado al portapapeles).');
+            } else {
+                vscode.window.showInformationMessage('📋 Código copiado al portapapeles (abre un script para pegarlo con Cmd+V).');
+            }
         } else if (message.command === 'syncGeometryImports') {
             if (context && context.workspaceState && Array.isArray(message.layers)) {
                 context.workspaceState.update('gee_geometries_backup', message.layers);
@@ -395,31 +459,36 @@ export function activate(context: vscode.ExtensionContext) {
                 runtime.updateGeometryImports(message.layers);
             }
         } else if (message.command === 'insertGeometryCode') {
-            const editor = vscode.window.activeTextEditor;
-            if (editor && message.code) {
-                const START_MARKER = '// --- GEE IDE GEOMETRY IMPORTS START ---';
-                const END_MARKER = '// --- GEE IDE GEOMETRY IMPORTS END ---';
-                const text = editor.document.getText();
-                const startIdx = text.indexOf(START_MARKER);
-                const endIdx = text.indexOf(END_MARKER);
+            const codeToInsert = message.code;
+            if (!codeToInsert) {
+                vscode.window.showWarningMessage('No hay código de geometrías para insertar.');
+                return;
+            }
+            await vscode.env.clipboard.writeText(codeToInsert);
+            const ed = await getTargetEditor();
+            if (!ed) {
+                vscode.window.showWarningMessage('Abre un archivo de script para insertar las geometrías (el código se copió al portapapeles).');
+                return;
+            }
+            const START_MARKER = '// --- GEE IDE GEOMETRY IMPORTS START ---';
+            const END_MARKER = '// --- GEE IDE GEOMETRY IMPORTS END ---';
+            const text = ed.document.getText();
+            const startIdx = text.indexOf(START_MARKER);
+            const endIdx = text.indexOf(END_MARKER);
+            const blockContent = `${START_MARKER}\n${codeToInsert}\n${END_MARKER}`;
 
-                const blockContent = `${START_MARKER}\n${message.code}\n${END_MARKER}`;
-
-                if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-                    const startPos = editor.document.positionAt(startIdx);
-                    const endPos = editor.document.positionAt(endIdx + END_MARKER.length);
-                    editor.edit(editBuilder => {
-                        editBuilder.replace(new vscode.Range(startPos, endPos), blockContent);
-                    });
-                    vscode.window.showInformationMessage('🔄 Declaraciones de geometría actualizadas en el script');
-                } else {
-                    editor.edit(editBuilder => {
-                        editBuilder.insert(new vscode.Position(0, 0), blockContent + '\n\n');
-                    });
-                    vscode.window.showInformationMessage('📥 Declaraciones de geometría insertadas al inicio del script');
-                }
-            } else if (!editor) {
-                vscode.window.showWarningMessage('Abre un archivo de script para insertar las geometrías');
+            if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+                const startPos = ed.document.positionAt(startIdx);
+                const endPos = ed.document.positionAt(endIdx + END_MARKER.length);
+                await ed.edit(editBuilder => {
+                    editBuilder.replace(new vscode.Range(startPos, endPos), blockContent);
+                });
+                vscode.window.showInformationMessage('🔄 Declaraciones de geometría actualizadas en el script (Smart Replace).');
+            } else {
+                await ed.edit(editBuilder => {
+                    editBuilder.insert(new vscode.Position(0, 0), blockContent + '\n\n');
+                });
+                vscode.window.showInformationMessage('📥 Declaraciones de geometría insertadas al inicio del script.');
             }
         }
     });
@@ -1696,12 +1765,16 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
+    let openProjectCommand = vscode.commands.registerCommand('gee-pro.openProject', async () => {
+        await projectManager.openExistingProject();
+    });
+
     let newProjectCommand = vscode.commands.registerCommand('gee-pro.newProject', async () => {
         await projectManager.createNewProject();
     });
 
     let openProjectSettingsCommand = vscode.commands.registerCommand('gee-pro.openProjectSettings', async () => {
-        await projectManager.openProjectSettings();
+        await projectManager.showProjectMenu();
     });
 
     let setProjectMapCenterCommand = vscode.commands.registerCommand('gee-pro.setProjectMapCenter', async () => {
@@ -1745,7 +1818,7 @@ export function activate(context: vscode.ExtensionContext) {
         focusEditorCommand, focusConsoleCommand, focusMapCommand, focusAICommand,
         clearConsoleCommand, saveLayoutCommand, resetLayoutCommand, editSnippetsCommand, listSnippetsCommand,
         searchCatalogCommand, insertSpectralIndexCommand, openDemosCommand,
-        newProjectCommand, openProjectSettingsCommand, setProjectMapCenterCommand,
+        openProjectCommand, newProjectCommand, openProjectSettingsCommand, setProjectMapCenterCommand,
         drawPanCommand, drawPointCommand, drawLineCommand, drawPolygonCommand, drawRectCommand
     );
     logStep('>>> ACTIVATE() COMPLETED SUCCESSFULLY — All commands ready');

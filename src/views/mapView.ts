@@ -221,103 +221,15 @@ export class MapView {
         }
     }
 
-    private buildPdfFromJpeg(jpegBuffer: Buffer, imgW: number, imgH: number, paperSize: string = 'auto', orientation: string = 'auto'): Buffer {
-        // ISO 216 Paper sizes in PDF points (1 pt = 1/72 inch, 1 mm = 2.83464567 pt)
-        const isoSizesPt: Record<string, [number, number]> = {
-            'A4': [841.89, 595.28],   // 297 x 210 mm
-            'A3': [1190.55, 841.89],  // 420 x 297 mm
-            'A2': [1683.78, 1190.55], // 594 x 420 mm
-            'A1': [2383.94, 1683.78]  // 841 x 594 mm
-        };
-        const isLandscape = (orientation === 'landscape') ? true : (orientation === 'portrait') ? false : (imgW >= imgH);
-        let pageW = imgW * 0.75;
-        let pageH = imgH * 0.75;
-        let drawX = 0;
-        let drawY = 0;
-        let drawW = pageW;
-        let drawH = pageH;
-
-        if (paperSize && isoSizesPt[paperSize]) {
-            const [longSide, shortSide] = isoSizesPt[paperSize];
-            pageW = isLandscape ? longSide : shortSide;
-            pageH = isLandscape ? shortSide : longSide;
-            const margin = 18; // ~6.3 mm printer-safe margin
-            const availW = pageW - margin * 2;
-            const availH = pageH - margin * 2;
-            const scale = Math.min(availW / imgW, availH / imgH);
-            drawW = Number((imgW * scale).toFixed(2));
-            drawH = Number((imgH * scale).toFixed(2));
-            drawX = Number(((pageW - drawW) / 2).toFixed(2));
-            drawY = Number(((pageH - drawH) / 2).toFixed(2));
-        } else {
-            pageW = Number(pageW.toFixed(2));
-            pageH = Number(pageH.toFixed(2));
-            drawW = pageW;
-            drawH = pageH;
-        }
-
-        const contentStream = `q\n${drawW} 0 0 ${drawH} ${drawX} ${drawY} cm\n/Im0 Do\nQ\n`;
-        const chunks: Buffer[] = [];
-        const offsets: number[] = [0];
-        let currentOffset = 0;
-
-        const pushStr = (s: string) => {
-            const b = Buffer.from(s, 'binary');
-            chunks.push(b);
-            currentOffset += b.length;
-        };
-        const pushBuf = (b: Buffer) => {
-            chunks.push(b);
-            currentOffset += b.length;
-        };
-
-        pushStr('%PDF-1.4\n%\xFF\xFF\xFF\xFF\n');
-
-        // 1: Catalog
-        offsets[1] = currentOffset;
-        pushStr('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
-
-        // 2: Pages
-        offsets[2] = currentOffset;
-        pushStr('2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n');
-
-        // 3: Page
-        offsets[3] = currentOffset;
-        pushStr(`3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageW} ${pageH}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>\nendobj\n`);
-
-        // 4: Image XObject (DCTDecode / JPEG)
-        offsets[4] = currentOffset;
-        pushStr(`4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${imgW} /Height ${imgH} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpegBuffer.length} >>\nstream\n`);
-        pushBuf(jpegBuffer);
-        pushStr('\nendstream\nendobj\n');
-
-        // 5: Content stream
-        offsets[5] = currentOffset;
-        pushStr(`5 0 obj\n<< /Length ${Buffer.byteLength(contentStream, 'binary')} >>\nstream\n${contentStream}endstream\nendobj\n`);
-
-        const xrefOffset = currentOffset;
-        pushStr('xref\n0 6\n0000000000 65535 f \n');
-        for (let i = 1; i <= 5; i++) {
-            pushStr(String(offsets[i]).padStart(10, '0') + ' 00000 n \n');
-        }
-        pushStr(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`);
-
-        return Buffer.concat(chunks);
-    }
-
-    private async handleSaveSnapshot(message: { data: string; filename: string; promptSaveAs: boolean; format?: string; width?: number; height?: number; paperSize?: string; orientation?: string }) {
+    private async handleSaveSnapshot(message: { data: string; filename: string; promptSaveAs: boolean; format?: string }) {
         try {
             const fmt = (message.format || 'png').toLowerCase();
-            let buffer = Buffer.from(message.data, 'base64');
-            if (fmt === 'pdf') {
-                buffer = this.buildPdfFromJpeg(buffer, message.width || 1920, message.height || 1080, message.paperSize || 'auto', message.orientation || 'auto');
-            }
+            const buffer = Buffer.from(message.data, 'base64');
 
             let targetUri: vscode.Uri | undefined;
             const filterMap: Record<string, { [name: string]: string[] }> = {
                 'png': { 'PNG Image (*.png)': ['png'] },
-                'jpg': { 'JPEG Image (*.jpg)': ['jpg', 'jpeg'] },
-                'pdf': { 'PDF Document (*.pdf)': ['pdf'] }
+                'jpg': { 'JPEG Image (*.jpg)': ['jpg', 'jpeg'] }
             };
             const dialogFilters = filterMap[fmt] || filterMap['png'];
 
@@ -348,7 +260,7 @@ export class MapView {
             await vscode.workspace.fs.writeFile(targetUri, buffer);
             const relPath = vscode.workspace.asRelativePath(targetUri);
             const action = await vscode.window.showInformationMessage(
-                `📸 Lámina / Captura guardada: ${relPath}`,
+                `📸 Captura guardada: ${relPath}`,
                 'Abrir Archivo',
                 'Copiar Ruta'
             );
@@ -2043,124 +1955,28 @@ export class MapView {
                     </div>
                 </div>
 
-                <div id="snapshotModal" class="gee-snapshot-modal" style="display: none; width: 350px; max-height: calc(100vh - 90px); overflow-y: auto;">
-                    <div class="gee-modal-header" style="background: rgba(78, 201, 176, 0.14); border-bottom: 1px solid rgba(78, 201, 176, 0.28);">
+                <div id="snapshotModal" class="gee-snapshot-modal" style="display: none; width: 310px;">
+                    <div class="gee-modal-header" style="background: rgba(78, 201, 176, 0.12); border-bottom: 1px solid rgba(78, 201, 176, 0.22);">
                         <div style="display: flex; align-items: center; gap: 6px;">
-                            <span>📸 Snapshot & Lámina SIG</span>
-                            <span style="background: linear-gradient(135deg, #4ec9b0, #007acc); color: #000; font-size: 9px; font-weight: 800; padding: 1px 5px; border-radius: 4px; letter-spacing: 0.4px;">PRO</span>
+                            <span>📸 Captura de Pantalla</span>
                         </div>
                         <button class="gee-modal-close" onclick="toggleSnapshotModal()">✕</button>
                     </div>
-                    <div class="gee-modal-body">
+                    <div class="gee-modal-body" style="gap: 10px;">
                         <div class="gee-modal-opts">
-                            <div style="display: flex; gap: 6px;">
-                                <div style="flex: 1.15; display: flex; flex-direction: column; gap: 3px;">
-                                    <span style="font-size: 10px; color: #9cdcfe; font-weight: 600;">Resolución DPI:</span>
-                                    <select id="snapScaleSelect" onchange="syncSnapHdLegacy()" style="background: #18181b; color: #eee; border: 1px solid rgba(255,255,255,0.18); border-radius: 5px; font-size: 10.5px; padding: 4px 5px; outline: none; cursor: pointer;">
-                                        <option value="1">1x (96 DPI)</option>
-                                        <option value="2" selected>2x Retina (192 DPI)</option>
-                                        <option value="4">4x Print (300 DPI) ★</option>
-                                    </select>
-                                    <input type="checkbox" id="snapOptHd" checked style="display:none;" />
-                                </div>
-                                <div style="flex: 1; display: flex; flex-direction: column; gap: 3px;">
-                                    <span style="font-size: 10px; color: #9cdcfe; font-weight: 600;">Formato:</span>
-                                    <select id="snapFormatSelect" onchange="syncSnapFormatChange()" style="background: #18181b; color: #eee; border: 1px solid rgba(255,255,255,0.18); border-radius: 5px; font-size: 10.5px; padding: 4px 5px; outline: none; cursor: pointer;">
-                                        <option value="png" selected>🖼️ PNG (Sin pérdida)</option>
-                                        <option value="jpg">📷 JPG (Ligero 95%)</option>
-                                        <option value="pdf">📄 PDF Documento</option>
-                                    </select>
-                                </div>
+                            <div style="display: flex; flex-direction: column; gap: 3px;">
+                                <span style="font-size: 10px; color: #9cdcfe; font-weight: 600;">Formato:</span>
+                                <select id="snapFormatSelect" style="background: #18181b; color: #eee; border: 1px solid rgba(255,255,255,0.18); border-radius: 5px; font-size: 11px; padding: 4px 6px; outline: none; cursor: pointer;">
+                                    <option value="png" selected>🖼️ PNG (Sin pérdida)</option>
+                                    <option value="jpg">📷 JPG (Estándar)</option>
+                                </select>
                             </div>
 
-                            <div style="display: flex; gap: 6px; margin-top: 2px;">
-                                <div style="flex: 1.15; display: flex; flex-direction: column; gap: 3px;">
-                                    <span style="font-size: 10px; color: #9cdcfe; font-weight: 600;">Hoja / Papel:</span>
-                                    <select id="snapPaperSelect" style="background: #18181b; color: #eee; border: 1px solid rgba(255,255,255,0.18); border-radius: 5px; font-size: 10.5px; padding: 4px 5px; outline: none; cursor: pointer;">
-                                        <option value="auto" selected>📐 Auto (Visor libre)</option>
-                                        <option value="A4">📄 A4 (297×210 mm)</option>
-                                        <option value="A3">📄 A3 (420×297 mm)</option>
-                                        <option value="A2">📜 A2 (594×420 mm)</option>
-                                        <option value="A1">🗺️ A1 (841×594 mm)</option>
-                                    </select>
-                                </div>
-                                <div style="flex: 1; display: flex; flex-direction: column; gap: 3px;">
-                                    <span style="font-size: 10px; color: #9cdcfe; font-weight: 600;">Orientación:</span>
-                                    <select id="snapOrientationSelect" style="background: #18181b; color: #eee; border: 1px solid rgba(255,255,255,0.18); border-radius: 5px; font-size: 10.5px; padding: 4px 5px; outline: none; cursor: pointer;">
-                                        <option value="auto" selected>🔄 Auto (Pantalla)</option>
-                                        <option value="landscape">↔ Horizontal</option>
-                                        <option value="portrait">↕ Vertical</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <label><input type="checkbox" id="snapOptCoords" checked /> Incluir coordenadas, UTM y escala</label>
-                            <label><input type="checkbox" id="snapOptDrawings" checked /> Incluir dibujos, vectores y regla (📏)</label>
-                            <label title="Desmarca para exportar en Marca Blanca sin mostrar el nombre GEE IDE Pro"><input type="checkbox" id="snapOptBrand" onchange="syncSnapBrandOption()" checked /> 🏷️ Mostrar marca "GEE IDE Pro" (Marca Blanca)</label>
-
-                            <div style="border-top: 1px solid rgba(128,128,128,0.2); margin: 2px 0; padding-top: 6px;">
-                                <label style="color: #0d9488; font-weight: 700;">
-                                    <input type="checkbox" id="snapOptLayout" onchange="toggleSnapProConfig()" />
-                                    🗺️ Lámina Cartográfica Pro (Marco + Membrete)
-                                </label>
-                            </div>
-
-                            <div id="snapProElementsGrid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px 8px; background: rgba(128,128,128,0.1); padding: 7px 8px; border-radius: 6px; border: 1px solid rgba(128,128,128,0.15);">
-                                <label style="font-size: 10.5px;"><input type="checkbox" id="snapOptNorth" checked /> 🧭 Flecha Norte</label>
-                                <label style="font-size: 10.5px;"><input type="checkbox" id="snapOptScaleBar" checked /> 📏 Escala Gráfica</label>
-                                <label style="font-size: 10.5px;"><input type="checkbox" id="snapOptGrid" /> 🌐 Grilla Lat/Lon</label>
-                                <label style="font-size: 10.5px;"><input type="checkbox" id="snapOptLegend" checked /> 🎨 Leyenda Capas</label>
-                            </div>
-
-                            <div id="snapProConfig" style="display: none; flex-direction: column; gap: 6px; background: rgba(78, 201, 176, 0.06); border: 1px solid rgba(78, 201, 176, 0.25); border-radius: 7px; padding: 8px;">
-                                <div style="display: flex; flex-direction: column; gap: 3px;">
-                                    <span style="font-size: 10px; opacity: 0.8;">Título Principal del Mapa:</span>
-                                    <input type="text" id="snapTitleInput" class="snap-pro-input" placeholder="Ej. Monitoreo Multitemporal de Cobertura" value="Mapa de Análisis Geoespacial" />
-                                </div>
-                                <div style="display: flex; gap: 6px;">
-                                    <div style="flex: 1.2; display: flex; flex-direction: column; gap: 3px;">
-                                        <span style="font-size: 10px; opacity: 0.8;">Autor / Especialista:</span>
-                                        <input type="text" id="snapAuthorInput" class="snap-pro-input" placeholder="Autor / Lab" value="GEE IDE Pro" />
-                                    </div>
-                                    <div style="flex: 1; display: flex; flex-direction: column; gap: 3px;">
-                                        <span style="font-size: 10px; opacity: 0.8;">Tema de Lámina:</span>
-                                        <select id="snapThemeSelect" style="background: #141417; color: #eee; border: 1px solid rgba(255,255,255,0.16); border-radius: 4px; padding: 4px 5px; font-size: 10.5px; outline: none; cursor: pointer;">
-                                            <option value="light">📄 Blanco Paper</option>
-                                            <option value="dark">🌑 Oscuro GIS</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div style="display: flex; justify-content: flex-end; margin-top: 2px;">
-                                    <button type="button" class="gee-btn-action secondary" style="padding: 4px 8px; font-size: 10px;" onclick="toggleSnapMoreTexts()">✏️ Más Textos ▾</button>
-                                </div>
-                                <div id="snapMoreTextsBox" style="display: none; flex-direction: column; gap: 5px; border-top: 1px dashed rgba(128,128,128,0.3); padding-top: 6px; margin-top: 2px;">
-                                    <div style="display: flex; flex-direction: column; gap: 2px;">
-                                        <span style="font-size: 9.5px; opacity: 0.8;">Subtítulo Superior:</span>
-                                        <input type="text" id="snapSubtitleInput" class="snap-pro-input" placeholder="Subtítulo del encabezado" value="Sistema de Información Geográfica y Teledetección Espacial" />
-                                    </div>
-                                    <div style="display: flex; flex-direction: column; gap: 2px;">
-                                        <span style="font-size: 9.5px; opacity: 0.8;">Institución / Nota al Pie (Celda 1):</span>
-                                        <input type="text" id="snapInstInput" class="snap-pro-input" placeholder="Ej. UNMSM - UNASAM | SERFOR" value="Procesado en Google Earth Engine • GEE IDE Pro" />
-                                    </div>
-                                    <div style="display: flex; gap: 5px;">
-                                        <div style="flex: 1; display: flex; flex-direction: column; gap: 2px;">
-                                            <span style="font-size: 9.5px; opacity: 0.8;">CRS / Proyección:</span>
-                                            <input type="text" id="snapCrsInput" class="snap-pro-input" placeholder="Auto (UTM + WGS 84)" value="" />
-                                        </div>
-                                        <div style="flex: 1; display: flex; flex-direction: column; gap: 2px;">
-                                            <span style="font-size: 9.5px; opacity: 0.8;">Título de Leyenda:</span>
-                                            <input type="text" id="snapLegendTitleInput" class="snap-pro-input" placeholder="LEYENDA / CAPAS ACTIVAS" value="LEYENDA / CAPAS ACTIVAS" />
-                                        </div>
-                                    </div>
-                                    <div style="display: flex; flex-direction: column; gap: 2px;">
-                                        <span style="font-size: 9.5px; opacity: 0.8;">Escala / Fecha Personalizada (Opcional):</span>
-                                        <input type="text" id="snapCustomMetaInput" class="snap-pro-input" placeholder="Dejar vacío para cálculo automático" value="" />
-                                    </div>
-                                </div>
-                            </div>
+                            <label><input type="checkbox" id="snapOptCoords" checked /> Incluir coordenadas y escala en la esquina</label>
+                            <label><input type="checkbox" id="snapOptDrawings" checked /> Incluir dibujos y geometrías</label>
                         </div>
-                        <div class="gee-modal-actions">
-                            <button class="gee-btn-action primary" onclick="takeSnapshot('workspace')">💾 Guardar en Screenshots/</button>
+                        <div class="gee-modal-actions" style="margin-top: 6px;">
+                            <button class="gee-btn-action primary" onclick="takeSnapshot('workspace')">💾 Guardar Captura</button>
                             <button class="gee-btn-action secondary" onclick="takeSnapshot('saveAs')">📁 Guardar como...</button>
                             <button class="gee-btn-action secondary" onclick="takeSnapshot('clipboard')">📋 Copiar al Portapapeles</button>
                         </div>
@@ -3649,7 +3465,7 @@ export class MapView {
                                     '<span>Layers</span>' +
                                     '<div class="gee-layer-header-actions">' +
                                         '<button class="gee-btn-icon" id="gridHeaderBtn" onclick="toggleGridMenu()" title="Grillas Satelitales (Landsat WRS-2, MODIS Sinusoidal, Sentinel-2 MGRS)">🌐 Grid</button>' +
-                                        '<button class="gee-btn-icon" id="snapHeaderBtn" title="HD Map Snapshot & Lámina Pro [Option+S]"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg><span>Snap</span></button>' +
+                                        '<button class="gee-btn-icon" id="snapHeaderBtn" title="Captura de Pantalla [Option+S]"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg><span>Snap</span></button>' +
                                         '<button class="gee-btn-icon" id="toggleAllBtn" title="Toggle All Layers (Shortcut: 0)">[0] All</button>' +
                                         '<button class="gee-btn-icon ' + (isPinned ? 'active' : '') + '" id="pinBtn" title="' + (isPinned ? 'Unpin panel' : 'Pin panel (📌)') + '">📌</button>' +
                                     '</div>' +
@@ -4855,1178 +4671,21 @@ export class MapView {
                         }
                     }, true);
 
-                    // Snapshot HD Pro & Cartographic Composer Implementation
-                    window.syncSnapHdLegacy = function() {
-                        const sel = document.getElementById('snapScaleSelect');
-                        const optHd = document.getElementById('snapOptHd');
-                        if (sel && optHd) {
-                            optHd.checked = parseInt(sel.value, 10) >= 2;
-                        }
-                    };
-
-                    window.syncSnapFormatChange = function() {
-                        const fmt = document.getElementById('snapFormatSelect')?.value;
-                        const paperSel = document.getElementById('snapPaperSelect');
-                        if (fmt === 'pdf' && paperSel && paperSel.value === 'auto') {
-                            paperSel.value = 'A4';
-                        }
-                    };
-
-                    window.toggleSnapProConfig = function() {
-                        const optLayout = document.getElementById('snapOptLayout');
-                        const cfg = document.getElementById('snapProConfig');
-                        const optGrid = document.getElementById('snapOptGrid');
-                        if (cfg && optLayout) {
-                            cfg.style.display = optLayout.checked ? 'flex' : 'none';
-                            if (optLayout.checked && optGrid) {
-                                optGrid.checked = true;
-                            }
-                        }
-                    };
-
-                    window.toggleSnapMoreTexts = function() {
-                        const box = document.getElementById('snapMoreTextsBox');
-                        const btn = document.getElementById('snapToggleMoreBtn');
-                        if (!box) return;
-                        const open = box.style.display === 'none' || !box.style.display;
-                        box.style.display = open ? 'flex' : 'none';
-                        if (btn) {
-                            btn.textContent = open
-                                ? '🔼 Ocultar textos adicionales'
-                                : '✏️ Personalizar todos los textos de la lámina (Subtítulo, CRS, Leyenda, Pie...)';
-                        }
-                    };
-
-                    window.syncSnapBrandOption = function() {
-                        const optBrand = document.getElementById('snapOptBrand');
-                        const authorIn = document.getElementById('snapAuthorInput');
-                        const instIn = document.getElementById('snapInstInput');
-                        if (!optBrand) return;
-                        if (!optBrand.checked) {
-                            if (authorIn && (authorIn.value.trim() === 'GEE IDE Pro' || authorIn.value.trim() === 'GEE IDE')) {
-                                authorIn.value = 'Elaboración Propia';
-                            }
-                            if (instIn && instIn.value.includes('GEE IDE')) {
-                                instIn.value = instIn.value.replace(/\s*•\s*GEE IDE(\s*Pro)?/gi, '').replace(/GEE IDE(\s*Pro)?/gi, '').trim() || 'Procesado en Google Earth Engine';
-                            }
-                        } else {
-                            if (authorIn && authorIn.value.trim() === 'Elaboración Propia') {
-                                authorIn.value = 'GEE IDE Pro';
-                            }
-                            if (instIn && instIn.value.trim() === 'Procesado en Google Earth Engine') {
-                                instIn.value = 'Procesado en Google Earth Engine • GEE IDE Pro';
-                            }
-                        }
-                    };
-
+                    // Snapshot Implementation (Versión Básica Free)
                     window.toggleSnapshotModal = function() {
-                        const m = document.getElementById('snapshotModal');
+                        const m = document.getElementById("snapshotModal");
                         if (!m) return;
-                        const isVisible = m.style.display === 'block';
-                        m.style.display = isVisible ? 'none' : 'block';
+                        const isVisible = m.style.display === "block";
+                        m.style.display = isVisible ? "none" : "block";
                         if (!isVisible) {
-                            const selScale = document.getElementById('snapScaleSelect');
-                            const selFormat = document.getElementById('snapFormatSelect');
-                            const selPaper = document.getElementById('snapPaperSelect');
-                            const optHd = document.getElementById('snapOptHd');
-                            const optCoords = document.getElementById('snapOptCoords');
-                            const optDraw = document.getElementById('snapOptDrawings');
-                            const optBrand = document.getElementById('snapOptBrand');
-                            const optLayout = document.getElementById('snapOptLayout');
-                            const optNorth = document.getElementById('snapOptNorth');
-                            const optScaleBar = document.getElementById('snapOptScaleBar');
-                            const optGrid = document.getElementById('snapOptGrid');
-                            const optLegend = document.getElementById('snapOptLegend');
-                            const titleIn = document.getElementById('snapTitleInput');
-                            const authorIn = document.getElementById('snapAuthorInput');
-                            const themeSel = document.getElementById('snapThemeSelect');
-                            const subtitleIn = document.getElementById('snapSubtitleInput');
-                            const instIn = document.getElementById('snapInstInput');
-                            const crsIn = document.getElementById('snapCrsInput');
-                            const legendTitleIn = document.getElementById('snapLegendTitleInput');
-                            const customMetaIn = document.getElementById('snapCustomMetaInput');
-
-                            const savedScale = String(getSetting('snap_scale', '2'));
-                            if (selScale) selScale.value = ['1', '2', '4'].includes(savedScale) ? savedScale : '2';
-                            if (selFormat) selFormat.value = getSetting('snap_format', 'png') || 'png';
-                            if (selPaper) selPaper.value = getSetting('snap_paper', 'auto') || 'auto';
-                            if (optHd) optHd.checked = getSetting('snap_hd', true) !== false;
-                            if (optCoords) optCoords.checked = getSetting('snap_coords', true) !== false;
-                            if (optDraw) optDraw.checked = getSetting('snap_drawings', true) !== false;
-                            if (optBrand) optBrand.checked = getSetting('snap_brand', true) !== false && getSetting('snap_brand', 'true') !== 'false';
-                            if (optLayout) optLayout.checked = getSetting('snap_layout', false) === true || getSetting('snap_layout', false) === 'true';
-                            if (optNorth) optNorth.checked = getSetting('snap_north', true) !== false && getSetting('snap_north', 'true') !== 'false';
-                            if (optScaleBar) optScaleBar.checked = getSetting('snap_scalebar', true) !== false && getSetting('snap_scalebar', 'true') !== 'false';
-                            if (optGrid) optGrid.checked = getSetting('snap_grid', false) === true || getSetting('snap_grid', false) === 'true';
-                            if (optLegend) optLegend.checked = getSetting('snap_legend', true) !== false && getSetting('snap_legend', 'true') !== 'false';
-                            if (titleIn) titleIn.value = getSetting('snap_title', 'Mapa de Análisis Geoespacial');
-                            if (authorIn) authorIn.value = getSetting('snap_author', 'GEE IDE Pro');
-                            if (themeSel) themeSel.value = getSetting('snap_theme', 'light');
-                            if (subtitleIn) subtitleIn.value = getSetting('snap_subtitle', '');
-                            if (instIn) instIn.value = getSetting('snap_inst', 'Procesado en Google Earth Engine • GEE IDE Pro');
-                            if (crsIn) crsIn.value = getSetting('snap_crs', '');
-                            if (legendTitleIn) legendTitleIn.value = getSetting('snap_legend_title', 'LEYENDA / CAPA ACTIVA');
-                            if (customMetaIn) customMetaIn.value = getSetting('snap_custom_meta', '');
-                            window.syncSnapBrandOption();
-                            window.toggleSnapProConfig();
+                            const selFormat = document.getElementById("snapFormatSelect");
+                            const optCoords = document.getElementById("snapOptCoords");
+                            const optDraw = document.getElementById("snapOptDrawings");
+                            if (selFormat) selFormat.value = getSetting("snap_format", "png") || "png";
+                            if (optCoords) optCoords.checked = getSetting("snap_coords", true) !== false;
+                            if (optDraw) optDraw.checked = getSetting("snap_drawings", true) !== false;
                         }
                     };
-
-                    function formatDMS(deg, isLat) {
-                        const dir = isLat ? (deg >= 0 ? 'N' : 'S') : (deg >= 0 ? 'E' : 'W');
-                        const abs = Math.abs(deg);
-                        const d = Math.floor(abs);
-                        const mFloat = (abs - d) * 60;
-                        const m = Math.floor(mFloat);
-                        const s = Math.round((mFloat - m) * 60);
-                        if (s === 60) {
-                            return d + '°' + String(m + 1).padStart(2, '0') + '′00″' + dir;
-                        }
-                        if (s === 0) {
-                            return d + '°' + String(m).padStart(2, '0') + '′' + dir;
-                        }
-                        return d + '°' + String(m).padStart(2, '0') + '′' + String(s).padStart(2, '0') + '″' + dir;
-                    }
-
-                    function getUtmZoneLabel(lat, lng) {
-                        const zone = Math.floor((lng + 180) / 6) + 1;
-                        const hemi = lat >= 0 ? 'N' : 'S';
-                        return 'UTM ' + zone + hemi;
-                    }
-
-                    function computeNiceGridStep(spanDeg) {
-                        const raw = spanDeg / 4;
-                        const steps = [0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 15, 30];
-                        for (const s of steps) {
-                            if (s >= raw) return s;
-                        }
-                        return 30;
-                    }
-
-                    function computeScaleBarMetrics(width) {
-                        const center = map.getCenter();
-                        const p1 = map.containerPointToLatLng([width * 0.35, map.getSize().y / 2]);
-                        const p2 = map.containerPointToLatLng([width * 0.35 + 100, map.getSize().y / 2]);
-                        const metersPer100Px = Math.max(1, map.distance(p1, p2));
-                        const metersPerPx = metersPer100Px / 100;
-                        const targetPx = Math.min(180, Math.max(90, width * 0.22));
-                        const rawMeters = metersPerPx * targetPx;
-                        const niceSteps = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000];
-                        let bestMeters = niceSteps[0];
-                        for (const s of niceSteps) {
-                            if (s <= rawMeters * 1.35) bestMeters = s;
-                        }
-                        const barPx = Math.round(bestMeters / metersPerPx);
-                        const label = bestMeters >= 1000 ? (bestMeters / 1000) + ' km' : bestMeters + ' m';
-                        const midLabel = bestMeters >= 1000 ? ((bestMeters / 2000).toFixed(bestMeters === 1000 ? 1 : 0)) : String(bestMeters / 2);
-                        // Approximate numeric scale at 96 DPI (1 px = 0.000264583 m)
-                        const scaleRatio = Math.max(100, Math.round((metersPerPx / 0.000264583) / 100) * 100);
-                        return { bestMeters, barPx, label, midLabel, scaleRatio, metersPerPx };
-                    }
-
-                    function buildLegendEntryForGeeLayer(l, idx, prefix) {
-                        const vp = l.visParams || {};
-                        const lname = (prefix || '') + (l.name || ('Capa ' + (idx + 1)));
-                        const lower = lname.toLowerCase();
-                        let palette = null;
-                        if (vp.palette) {
-                            palette = Array.isArray(vp.palette) ? vp.palette.map(toValidCssColor) : String(vp.palette).split(',').map(toValidCssColor);
-                        } else if (vp.min !== undefined && vp.max !== undefined && !vp.bands) {
-                            if (lower.includes('elevation') || lower.includes('dem') || lower.includes('srtm') || lower.includes('topo')) {
-                                palette = ['#006600', '#002200', '#fff700', '#ab7634', '#c4d0ff', '#ffffff'];
-                            } else if (lower.includes('ndvi') || lower.includes('evi') || lower.includes('savi')) {
-                                palette = ['#CE7E45', '#FCD163', '#66A000', '#056201', '#004C00'];
-                            } else if (lower.includes('ndwi') || lower.includes('water')) {
-                                palette = ['#ffffff', '#ffff00', '#00ffff', '#0000ff'];
-                            } else {
-                                palette = ['#000000', '#ffffff'];
-                            }
-                        }
-                        const bandsList = Array.isArray(vp.bands) ? vp.bands : (typeof vp.bands === 'string' ? vp.bands.split(',').map(s => s.trim()) : null);
-                        return {
-                            name: lname,
-                            palette: palette && palette.length > 0 ? palette : null,
-                            min: vp.min !== undefined ? vp.min : 0,
-                            max: vp.max !== undefined ? vp.max : 1,
-                            bands: bandsList && bandsList.length >= 3 ? bandsList.slice(0, 3) : null,
-                            color: vp.color ? toValidCssColor(vp.color) : null
-                        };
-                    }
-
-                    function collectActiveLegends(includeDrawings) {
-                        const items = [];
-                        // Static Map Rule: Only include layers that are actually visible in the static image!
-                        // 1. If Peek Mode is active, only the peeked layer is on top.
-                        if (typeof currentPeekIdx !== 'undefined' && currentPeekIdx !== -1 && geeLayers[currentPeekIdx]) {
-                            items.push(buildLegendEntryForGeeLayer(geeLayers[currentPeekIdx], currentPeekIdx, ''));
-                        } else if (typeof swipeMode !== 'undefined' && swipeMode) {
-                            const sub = (typeof swipeSubMode !== 'undefined') ? swipeSubMode : 'split';
-                            if (sub === 'spyglass' && swipeCompareIndices) {
-                                if (geeLayers[swipeCompareIndices.left]) {
-                                    items.push(buildLegendEntryForGeeLayer(geeLayers[swipeCompareIndices.left], swipeCompareIndices.left, '[🔍 Lupa] '));
-                                }
-                                if (geeLayers[swipeCompareIndices.right]) {
-                                    items.push(buildLegendEntryForGeeLayer(geeLayers[swipeCompareIndices.right], swipeCompareIndices.right, '[Fondo] '));
-                                }
-                            } else if (sub === 'quad') {
-                                const vis = geeLayers.filter(l => l.shown && map.hasLayer(l.layer));
-                                const quadPrefixes = ['[Q1 ↖] ', '[Q2 ↗] ', '[Q3 ↙] ', '[Q4 ↘] '];
-                                for (let k = 0; k < Math.min(4, vis.length); k++) {
-                                    const origIdx = geeLayers.indexOf(vis[k]);
-                                    items.push(buildLegendEntryForGeeLayer(vis[k], origIdx, quadPrefixes[k]));
-                                }
-                            } else if (swipeCompareIndices) {
-                                const isHoriz = (swipeOrientation === 'horizontal');
-                                const p1 = isHoriz ? '[Arr] ' : '[Izq] ';
-                                const p2 = isHoriz ? '[Abj] ' : '[Der] ';
-                                if (geeLayers[swipeCompareIndices.left]) {
-                                    items.push(buildLegendEntryForGeeLayer(geeLayers[swipeCompareIndices.left], swipeCompareIndices.left, p1));
-                                }
-                                if (geeLayers[swipeCompareIndices.right]) {
-                                    items.push(buildLegendEntryForGeeLayer(geeLayers[swipeCompareIndices.right], swipeCompareIndices.right, p2));
-                                }
-                            }
-                        } else {
-                            // 3. Normal Mode: geeLayers[0] is top of the stack. Only include the topmost active layer
-                            // (plus any underlying active layer ONLY if the top layer is semi-transparent opacity < 0.95).
-                            for (let i = 0; i < geeLayers.length; i++) {
-                                const l = geeLayers[i];
-                                if (!map.hasLayer(l.layer)) continue;
-                                items.push(buildLegendEntryForGeeLayer(l, i, ''));
-                                const op = l.opacity !== undefined ? parseFloat(l.opacity) : 1.0;
-                                if (op >= 0.95) {
-                                    // This active layer is opaque, so any layers underneath it are occluded in the static image
-                                    break;
-                                }
-                            }
-                        }
-                        if (includeDrawings && typeof drawnItems !== 'undefined' && drawnItems.getLayers().length > 0) {
-                            items.push({
-                                name: 'Geometrías Digitalizadas (' + drawnItems.getLayers().length + ')',
-                                palette: null,
-                                bands: null,
-                                color: '#3388ff'
-                            });
-                        }
-                        if (includeDrawings && typeof rulerPoints !== 'undefined' && rulerPoints.length >= 2) {
-                            const rLabel = document.getElementById('rulerPrimaryValue')?.textContent || '';
-                            items.push({
-                                name: 'Medición Regla GIS (' + rLabel + ')',
-                                palette: null,
-                                bands: null,
-                                color: '#4ec9b0'
-                            });
-                        }
-                        return items;
-                    }
-
-                    function drawNorthArrow(ctx, x, y, size, isLightBg) {
-                        ctx.save();
-                        ctx.translate(x, y);
-                        // Subtle circular backing
-                        ctx.fillStyle = isLightBg ? 'rgba(255, 255, 255, 0.9)' : 'rgba(18, 18, 22, 0.86)';
-                        ctx.strokeStyle = isLightBg ? 'rgba(0, 0, 0, 0.25)' : 'rgba(255, 255, 255, 0.22)';
-                        ctx.lineWidth = 1.2;
-                        ctx.beginPath();
-                        ctx.arc(0, 0, size * 0.72, 0, Math.PI * 2);
-                        ctx.fill();
-                        ctx.stroke();
-
-                        // Outer compass ring
-                        ctx.strokeStyle = isLightBg ? 'rgba(0,0,0,0.35)' : 'rgba(78, 201, 176, 0.45)';
-                        ctx.lineWidth = 1;
-                        ctx.beginPath();
-                        ctx.arc(0, 2, size * 0.44, 0, Math.PI * 2);
-                        ctx.stroke();
-
-                        // 'N' label
-                        ctx.fillStyle = isLightBg ? '#111111' : '#4ec9b0';
-                        ctx.font = '800 ' + Math.round(size * 0.32) + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'bottom';
-                        ctx.fillText('N', 0, -size * 0.26);
-
-                        // Left half of needle (Dark / Primary)
-                        const topY = -size * 0.25;
-                        const botY = size * 0.48;
-                        const midY = size * 0.28;
-                        const halfW = size * 0.22;
-
-                        ctx.fillStyle = isLightBg ? '#18181b' : '#4ec9b0';
-                        ctx.beginPath();
-                        ctx.moveTo(0, topY);
-                        ctx.lineTo(-halfW, botY);
-                        ctx.lineTo(0, midY);
-                        ctx.closePath();
-                        ctx.fill();
-
-                        // Right half of needle (Light / Contrast)
-                        ctx.fillStyle = isLightBg ? '#ffffff' : '#1e293b';
-                        ctx.strokeStyle = isLightBg ? '#18181b' : '#4ec9b0';
-                        ctx.lineWidth = 1;
-                        ctx.beginPath();
-                        ctx.moveTo(0, topY);
-                        ctx.lineTo(halfW, botY);
-                        ctx.lineTo(0, midY);
-                        ctx.closePath();
-                        ctx.fill();
-                        ctx.stroke();
-                        ctx.restore();
-                    }
-
-                    function drawCartographicScaleBar(ctx, x, y, metrics, isLightBg) {
-                        ctx.save();
-                        const barW = metrics.barPx;
-                        const segW = barW / 4;
-                        const barH = 6;
-                        const padX = 12;
-                        const boxW = barW + padX * 2 + 18;
-                        const boxH = 38;
-
-                        ctx.fillStyle = isLightBg ? 'rgba(255, 255, 255, 0.92)' : 'rgba(18, 18, 22, 0.88)';
-                        ctx.strokeStyle = isLightBg ? 'rgba(0, 0, 0, 0.25)' : 'rgba(255, 255, 255, 0.18)';
-                        ctx.lineWidth = 1;
-                        ctx.beginPath();
-                        if (ctx.roundRect) ctx.roundRect(x, y, boxW, boxH, 6);
-                        else ctx.rect(x, y, boxW, boxH);
-                        ctx.fill();
-                        ctx.stroke();
-
-                        const startX = x + padX;
-                        const startY = y + 20;
-
-                        for (let i = 0; i < 4; i++) {
-                            ctx.fillStyle = (i % 2 === 0) ? (isLightBg ? '#18181b' : '#4ec9b0') : (isLightBg ? '#ffffff' : '#27272a');
-                            ctx.strokeStyle = isLightBg ? '#18181b' : '#e4e4e7';
-                            ctx.lineWidth = 1;
-                            ctx.fillRect(startX + i * segW, startY, segW, barH);
-                            ctx.strokeRect(startX + i * segW, startY, segW, barH);
-                        }
-
-                        ctx.fillStyle = isLightBg ? '#18181b' : '#e4e4e7';
-                        ctx.font = '600 9.5px "JetBrains Mono", Consolas, monospace';
-                        ctx.textBaseline = 'bottom';
-                        ctx.textAlign = 'left';
-                        ctx.fillText('0', startX, startY - 3);
-                        ctx.textAlign = 'center';
-                        ctx.fillText(metrics.midLabel, startX + barW / 2, startY - 3);
-                        ctx.textAlign = 'right';
-                        ctx.fillText(metrics.label, startX + barW + 14, startY - 3);
-
-                        ctx.restore();
-                    }
-
-                    function drawLegendOverlay(ctx, x, y, legends, isLightBg, customLegendTitle) {
-                        if (!legends || legends.length === 0) return;
-                        ctx.save();
-                        const boxW = 238;
-                        let totalH = 28;
-                        for (const item of legends) {
-                            totalH += item.palette ? 34 : (item.bands ? 28 : 22);
-                        }
-                        const drawY = Math.max(12, y - totalH);
-
-                        ctx.fillStyle = isLightBg ? 'rgba(255, 255, 255, 0.94)' : 'rgba(18, 18, 22, 0.92)';
-                        ctx.strokeStyle = isLightBg ? 'rgba(0, 0, 0, 0.25)' : 'rgba(255, 255, 255, 0.18)';
-                        ctx.lineWidth = 1;
-                        ctx.beginPath();
-                        if (ctx.roundRect) ctx.roundRect(x, drawY, boxW, totalH, 7);
-                        else ctx.rect(x, drawY, boxW, totalH);
-                        ctx.fill();
-                        ctx.stroke();
-
-                        const defaultHdr = legends.length === 1 ? 'LEYENDA / CAPA ACTIVA' : 'LEYENDA / CAPAS VISIBLES';
-                        const isDefaultSetting = !customLegendTitle || customLegendTitle.trim() === 'LEYENDA / CAPAS ACTIVAS' || customLegendTitle.trim() === 'LEYENDA / CAPA ACTIVA';
-                        const hdrText = isDefaultSetting ? defaultHdr : customLegendTitle.trim();
-                        ctx.fillStyle = isLightBg ? '#0f766e' : '#4ec9b0';
-                        ctx.font = '700 10px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-                        ctx.textAlign = 'left';
-                        ctx.textBaseline = 'top';
-                        ctx.fillText(hdrText.length > 34 ? hdrText.slice(0, 32) + '…' : hdrText, x + 10, drawY + 8);
-
-                        ctx.strokeStyle = isLightBg ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.1)';
-                        ctx.beginPath();
-                        ctx.moveTo(x + 10, drawY + 22);
-                        ctx.lineTo(x + boxW - 10, drawY + 22);
-                        ctx.stroke();
-
-                        let curY = drawY + 27;
-                        for (const item of legends) {
-                            const cleanName = item.name.length > 34 ? item.name.slice(0, 32) + '…' : item.name;
-                            ctx.fillStyle = isLightBg ? '#1f2937' : '#e5e7eb';
-                            ctx.font = '600 9.5px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-                            if (item.palette) {
-                                ctx.fillText(cleanName, x + 10, curY);
-                                const gradX = x + 10;
-                                const gradY = curY + 13;
-                                const gradW = boxW - 20;
-                                const gradH = 6;
-                                const grad = ctx.createLinearGradient(gradX, 0, gradX + gradW, 0);
-                                item.palette.forEach((c, idx) => {
-                                    grad.addColorStop(item.palette.length === 1 ? 0.5 : idx / (item.palette.length - 1), c);
-                                });
-                                ctx.fillStyle = grad;
-                                ctx.fillRect(gradX, gradY, gradW, gradH);
-                                ctx.strokeStyle = isLightBg ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.2)';
-                                ctx.strokeRect(gradX, gradY, gradW, gradH);
-
-                                ctx.fillStyle = isLightBg ? '#4b5563' : '#9ca3af';
-                                ctx.font = '500 8.5px "JetBrains Mono", Consolas, monospace';
-                                ctx.textAlign = 'left';
-                                ctx.fillText(String(item.min), gradX, gradY + 8);
-                                ctx.textAlign = 'right';
-                                ctx.fillText(String(item.max), gradX + gradW, gradY + 8);
-                                ctx.textAlign = 'left';
-                                curY += 34;
-                            } else if (item.bands) {
-                                // RGB composite swatch + full-width title on row 1, bands on row 2 (zero text overlap)
-                                const swX = x + 10;
-                                const swY = curY + 2;
-                                ctx.fillStyle = '#ef4444';
-                                ctx.fillRect(swX, swY, 4, 8);
-                                ctx.fillStyle = '#22c55e';
-                                ctx.fillRect(swX + 4, swY, 4, 8);
-                                ctx.fillStyle = '#3b82f6';
-                                ctx.fillRect(swX + 8, swY, 4, 8);
-                                ctx.strokeStyle = isLightBg ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.35)';
-                                ctx.lineWidth = 0.6;
-                                ctx.strokeRect(swX, swY, 12, 8);
-
-                                ctx.fillStyle = isLightBg ? '#1f2937' : '#e5e7eb';
-                                ctx.fillText(cleanName, x + 26, curY);
-                                ctx.fillStyle = isLightBg ? '#4b5563' : '#9ca3af';
-                                ctx.font = '500 8px "JetBrains Mono", Consolas, monospace';
-                                ctx.fillText('RGB: ' + item.bands.join(' / '), x + 26, curY + 12);
-                                curY += 28;
-                            } else {
-                                ctx.fillStyle = item.color || '#4ec9b0';
-                                ctx.fillRect(x + 10, curY + 2, 12, 8);
-                                ctx.strokeStyle = isLightBg ? '#111' : '#fff';
-                                ctx.lineWidth = 0.8;
-                                ctx.strokeRect(x + 10, curY + 2, 12, 8);
-                                ctx.fillStyle = isLightBg ? '#1f2937' : '#e5e7eb';
-                                ctx.fillText(cleanName, x + 27, curY);
-                                curY += 22;
-                            }
-                        }
-                        ctx.restore();
-                    }
-
-                    async function captureMapToCanvas() {
-                        const mapEl = document.getElementById('map');
-                        if (!mapEl) throw new Error('Mapa no encontrado');
-
-                        const selScale = document.getElementById('snapScaleSelect');
-                        const selFormat = document.getElementById('snapFormatSelect');
-                        const selPaper = document.getElementById('snapPaperSelect');
-                        const optHd = document.getElementById('snapOptHd');
-                        const optCoords = document.getElementById('snapOptCoords');
-                        const optDraw = document.getElementById('snapOptDrawings');
-                        const optBrand = document.getElementById('snapOptBrand');
-                        const optLayout = document.getElementById('snapOptLayout');
-                        const optNorth = document.getElementById('snapOptNorth');
-                        const optScaleBar = document.getElementById('snapOptScaleBar');
-                        const optGrid = document.getElementById('snapOptGrid');
-                        const optLegend = document.getElementById('snapOptLegend');
-                        const titleIn = document.getElementById('snapTitleInput');
-                        const authorIn = document.getElementById('snapAuthorInput');
-                        const themeSel = document.getElementById('snapThemeSelect');
-                        const subtitleIn = document.getElementById('snapSubtitleInput');
-                        const instIn = document.getElementById('snapInstInput');
-                        const crsIn = document.getElementById('snapCrsInput');
-                        const legendTitleIn = document.getElementById('snapLegendTitleInput');
-                        const customMetaIn = document.getElementById('snapCustomMetaInput');
-
-                        let requestedScale = selScale ? parseInt(selScale.value, 10) : (optHd && !optHd.checked ? 1 : 2);
-                        if (![1, 2, 4].includes(requestedScale)) requestedScale = 2;
-                        const snapFormat = (selFormat && selFormat.value) ? selFormat.value : 'png';
-                        const paperSize = (selPaper && selPaper.value) ? selPaper.value : 'auto';
-                        const selOrientation = document.getElementById('snapOrientationSelect');
-                        const orientation = (selOrientation && selOrientation.value) ? selOrientation.value : 'auto';
-                        const isHd = requestedScale >= 2;
-                        const includeCoords = optCoords ? optCoords.checked : true;
-                        const includeDrawings = optDraw ? optDraw.checked : true;
-                        const includeBrand = optBrand ? optBrand.checked : true;
-                        const includeLayout = optLayout ? optLayout.checked : false;
-                        const includeNorth = optNorth ? optNorth.checked : true;
-                        const includeScaleBar = optScaleBar ? optScaleBar.checked : true;
-                        const includeGrid = optGrid ? optGrid.checked : false;
-                        const includeLegend = optLegend ? optLegend.checked : true;
-                        const mapTitle = (titleIn && titleIn.value.trim()) ? titleIn.value.trim() : 'Mapa de Análisis Geoespacial';
-                        let mapAuthor = (authorIn && authorIn.value.trim()) ? authorIn.value.trim() : (includeBrand ? 'GEE IDE Pro' : 'Elaboración Propia');
-                        const mapTheme = (themeSel && themeSel.value) ? themeSel.value : 'light';
-                        const customSubtitle = (subtitleIn && subtitleIn.value.trim()) ? subtitleIn.value.trim() : '';
-                        let customInst = (instIn && instIn.value.trim()) ? instIn.value.trim() : (includeBrand ? 'Procesado en Google Earth Engine • GEE IDE Pro' : 'Procesado en Google Earth Engine');
-                        const customCrs = (crsIn && crsIn.value.trim()) ? crsIn.value.trim() : '';
-                        const customLegendTitle = (legendTitleIn && legendTitleIn.value.trim()) ? legendTitleIn.value.trim() : 'LEYENDA / CAPA ACTIVA';
-                        const customMeta = (customMetaIn && customMetaIn.value.trim()) ? customMetaIn.value.trim() : '';
-
-                        if (!includeBrand) {
-                            if (mapAuthor === 'GEE IDE Pro' || mapAuthor === 'GEE IDE') {
-                                mapAuthor = 'Elaboración Propia';
-                            }
-                            customInst = customInst.replace(/\s*•\s*GEE IDE(\s*Pro)?/gi, '').replace(/GEE IDE(\s*Pro)?/gi, '').trim() || 'Procesado en Google Earth Engine';
-                        }
-
-                        setSetting('snap_scale', requestedScale);
-                        setSetting('snap_format', snapFormat);
-                        setSetting('snap_paper', paperSize);
-                        setSetting('snap_orientation', orientation);
-                        setSetting('snap_hd', isHd);
-                        setSetting('snap_coords', includeCoords);
-                        setSetting('snap_drawings', includeDrawings);
-                        setSetting('snap_brand', includeBrand);
-                        setSetting('snap_layout', includeLayout);
-                        setSetting('snap_north', includeNorth);
-                        setSetting('snap_scalebar', includeScaleBar);
-                        setSetting('snap_grid', includeGrid);
-                        setSetting('snap_legend', includeLegend);
-                        setSetting('snap_title', mapTitle);
-                        setSetting('snap_author', mapAuthor);
-                        setSetting('snap_theme', mapTheme);
-                        setSetting('snap_subtitle', customSubtitle);
-                        setSetting('snap_inst', customInst);
-                        setSetting('snap_crs', customCrs);
-                        setSetting('snap_legend_title', customLegendTitle);
-                        setSetting('snap_custom_meta', customMeta);
-
-                        const width = mapEl.clientWidth;
-                        const height = mapEl.clientHeight;
-                        // Safeguard browser max canvas dimension (7680px 8K limit)
-                        const maxDim = Math.max(width + 240, height + 260);
-                        const scale = (maxDim * requestedScale > 7680) ? Math.max(1, Math.floor(7680 / maxDim)) : requestedScale;
-
-                        const canvas = document.createElement('canvas');
-                        canvas.width = width * scale;
-                        canvas.height = height * scale;
-                        const ctx = canvas.getContext('2d');
-                        if (!ctx) throw new Error('No se pudo inicializar Canvas 2D');
-                        ctx.scale(scale, scale);
-
-                        ctx.fillStyle = '#1e1e1e';
-                        ctx.fillRect(0, 0, width, height);
-
-                        const mapRect = mapEl.getBoundingClientRect();
-                        // Sort .leaflet-layer containers by their CSS z-index so the top layer in the Layers panel is ALWAYS painted on top
-                        const layerContainers = Array.from(mapEl.querySelectorAll('.leaflet-tile-pane .leaflet-layer'));
-                        layerContainers.sort((a, b) => {
-                            const za = parseInt(window.getComputedStyle(a).zIndex, 10) || 0;
-                            const zb = parseInt(window.getComputedStyle(b).zIndex, 10) || 0;
-                            return za - zb;
-                        });
-                        const tiles = [];
-                        if (layerContainers.length > 0) {
-                            for (const lc of layerContainers) {
-                                const lcStyle = window.getComputedStyle(lc);
-                                if (lcStyle.display === 'none' || lcStyle.visibility === 'hidden' || parseFloat(lcStyle.opacity || '1') <= 0) continue;
-                                const lcTiles = Array.from(lc.querySelectorAll('img.leaflet-tile'));
-                                for (const t of lcTiles) tiles.push(t);
-                            }
-                        } else {
-                            tiles.push(...Array.from(mapEl.querySelectorAll('.leaflet-tile-pane img.leaflet-tile')));
-                        }
-                        const isSwipeActive = (typeof swipeMode !== 'undefined' && swipeMode);
-                        const subMode = (typeof swipeSubMode !== 'undefined') ? swipeSubMode : 'split';
-                        const topSwipeContainer = (isSwipeActive && topSwipeLayer && topSwipeLayer.getContainer) ? topSwipeLayer.getContainer() : null;
-
-                        let cQ1 = null, cQ2 = null, cQ3 = null, cQ4 = null;
-                        if (isSwipeActive && subMode === 'quad') {
-                            const vis = geeLayers.filter(l => l.shown && map.hasLayer(l.layer));
-                            if (vis[0] && vis[0].layer.getContainer) cQ1 = vis[0].layer.getContainer();
-                            if (vis[1] && vis[1].layer.getContainer) cQ2 = vis[1].layer.getContainer();
-                            if (vis[2] && vis[2].layer.getContainer) cQ3 = vis[2].layer.getContainer();
-                            if (vis[3] && vis[3].layer.getContainer) cQ4 = vis[3].layer.getContainer();
-                        }
-
-                        for (const img of tiles) {
-                            if (!img.complete || img.naturalWidth === 0) continue;
-                            const style = window.getComputedStyle(img);
-                            if (style.display === 'none' || style.visibility === 'hidden') continue;
-                            const parentLayer = img.closest ? img.closest('.leaflet-layer') : null;
-                            const parentOp = parentLayer ? parseFloat(window.getComputedStyle(parentLayer).opacity || '1') : 1;
-                            const opacity = parseFloat(style.opacity || '1') * parentOp;
-                            if (opacity <= 0) continue;
-
-                            const rect = img.getBoundingClientRect();
-                            const x = rect.left - mapRect.left;
-                            const y = rect.top - mapRect.top;
-                            const w = rect.width;
-                            const h = rect.height;
-
-                            if (x + w < 0 || x > width || y + h < 0 || y > height) continue;
-
-                            ctx.save();
-                            if (isSwipeActive) {
-                                if (subMode === 'split' && topSwipeContainer && topSwipeContainer.contains(img)) {
-                                    ctx.beginPath();
-                                    if (swipeOrientation === 'vertical') {
-                                        ctx.rect(0, 0, width * (swipeValue / 100), height);
-                                    } else {
-                                        ctx.rect(0, 0, width, height * (swipeValue / 100));
-                                    }
-                                    ctx.clip();
-                                } else if (subMode === 'spyglass' && topSwipeContainer && topSwipeContainer.contains(img)) {
-                                    ctx.beginPath();
-                                    ctx.arc(spyX, spyY, spyRadius, 0, 2 * Math.PI);
-                                    ctx.clip();
-                                } else if (subMode === 'quad') {
-                                    const qX = Math.max(10, Math.min(width - 10, quadX));
-                                    const qY = Math.max(10, Math.min(height - 10, quadY));
-                                    if (cQ1 && cQ1.contains(img)) {
-                                        ctx.beginPath();
-                                        ctx.rect(0, 0, qX, qY);
-                                        ctx.clip();
-                                    } else if (cQ2 && cQ2.contains(img)) {
-                                        ctx.beginPath();
-                                        ctx.rect(qX, 0, width - qX, qY);
-                                        ctx.clip();
-                                    } else if (cQ3 && cQ3.contains(img)) {
-                                        ctx.beginPath();
-                                        ctx.rect(0, qY, qX, height - qY);
-                                        ctx.clip();
-                                    } else if (cQ4 && cQ4.contains(img)) {
-                                        ctx.beginPath();
-                                        ctx.rect(qX, qY, width - qX, height - qY);
-                                        ctx.clip();
-                                    }
-                                }
-                            }
-                            ctx.globalAlpha = opacity;
-                            try {
-                                ctx.drawImage(img, x, y, w, h);
-                            } catch (e) {
-                                console.warn('Tile capture warning:', e);
-                            }
-                            ctx.restore();
-                        }
-
-                        // If Swipe Mode is active, render the divider / spyglass / quad overlay on the snapshot
-                        if (isSwipeActive) {
-                            if (subMode === 'split' && topSwipeContainer) {
-                                ctx.save();
-                                ctx.strokeStyle = '#ffffff';
-                                ctx.lineWidth = 2.5;
-                                ctx.shadowColor = 'rgba(0,0,0,0.6)';
-                                ctx.shadowBlur = 6;
-                                ctx.beginPath();
-                                if (swipeOrientation === 'vertical') {
-                                    const sx = width * (swipeValue / 100);
-                                    ctx.moveTo(sx, 0);
-                                    ctx.lineTo(sx, height);
-                                } else {
-                                    const sy = height * (swipeValue / 100);
-                                    ctx.moveTo(0, sy);
-                                    ctx.lineTo(width, sy);
-                                }
-                                ctx.stroke();
-                                ctx.restore();
-                            } else if (subMode === 'spyglass' && topSwipeContainer) {
-                                ctx.save();
-                                ctx.strokeStyle = '#4ec9b0';
-                                ctx.lineWidth = 3;
-                                ctx.shadowColor = 'rgba(0,0,0,0.7)';
-                                ctx.shadowBlur = 8;
-                                ctx.beginPath();
-                                ctx.arc(spyX, spyY, spyRadius, 0, 2 * Math.PI);
-                                ctx.stroke();
-                                ctx.restore();
-                            } else if (subMode === 'quad') {
-                                const qX = Math.max(10, Math.min(width - 10, quadX));
-                                const qY = Math.max(10, Math.min(height - 10, quadY));
-                                ctx.save();
-                                ctx.strokeStyle = '#ffffff';
-                                ctx.lineWidth = 2.5;
-                                ctx.shadowColor = 'rgba(0,0,0,0.6)';
-                                ctx.shadowBlur = 6;
-                                ctx.beginPath();
-                                ctx.moveTo(qX, 0); ctx.lineTo(qX, height);
-                                ctx.moveTo(0, qY); ctx.lineTo(width, qY);
-                                ctx.stroke();
-                                // Central handle indicator
-                                ctx.fillStyle = '#4ec9b0';
-                                ctx.beginPath();
-                                ctx.arc(qX, qY, 6, 0, 2 * Math.PI);
-                                ctx.fill();
-                                ctx.restore();
-                            }
-                        }
-
-                        if (includeDrawings) {
-                            // 1. Canvases in overlay pane (Leaflet Canvas vector renderer)
-                            const overlayCanvases = Array.from(mapEl.querySelectorAll('.leaflet-overlay-pane canvas'));
-                            for (const ovCanvas of overlayCanvases) {
-                                const style = window.getComputedStyle(ovCanvas);
-                                if (style.display === 'none' || style.visibility === 'hidden') continue;
-                                const opacity = parseFloat(style.opacity || '1');
-                                if (opacity <= 0) continue;
-                                const rect = ovCanvas.getBoundingClientRect();
-                                const x = rect.left - mapRect.left;
-                                const y = rect.top - mapRect.top;
-                                ctx.save();
-                                ctx.globalAlpha = opacity;
-                                try {
-                                    ctx.drawImage(ovCanvas, x, y, rect.width, rect.height);
-                                } catch (e) {
-                                    console.warn('Overlay canvas capture warning:', e);
-                                }
-                                ctx.restore();
-                            }
-
-                            // 2. SVG in overlay pane (fallback if SVG renderer is active)
-                            const svgEl = mapEl.querySelector('.leaflet-overlay-pane svg');
-                            if (svgEl && overlayCanvases.length === 0) {
-                                try {
-                                    const svgRect = svgEl.getBoundingClientRect();
-                                    const clone = svgEl.cloneNode(true);
-                                    clone.style.transform = 'none';
-                                    clone.style.webkitTransform = 'none';
-                                    const svgString = new XMLSerializer().serializeToString(clone);
-                                    const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-                                    const blobUrl = (window.URL || window.webkitURL).createObjectURL(svgBlob);
-                                    const svgImg = new Image();
-                                    await new Promise((resolve) => {
-                                        svgImg.onload = () => {
-                                            ctx.drawImage(svgImg, svgRect.left - mapRect.left, svgRect.top - mapRect.top, svgRect.width, svgRect.height);
-                                            (window.URL || window.webkitURL).revokeObjectURL(blobUrl);
-                                            resolve();
-                                        };
-                                        svgImg.onerror = () => {
-                                            (window.URL || window.webkitURL).revokeObjectURL(blobUrl);
-                                            resolve();
-                                        };
-                                        svgImg.src = blobUrl;
-                                    });
-                                } catch (e) {
-                                    console.warn('SVG capture warning:', e);
-                                }
-                            }
-
-                            // 3. Markers & Pins (leaflet-marker-pane) + Ruler Segment Labels
-                            const markers = Array.from(mapEl.querySelectorAll('.leaflet-marker-pane img, .leaflet-marker-pane .leaflet-marker-icon'));
-                            for (const marker of markers) {
-                                const style = window.getComputedStyle(marker);
-                                if (style.display === 'none' || style.visibility === 'hidden') continue;
-                                const opacity = parseFloat(style.opacity || '1');
-                                if (opacity <= 0) continue;
-                                const rect = marker.getBoundingClientRect();
-                                const x = rect.left - mapRect.left;
-                                const y = rect.top - mapRect.top;
-                                if (x + rect.width < 0 || x > width || y + rect.height < 0 || y > height) continue;
-
-                                const segBadge = marker.querySelector ? marker.querySelector('.gee-ruler-seg-label') : null;
-                                if (segBadge && segBadge.textContent) {
-                                    const bRect = segBadge.getBoundingClientRect();
-                                    const bx = bRect.left - mapRect.left;
-                                    const by = bRect.top - mapRect.top;
-                                    ctx.save();
-                                    ctx.font = '600 10px "JetBrains Mono", Consolas, monospace';
-                                    const txt = segBadge.textContent;
-                                    const tw = ctx.measureText(txt).width + 12;
-                                    const th = 16;
-                                    ctx.fillStyle = 'rgba(15, 15, 18, 0.9)';
-                                    ctx.strokeStyle = 'rgba(255, 235, 59, 0.6)';
-                                    ctx.lineWidth = 1;
-                                    ctx.beginPath();
-                                    if (ctx.roundRect) ctx.roundRect(bx, by, tw, th, 8);
-                                    else ctx.rect(bx, by, tw, th);
-                                    ctx.fill();
-                                    ctx.stroke();
-                                    ctx.fillStyle = '#ffeb3b';
-                                    ctx.textBaseline = 'middle';
-                                    ctx.fillText(txt, bx + 6, by + th / 2);
-                                    ctx.restore();
-                                    continue;
-                                }
-
-                                ctx.save();
-                                ctx.globalAlpha = opacity;
-                                try {
-                                    if (marker instanceof HTMLImageElement && marker.src && marker.src.startsWith('data:')) {
-                                        ctx.drawImage(marker, x, y, rect.width, rect.height);
-                                    } else if (marker instanceof HTMLImageElement) {
-                                        const pinW = rect.width || 25;
-                                        const pinH = rect.height || 41;
-                                        ctx.translate(x + pinW / 2, y);
-                                        ctx.fillStyle = '#2A81CB';
-                                        ctx.strokeStyle = '#FFFFFF';
-                                        ctx.lineWidth = 1.5;
-                                        ctx.beginPath();
-                                        ctx.arc(0, 12, 10, Math.PI, 0, false);
-                                        ctx.lineTo(0, pinH);
-                                        ctx.closePath();
-                                        ctx.fill();
-                                        ctx.stroke();
-                                        ctx.fillStyle = '#FFFFFF';
-                                        ctx.beginPath();
-                                        ctx.arc(0, 12, 4, 0, Math.PI * 2);
-                                        ctx.fill();
-                                    }
-                                } catch (e) {
-                                    console.warn('Marker capture warning:', e);
-                                }
-                                ctx.restore();
-                            }
-                        }
-
-                        // Compute Graticule Grid lines (Lat/Lon)
-                        const bounds = map.getBounds();
-                        const south = bounds.getSouth();
-                        const north = bounds.getNorth();
-                        const west = bounds.getWest();
-                        const east = bounds.getEast();
-                        const latStep = computeNiceGridStep(Math.abs(north - south));
-                        const lngStep = computeNiceGridStep(Math.abs(east - west));
-                        const latTicks = [];
-                        const lngTicks = [];
-
-                        const firstLat = Math.ceil(south / latStep) * latStep;
-                        for (let lat = firstLat; lat <= north; lat += latStep) {
-                            const pt = map.latLngToContainerPoint([lat, (west + east) / 2]);
-                            if (pt.y >= 24 && pt.y <= height - 24) {
-                                latTicks.push({ deg: lat, y: pt.y, label: formatDMS(lat, true) });
-                            }
-                        }
-                        const firstLng = Math.ceil(west / lngStep) * lngStep;
-                        for (let lng = firstLng; lng <= east; lng += lngStep) {
-                            const pt = map.latLngToContainerPoint([(south + north) / 2, lng]);
-                            if (pt.x >= 32 && pt.x <= width - 32) {
-                                lngTicks.push({ deg: lng, x: pt.x, label: formatDMS(lng, false) });
-                            }
-                        }
-
-                        if (includeGrid) {
-                            ctx.save();
-                            ctx.strokeStyle = 'rgba(255, 255, 255, 0.32)';
-                            ctx.lineWidth = 0.8;
-                            ctx.setLineDash([4, 4]);
-                            for (const lt of latTicks) {
-                                ctx.beginPath();
-                                ctx.moveTo(0, lt.y);
-                                ctx.lineTo(width, lt.y);
-                                ctx.stroke();
-                            }
-                            for (const lnt of lngTicks) {
-                                ctx.beginPath();
-                                ctx.moveTo(lnt.x, 0);
-                                ctx.lineTo(lnt.x, height);
-                                ctx.stroke();
-                            }
-                            ctx.setLineDash([]);
-                            // If not in full plate layout mode, draw compact coordinate labels along inside edges
-                            if (!includeLayout) {
-                                ctx.font = '600 9px "JetBrains Mono", Consolas, monospace';
-                                for (const lt of latTicks) {
-                                    const tw = ctx.measureText(lt.label).width + 8;
-                                    ctx.fillStyle = 'rgba(15, 15, 18, 0.78)';
-                                    ctx.fillRect(4, lt.y - 7, tw, 14);
-                                    ctx.fillStyle = '#e4e4e7';
-                                    ctx.textBaseline = 'middle';
-                                    ctx.textAlign = 'left';
-                                    ctx.fillText(lt.label, 8, lt.y);
-                                }
-                                for (const lnt of lngTicks) {
-                                    const tw = ctx.measureText(lnt.label).width + 8;
-                                    ctx.fillStyle = 'rgba(15, 15, 18, 0.78)';
-                                    ctx.fillRect(lnt.x - tw / 2, 4, tw, 14);
-                                    ctx.fillStyle = '#e4e4e7';
-                                    ctx.textBaseline = 'middle';
-                                    ctx.textAlign = 'center';
-                                    ctx.fillText(lnt.label, lnt.x, 11);
-                                }
-                            }
-                            ctx.restore();
-                        }
-
-                        const scaleMetrics = computeScaleBarMetrics(width);
-                        const activeLegends = includeLegend ? collectActiveLegends(includeDrawings) : [];
-                        const isLightPlate = includeLayout && mapTheme === 'light';
-
-                        const center = map.getCenter();
-                        const zoom = map.getZoom();
-                        const utmStr = getUtmZoneLabel(center.lat, center.lng);
-
-                        if (!includeLayout) {
-                            // Standard Screenshot Export (No Frame) -> Stamp overlays directly on canvas
-                            if (includeNorth) {
-                                drawNorthArrow(ctx, width - 38, 42, 34, false);
-                            }
-                            if (includeLegend && activeLegends.length > 0) {
-                                drawLegendOverlay(ctx, width - 252, height - 14, activeLegends, false, customLegendTitle);
-                            }
-                            if (includeScaleBar) {
-                                const sbY = includeCoords ? (height - 14 - 24 - 44) : (height - 14 - 38);
-                                drawCartographicScaleBar(ctx, 14, sbY, scaleMetrics, false);
-                            }
-                            if (includeCoords) {
-                                const crsBadge = customCrs ? customCrs : utmStr;
-                                const metaSuffix = customMeta ? (' | ' + customMeta) : (' | 1:' + scaleMetrics.scaleRatio.toLocaleString());
-                                const brandPrefix = includeBrand ? 'GEE IDE Pro | ' : ((mapAuthor && mapAuthor !== 'Elaboración Propia') ? (mapAuthor + ' | ') : '');
-                                const text = brandPrefix + 'Lat: ' + center.lat.toFixed(4) + ', Lng: ' + center.lng.toFixed(4) + ' (' + crsBadge + ') | Zoom: ' + zoom + metaSuffix;
-
-                                ctx.font = '500 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-                                const textW = ctx.measureText(text).width;
-                                const badgeW = textW + 24;
-                                const badgeH = 24;
-                                const badgeX = 14;
-                                const badgeY = height - 14 - badgeH;
-
-                                ctx.save();
-                                ctx.fillStyle = 'rgba(18, 18, 18, 0.85)';
-                                ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-                                ctx.lineWidth = 1;
-                                ctx.beginPath();
-                                if (ctx.roundRect) ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 6);
-                                else ctx.rect(badgeX, badgeY, badgeW, badgeH);
-                                ctx.fill();
-                                ctx.stroke();
-
-                                ctx.fillStyle = '#4ec9b0';
-                                ctx.fillText(text, badgeX + 12, badgeY + 16);
-                                ctx.restore();
-                            }
-                            return canvas;
-                        }
-
-                        // --- PRO CARTOGRAPHIC PLATE COMPOSER (LÁMINA CARTOGRÁFICA 300 DPI) ---
-                        // Dedicated margins: 82px top (for header title & subtitle) and 82px bottom (for title block & footer)
-                        const padTop = 82;
-                        const padSide = 48;
-                        const tbH = 46;
-                        const tbMargin = 18;
-                        const padBottom = tbH + tbMargin + 16; // 80px total bottom area
-
-                        let mapFrameW = width;
-                        let mapFrameH = height;
-                        let plateW = mapFrameW + padSide * 2;
-                        let plateH = mapFrameH + padTop + padBottom;
-
-                        // If user selected an ISO Paper Format (A4, A3, A2, A1) or explicit Orientation (Landscape/Portrait),
-                        // calculate plateW and plateH to match the target aspect ratio
-                        const wantsIso = (paperSize && paperSize !== 'auto') || (orientation !== 'auto');
-                        if (wantsIso) {
-                            const isLandscape = (orientation === 'landscape') ? true : (orientation === 'portrait') ? false : (plateW >= plateH);
-                            const targetRatio = isLandscape ? (297 / 210) : (210 / 297);
-                            if (isLandscape) {
-                                plateH = Math.round(plateW / targetRatio);
-                                if (plateH < 540) {
-                                    plateH = 540;
-                                    plateW = Math.round(plateH * targetRatio);
-                                }
-                            } else {
-                                plateH = Math.round(plateW / targetRatio);
-                                if (plateH < 720) {
-                                    plateH = 720;
-                                    plateW = Math.round(plateH * targetRatio);
-                                }
-                            }
-                        }
-
-                        // Fit map frame inside sheet margins preserving exact map canvas aspect ratio (ZERO extent cropping!)
-                        const maxMapW = plateW - padSide * 2;
-                        const maxMapH = plateH - padTop - padBottom;
-                        const mapRatio = canvas.width / canvas.height;
-                        mapFrameW = maxMapW;
-                        mapFrameH = Math.round(mapFrameW / mapRatio);
-                        if (mapFrameH > maxMapH) {
-                            mapFrameH = maxMapH;
-                            mapFrameW = Math.round(mapFrameH * mapRatio);
-                        }
-                        const mapX = padSide + Math.round((maxMapW - mapFrameW) / 2);
-                        const mapY = padTop + Math.round((maxMapH - mapFrameH) / 2);
-
-                        const plateCanvas = document.createElement('canvas');
-                        plateCanvas.width = plateW * scale;
-                        plateCanvas.height = plateH * scale;
-                        const pctx = plateCanvas.getContext('2d');
-                        if (!pctx) return canvas;
-                        pctx.scale(scale, scale);
-
-                        const bgCol = isLightPlate ? '#ffffff' : '#121316';
-                        const fgCol = isLightPlate ? '#111827' : '#f3f4f6';
-                        const subCol = isLightPlate ? '#4b5563' : '#9ca3af';
-                        const borderCol = isLightPlate ? '#18181b' : '#4ec9b0';
-                        const zebraAltCol = isLightPlate ? '#ffffff' : '#1e2028';
-                        const cardBgCol = isLightPlate ? '#f8fafc' : '#1a1b20';
-
-                        // 1. Plate Background & Outer Technical Border
-                        pctx.fillStyle = bgCol;
-                        pctx.fillRect(0, 0, plateW, plateH);
-                        pctx.strokeStyle = borderCol;
-                        pctx.lineWidth = 2;
-                        pctx.strokeRect(10, 10, plateW - 20, plateH - 20);
-                        pctx.lineWidth = 0.7;
-                        pctx.strokeRect(13, 13, plateW - 26, plateH - 26);
-
-                        // 2. Top Header Banner (positioned inside top header zone, cleanly above the DMS coordinate band)
-                        const headerTopY = Math.max(18, padTop - 64);
-                        pctx.fillStyle = fgCol;
-                        pctx.font = '800 17px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-                        pctx.textAlign = 'left';
-                        pctx.textBaseline = 'top';
-                        pctx.fillText(mapTitle.toUpperCase(), padSide, headerTopY);
-
-                        const baseName = (baseMaps[currentBaseKey] && baseMaps[currentBaseKey].name) ? baseMaps[currentBaseKey].name.split(' (')[0] : 'Satellite';
-                        const subtitleStr = customSubtitle || ('Sistema de Información Geográfica y Teledetección Espacial • Mapa Base: ' + baseName);
-                        pctx.fillStyle = subCol;
-                        pctx.font = '500 10.5px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-                        pctx.fillText(subtitleStr, padSide, headerTopY + 22);
-
-                        const crsHeaderStr = customCrs || (utmStr + ' • WGS 84 (EPSG:4326)');
-                        pctx.fillStyle = isLightPlate ? '#0f766e' : '#4ec9b0';
-                        pctx.font = '700 10.5px "JetBrains Mono", Consolas, monospace';
-                        pctx.textAlign = 'right';
-                        pctx.fillText(crsHeaderStr, plateW - padSide, headerTopY + 3);
-
-                        const scaleHeaderStr = customMeta || ('Escala aprox. 1 : ' + scaleMetrics.scaleRatio.toLocaleString() + (paperSize !== 'auto' ? ' • Formato ' + paperSize : ''));
-                        pctx.fillStyle = subCol;
-                        pctx.font = '500 10px "JetBrains Mono", Consolas, monospace';
-                        pctx.fillText(scaleHeaderStr, plateW - padSide, headerTopY + 22);
-
-                        // Clean horizontal divider between Top Header Banner and DMS Coordinate Band
-                        const dividerY = padTop - 26;
-                        pctx.strokeStyle = isLightPlate ? 'rgba(0,0,0,0.14)' : 'rgba(255,255,255,0.14)';
-                        pctx.lineWidth = 0.8;
-                        pctx.beginPath();
-                        pctx.moveTo(padSide - 6, dividerY);
-                        pctx.lineTo(plateW - padSide + 6, dividerY);
-                        pctx.stroke();
-
-                        // 3. Draw Captured Map Canvas inside Frame (Contain-Fit: ZERO extent cropping, 100% study area preserved!)
-                        pctx.drawImage(canvas, 0, 0, canvas.width, canvas.height, mapX, mapY, mapFrameW, mapFrameH);
-
-                        // 3.1 Draw Map Overlays directly on pctx inside frame bounds (never cropped or sliced!)
-                        if (includeNorth) {
-                            drawNorthArrow(pctx, mapX + mapFrameW - 38, mapY + 42, 34, isLightPlate);
-                        }
-                        if (includeScaleBar) {
-                            drawCartographicScaleBar(pctx, mapX + 16, mapY + mapFrameH - 16 - 38, scaleMetrics, isLightPlate);
-                        }
-                        if (includeLegend && activeLegends.length > 0) {
-                            drawLegendOverlay(pctx, mapX + mapFrameW - 252, mapY + mapFrameH - 16, activeLegends, isLightPlate, customLegendTitle);
-                        }
-
-                        // 4. Zebra Cartographic Neatline Frame & Graduated DMS Coordinate Ticks
-                        const frameThick = 6;
-                        pctx.strokeStyle = borderCol;
-                        pctx.lineWidth = 1.5;
-                        pctx.strokeRect(mapX, mapY, mapFrameW, mapFrameH);
-                        pctx.strokeRect(mapX - frameThick, mapY - frameThick, mapFrameW + frameThick * 2, mapFrameH + frameThick * 2);
-
-                        // Zebra segments along horizontal edges
-                        const xStops = [0, ...lngTicks.map(t => Math.round((t.x / width) * mapFrameW)), mapFrameW];
-                        for (let i = 0; i < xStops.length - 1; i++) {
-                            const sx = mapX + xStops[i];
-                            const sw = xStops[i + 1] - xStops[i];
-                            pctx.fillStyle = (i % 2 === 0) ? borderCol : zebraAltCol;
-                            pctx.fillRect(sx, mapY - frameThick, sw, frameThick);
-                            pctx.strokeRect(sx, mapY - frameThick, sw, frameThick);
-                            pctx.fillRect(sx, mapY + mapFrameH, sw, frameThick);
-                            pctx.strokeRect(sx, mapY + mapFrameH, sw, frameThick);
-                        }
-                        // Zebra segments along vertical edges
-                        const yStops = [0, ...latTicks.map(t => Math.round((t.y / height) * mapFrameH)), mapFrameH];
-                        for (let i = 0; i < yStops.length - 1; i++) {
-                            const sy = mapY + yStops[i];
-                            const sh = yStops[i + 1] - yStops[i];
-                            pctx.fillStyle = (i % 2 === 0) ? borderCol : zebraAltCol;
-                            pctx.fillRect(mapX - frameThick, sy, frameThick, sh);
-                            pctx.strokeRect(mapX - frameThick, sy, frameThick, sh);
-                            pctx.fillRect(mapX + mapFrameW, sy, frameThick, sh);
-                            pctx.strokeRect(mapX + mapFrameW, sy, frameThick, sh);
-                        }
-
-                        // Exterior DMS Labels (Top, Bottom, Left, Right)
-                        pctx.fillStyle = fgCol;
-                        pctx.font = '600 9px "JetBrains Mono", Consolas, monospace';
-                        for (const lnt of lngTicks) {
-                            const gx = mapX + Math.round((lnt.x / width) * mapFrameW);
-                            pctx.textAlign = 'center';
-                            pctx.textBaseline = 'bottom';
-                            pctx.fillText(lnt.label, gx, mapY - frameThick - 4);
-                            pctx.textBaseline = 'top';
-                            pctx.fillText(lnt.label, gx, mapY + mapFrameH + frameThick + 4);
-                        }
-                        for (const lt of latTicks) {
-                            const gy = mapY + Math.round((lt.y / height) * mapFrameH);
-                            // Left rotated label
-                            pctx.save();
-                            pctx.translate(mapX - frameThick - 5, gy);
-                            pctx.rotate(-Math.PI / 2);
-                            pctx.textAlign = 'center';
-                            pctx.textBaseline = 'bottom';
-                            pctx.fillText(lt.label, 0, 0);
-                            pctx.restore();
-                            // Right rotated label
-                            pctx.save();
-                            pctx.translate(mapX + mapFrameW + frameThick + 5, gy);
-                            pctx.rotate(Math.PI / 2);
-                            pctx.textAlign = 'center';
-                            pctx.textBaseline = 'bottom';
-                            pctx.fillText(lt.label, 0, 0);
-                            pctx.restore();
-                        }
-
-                        // 5. Bottom Technical Title Block (Membrete Oficial SIG) — docked right below the map frame
-                        const tbY = mapY + mapFrameH + tbMargin;
-                        pctx.fillStyle = cardBgCol;
-                        pctx.strokeStyle = isLightPlate ? 'rgba(0,0,0,0.28)' : 'rgba(255,255,255,0.2)';
-                        pctx.lineWidth = 1;
-                        pctx.fillRect(mapX, tbY, mapFrameW, tbH);
-                        pctx.strokeRect(mapX, tbY, mapFrameW, tbH);
-
-                        const col1W = mapFrameW * 0.34;
-                        const col2W = mapFrameW * 0.36;
-                        pctx.beginPath();
-                        pctx.moveTo(mapX + col1W, tbY);
-                        pctx.lineTo(mapX + col1W, tbY + tbH);
-                        pctx.moveTo(mapX + col1W + col2W, tbY);
-                        pctx.lineTo(mapX + col1W + col2W, tbY + tbH);
-                        pctx.stroke();
-
-                        // Cell 1: Author / Institution & Software
-                        pctx.textAlign = 'left';
-                        pctx.textBaseline = 'top';
-                        pctx.fillStyle = subCol;
-                        pctx.font = '700 8.5px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-                        pctx.fillText('AUTOR / INSTITUCIÓN', mapX + 10, tbY + 6);
-                        pctx.fillStyle = fgCol;
-                        pctx.font = '700 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-                        pctx.fillText(mapAuthor, mapX + 10, tbY + 18);
-                        pctx.fillStyle = subCol;
-                        pctx.font = '500 9px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-                        pctx.fillText(customInst, mapX + 10, tbY + 32);
-
-                        // Cell 2: Spatial Parameters & Bounding Box (Extent)
-                        const c2X = mapX + col1W + 10;
-                        pctx.fillStyle = subCol;
-                        pctx.font = '700 8.5px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-                        pctx.fillText('EXTENSIÓN Y PARÁMETROS CARTOGRÁFICOS', c2X, tbY + 6);
-                        pctx.fillStyle = fgCol;
-                        pctx.font = '600 9px "JetBrains Mono", Consolas, monospace';
-                        pctx.fillText('N: ' + formatDMS(north, true) + ' | S: ' + formatDMS(south, true) + ' (Z:' + zoom + ')', c2X, tbY + 19);
-                        pctx.fillStyle = subCol;
-                        pctx.font = '500 8.5px "JetBrains Mono", Consolas, monospace';
-                        pctx.fillText('W: ' + formatDMS(west, false) + ' | E: ' + formatDMS(east, false) + ' • ' + (customCrs || (utmStr + ' / WGS 84')), c2X, tbY + 32);
-
-                        // Cell 3: Date, Paper Format, Resolution & Active Layers Count
-                        const c3X = mapX + col1W + col2W + 10;
-                        const now = new Date();
-                        const dateIso = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0') + ' ' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-                        pctx.fillStyle = subCol;
-                        pctx.font = '700 8.5px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-                        pctx.fillText('METADATOS DE EDICIÓN', c3X, tbY + 6);
-                        pctx.fillStyle = fgCol;
-                        pctx.font = '600 9.5px "JetBrains Mono", Consolas, monospace';
-                        pctx.fillText(customMeta ? customMeta : ('Fecha: ' + dateIso), c3X, tbY + 19);
-                        pctx.fillStyle = subCol;
-                        pctx.font = '500 9px "JetBrains Mono", Consolas, monospace';
-                        const orientLabel = (orientation === 'landscape') ? 'Horiz' : (orientation === 'portrait') ? 'Vert' : '';
-                        const orientTag = orientLabel ? (orientLabel + ' • ') : '';
-                        const paperTag = (paperSize && paperSize !== 'auto') ? (paperSize + ' • ') : '';
-                        pctx.fillText(paperTag + orientTag + scale + 'x (' + (scale >= 4 ? '300 DPI Print' : (scale * 96) + ' DPI') + ') • Capas: ' + activeLegends.length, c3X, tbY + 32);
-
-                        return plateCanvas;
-                    }
 
                     async function waitForTilesToLoad(maxWaitMs = 2500) {
                         const start = Date.now();
@@ -6045,7 +4704,7 @@ export class MapView {
                                 }
                             }
                             // Check visible tile images in DOM
-                            const tiles = Array.from(document.querySelectorAll('.leaflet-tile-pane img.leaflet-tile'));
+                            const tiles = Array.from(document.querySelectorAll(".leaflet-tile-pane img.leaflet-tile"));
                             for (const img of tiles) {
                                 if (!img.complete) {
                                     anyTileLoading = true;
@@ -6058,85 +4717,298 @@ export class MapView {
                                 return;
                             }
 
-                            showHud('⏳ Waiting for layers to finish loading...');
+                            showHud("⏳ Esperando carga de capas...");
                             await new Promise(r => setTimeout(r, 180));
                         }
                     }
 
+                    async function captureMapToCanvas() {
+                        const mapEl = document.getElementById("map");
+                        if (!mapEl) throw new Error("Mapa no encontrado");
+
+                        const selFormat = document.getElementById("snapFormatSelect");
+                        const optCoords = document.getElementById("snapOptCoords");
+                        const optDraw = document.getElementById("snapOptDrawings");
+
+                        const snapFormat = (selFormat && selFormat.value) ? selFormat.value : "png";
+                        const includeCoords = optCoords ? optCoords.checked : true;
+                        const includeDrawings = optDraw ? optDraw.checked : true;
+
+                        setSetting("snap_format", snapFormat);
+                        setSetting("snap_coords", includeCoords);
+                        setSetting("snap_drawings", includeDrawings);
+
+                        const width = mapEl.clientWidth;
+                        const height = mapEl.clientHeight;
+                        const scale = (window.devicePixelRatio && window.devicePixelRatio > 1) ? 2 : 1;
+
+                        const canvas = document.createElement("canvas");
+                        canvas.width = width * scale;
+                        canvas.height = height * scale;
+                        const ctx = canvas.getContext("2d");
+                        if (!ctx) throw new Error("No se pudo inicializar Canvas 2D");
+                        ctx.scale(scale, scale);
+
+                        ctx.fillStyle = "#1e1e1e";
+                        ctx.fillRect(0, 0, width, height);
+
+                        const mapRect = mapEl.getBoundingClientRect();
+                        const layerContainers = Array.from(mapEl.querySelectorAll(".leaflet-tile-pane .leaflet-layer"));
+                        layerContainers.sort((a, b) => {
+                            const za = parseInt(window.getComputedStyle(a).zIndex, 10) || 0;
+                            const zb = parseInt(window.getComputedStyle(b).zIndex, 10) || 0;
+                            return za - zb;
+                        });
+                        const tiles = [];
+                        if (layerContainers.length > 0) {
+                            for (const lc of layerContainers) {
+                                const lcStyle = window.getComputedStyle(lc);
+                                if (lcStyle.display === "none" || lcStyle.visibility === "hidden" || parseFloat(lcStyle.opacity || "1") <= 0) continue;
+                                const lcTiles = Array.from(lc.querySelectorAll("img.leaflet-tile"));
+                                for (const t of lcTiles) tiles.push(t);
+                            }
+                        } else {
+                            tiles.push(...Array.from(mapEl.querySelectorAll(".leaflet-tile-pane img.leaflet-tile")));
+                        }
+                        const isSwipeActive = (typeof swipeMode !== "undefined" && swipeMode);
+                        const topSwipeContainer = (isSwipeActive && topSwipeLayer && topSwipeLayer.getContainer) ? topSwipeLayer.getContainer() : null;
+
+                        for (const img of tiles) {
+                            if (!img.complete || img.naturalWidth === 0) continue;
+                            const style = window.getComputedStyle(img);
+                            if (style.display === "none" || style.visibility === "hidden") continue;
+                            const parentLayer = img.closest ? img.closest(".leaflet-layer") : null;
+                            const parentOp = parentLayer ? parseFloat(window.getComputedStyle(parentLayer).opacity || "1") : 1;
+                            const opacity = parseFloat(style.opacity || "1") * parentOp;
+                            if (opacity <= 0) continue;
+
+                            const rect = img.getBoundingClientRect();
+                            const x = rect.left - mapRect.left;
+                            const y = rect.top - mapRect.top;
+                            const w = rect.width;
+                            const h = rect.height;
+
+                            if (x + w < 0 || x > width || y + h < 0 || y > height) continue;
+
+                            ctx.save();
+                            if (isSwipeActive && topSwipeContainer && topSwipeContainer.contains(img)) {
+                                ctx.beginPath();
+                                if (swipeOrientation === "vertical") {
+                                    ctx.rect(0, 0, width * (swipeValue / 100), height);
+                                } else {
+                                    ctx.rect(0, 0, width, height * (swipeValue / 100));
+                                }
+                                ctx.clip();
+                            }
+                            ctx.globalAlpha = opacity;
+                            try {
+                                ctx.drawImage(img, x, y, w, h);
+                            } catch (e) {
+                                console.warn("Tile capture warning:", e);
+                            }
+                            ctx.restore();
+                        }
+
+                        // If Swipe Mode is active, render divider
+                        if (isSwipeActive && topSwipeContainer) {
+                            ctx.save();
+                            ctx.strokeStyle = "#ffffff";
+                            ctx.lineWidth = 2.5;
+                            ctx.shadowColor = "rgba(0,0,0,0.6)";
+                            ctx.shadowBlur = 6;
+                            ctx.beginPath();
+                            if (swipeOrientation === "vertical") {
+                                const sx = width * (swipeValue / 100);
+                                ctx.moveTo(sx, 0);
+                                ctx.lineTo(sx, height);
+                            } else {
+                                const sy = height * (swipeValue / 100);
+                                ctx.moveTo(0, sy);
+                                ctx.lineTo(width, sy);
+                            }
+                            ctx.stroke();
+                            ctx.restore();
+                        }
+
+                        if (includeDrawings) {
+                            // Canvases in overlay pane
+                            const overlayCanvases = Array.from(mapEl.querySelectorAll(".leaflet-overlay-pane canvas"));
+                            for (const ovCanvas of overlayCanvases) {
+                                const style = window.getComputedStyle(ovCanvas);
+                                if (style.display === "none" || style.visibility === "hidden") continue;
+                                const opacity = parseFloat(style.opacity || "1");
+                                if (opacity <= 0) continue;
+                                const rect = ovCanvas.getBoundingClientRect();
+                                ctx.save();
+                                ctx.globalAlpha = opacity;
+                                try {
+                                    ctx.drawImage(ovCanvas, rect.left - mapRect.left, rect.top - mapRect.top, rect.width, rect.height);
+                                } catch (e) {
+                                    console.warn("Overlay canvas capture warning:", e);
+                                }
+                                ctx.restore();
+                            }
+
+                            // SVG fallback
+                            const svgEl = mapEl.querySelector(".leaflet-overlay-pane svg");
+                            if (svgEl && overlayCanvases.length === 0) {
+                                try {
+                                    const svgRect = svgEl.getBoundingClientRect();
+                                    const clone = svgEl.cloneNode(true);
+                                    clone.style.transform = "none";
+                                    clone.style.webkitTransform = "none";
+                                    const svgString = new XMLSerializer().serializeToString(clone);
+                                    const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+                                    const blobUrl = (window.URL || window.webkitURL).createObjectURL(svgBlob);
+                                    const svgImg = new Image();
+                                    await new Promise((resolve) => {
+                                        svgImg.onload = () => {
+                                            ctx.drawImage(svgImg, svgRect.left - mapRect.left, svgRect.top - mapRect.top, svgRect.width, svgRect.height);
+                                            (window.URL || window.webkitURL).revokeObjectURL(blobUrl);
+                                            resolve();
+                                        };
+                                        svgImg.onerror = () => {
+                                            (window.URL || window.webkitURL).revokeObjectURL(blobUrl);
+                                            resolve();
+                                        };
+                                        svgImg.src = blobUrl;
+                                    });
+                                } catch (e) {
+                                    console.warn("SVG capture warning:", e);
+                                }
+                            }
+
+                            // Markers
+                            const markers = Array.from(mapEl.querySelectorAll(".leaflet-marker-pane img, .leaflet-marker-pane .leaflet-marker-icon"));
+                            for (const marker of markers) {
+                                const style = window.getComputedStyle(marker);
+                                if (style.display === "none" || style.visibility === "hidden") continue;
+                                const opacity = parseFloat(style.opacity || "1");
+                                if (opacity <= 0) continue;
+                                const rect = marker.getBoundingClientRect();
+                                const x = rect.left - mapRect.left;
+                                const y = rect.top - mapRect.top;
+                                if (x + rect.width < 0 || x > width || y + rect.height < 0 || y > height) continue;
+
+                                ctx.save();
+                                ctx.globalAlpha = opacity;
+                                try {
+                                    if (marker instanceof HTMLImageElement && marker.src && marker.src.startsWith("data:")) {
+                                        ctx.drawImage(marker, x, y, rect.width, rect.height);
+                                    } else if (marker instanceof HTMLImageElement) {
+                                        const pinW = rect.width || 25;
+                                        const pinH = rect.height || 41;
+                                        ctx.translate(x + pinW / 2, y);
+                                        ctx.fillStyle = "#2A81CB";
+                                        ctx.strokeStyle = "#FFFFFF";
+                                        ctx.lineWidth = 1.5;
+                                        ctx.beginPath();
+                                        ctx.arc(0, 12, 10, Math.PI, 0, false);
+                                        ctx.lineTo(0, pinH);
+                                        ctx.closePath();
+                                        ctx.fill();
+                                        ctx.stroke();
+                                        ctx.fillStyle = "#FFFFFF";
+                                        ctx.beginPath();
+                                        ctx.arc(0, 12, 4, 0, Math.PI * 2);
+                                        ctx.fill();
+                                    }
+                                } catch (e) {
+                                    console.warn("Marker capture warning:", e);
+                                }
+                                ctx.restore();
+                            }
+                        }
+
+                        if (includeCoords) {
+                            const center = map.getCenter();
+                            const zoom = map.getZoom();
+                            const text = "GEE IDE | Lat: " + center.lat.toFixed(4) + ", Lng: " + center.lng.toFixed(4) + " | Zoom: " + zoom;
+
+                            ctx.font = '500 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+                            const textW = ctx.measureText(text).width;
+                            const badgeW = textW + 24;
+                            const badgeH = 24;
+                            const badgeX = 14;
+                            const badgeY = height - 14 - badgeH;
+
+                            ctx.save();
+                            ctx.fillStyle = "rgba(18, 18, 18, 0.85)";
+                            ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+                            ctx.lineWidth = 1;
+                            ctx.beginPath();
+                            if (ctx.roundRect) ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 6);
+                            else ctx.rect(badgeX, badgeY, badgeW, badgeH);
+                            ctx.fill();
+                            ctx.stroke();
+
+                            ctx.fillStyle = "#4ec9b0";
+                            ctx.fillText(text, badgeX + 12, badgeY + 16);
+                            ctx.restore();
+                        }
+
+                        return canvas;
+                    }
+
                     window.takeSnapshot = async function(target) {
-                        const m = document.getElementById('snapshotModal');
-                        if (m) m.style.display = 'none';
+                        const m = document.getElementById("snapshotModal");
+                        if (m) m.style.display = "none";
 
                         try {
-                            showHud('📸 Preparing HD snapshot...');
+                            showHud("📸 Preparando captura...");
                             await waitForTilesToLoad(2500);
-                            showHud('📸 Generating Cartographic HD image...');
                             const canvas = await captureMapToCanvas();
                             const now = new Date();
-                            const pad = (n) => String(n).padStart(2, '0');
-                            const isPlate = document.getElementById('snapOptLayout')?.checked;
-                            const snapFormat = document.getElementById('snapFormatSelect')?.value || 'png';
-                            const paperSize = document.getElementById('snapPaperSelect')?.value || 'auto';
-                            const orientation = document.getElementById('snapOrientationSelect')?.value || 'auto';
-                            const ext = (snapFormat === 'jpg' || snapFormat === 'pdf') ? snapFormat : 'png';
-                            const prefix = isPlate ? 'gee_lamina_pro_' : 'gee_snapshot_';
-                            const paperSlug = (paperSize !== 'auto') ? (paperSize + '_') : '';
-                            const orientSlug = (orientation !== 'auto') ? (orientation + '_') : '';
-                            const filename = prefix + paperSlug + orientSlug + now.getFullYear() + 
+                            const pad = (n) => String(n).padStart(2, "0");
+                            const snapFormat = document.getElementById("snapFormatSelect")?.value || "png";
+                            const ext = (snapFormat === "jpg") ? "jpg" : "png";
+                            const filename = "gee_snapshot_" + now.getFullYear() + 
                                              pad(now.getMonth() + 1) + 
-                                             pad(now.getDate()) + '_' + 
+                                             pad(now.getDate()) + "_" + 
                                              pad(now.getHours()) + 
                                              pad(now.getMinutes()) + 
-                                             pad(now.getSeconds()) + '.' + ext;
+                                             pad(now.getSeconds()) + "." + ext;
 
-                            if (target === 'clipboard') {
+                            if (target === "clipboard") {
                                 canvas.toBlob(async (blob) => {
                                     if (!blob) {
-                                        showHud('❌ Error generating image');
+                                        showHud("❌ Error generando imagen");
                                         return;
                                     }
                                     try {
                                         await navigator.clipboard.write([
-                                            new ClipboardItem({ 'image/png': blob })
+                                            new ClipboardItem({ "image/png": blob })
                                         ]);
-                                        showHud('📋 Copied to clipboard!');
+                                        showHud("📋 Copiado al portapapeles!");
                                     } catch (e) {
-                                        const dataUrl = canvas.toDataURL('image/png');
-                                        const base64 = dataUrl.split(',')[1];
+                                        const dataUrl = canvas.toDataURL("image/png");
+                                        const base64 = dataUrl.split(",")[1];
                                         vscode.postMessage({
-                                            command: 'saveSnapshot',
+                                            command: "saveSnapshot",
                                             data: base64,
-                                            filename: filename.replace(/\.(jpg|pdf)$/i, '.png'),
-                                            format: 'png',
-                                            paperSize: paperSize,
-                                            orientation: orientation,
-                                            width: canvas.width,
-                                            height: canvas.height,
+                                            filename: filename.replace(/\.jpg$/i, ".png"),
+                                            format: "png",
                                             promptSaveAs: false
                                         });
-                                        showHud('💾 Saved to Screenshots/ (clipboard restricted)');
+                                        showHud("💾 Guardado en Screenshots/");
                                     }
-                                }, 'image/png');
+                                }, "image/png");
                             } else {
-                                const useJpeg = (ext === 'jpg' || ext === 'pdf');
-                                const dataUrl = useJpeg ? canvas.toDataURL('image/jpeg', 0.95) : canvas.toDataURL('image/png');
-                                const base64 = dataUrl.split(',')[1];
+                                const useJpeg = (ext === "jpg");
+                                const dataUrl = useJpeg ? canvas.toDataURL("image/jpeg", 0.92) : canvas.toDataURL("image/png");
+                                const base64 = dataUrl.split(",")[1];
                                 vscode.postMessage({
-                                    command: 'saveSnapshot',
+                                    command: "saveSnapshot",
                                     data: base64,
                                     filename: filename,
                                     format: ext,
-                                    paperSize: paperSize,
-                                    orientation: orientation,
-                                    width: canvas.width,
-                                    height: canvas.height,
-                                    promptSaveAs: target === 'saveAs'
+                                    promptSaveAs: target === "saveAs"
                                 });
-                                showHud(target === 'saveAs' ? ('📁 Opening save dialog (' + ext.toUpperCase() + ')...') : ('💾 Saving ' + ext.toUpperCase() + ' to Screenshots/...'));
+                                showHud(target === "saveAs" ? "📁 Abriendo diálogo de guardado..." : "💾 Guardando captura en Screenshots/...");
                             }
                         } catch (err) {
-                            console.error('Error capturing map:', err);
-                            showHud('❌ Error capturing map: ' + (err.message || err));
+                            console.error("Error capturing map:", err);
+                            showHud("❌ Error al capturar mapa: " + (err.message || err));
                         }
                     };
 
@@ -7339,6 +6211,7 @@ export class MapView {
                         const panel = document.getElementById('rulerPanel');
                         const btn = document.getElementById('btn-ruler');
                         const mapEl = document.getElementById('map');
+                        const lm = document.getElementById('layerManager');
 
                         if (rulerMode) {
                             if (map && map.doubleClickZoom) map.doubleClickZoom.disable();
@@ -7348,6 +6221,10 @@ export class MapView {
                                 btn.style.borderColor = '#4ec9b0';
                             }
                             if (mapEl) mapEl.classList.add('crosshair-mode');
+                            if (lm) {
+                                lm.setAttribute('data-prev-display', lm.style.display || '');
+                                lm.style.display = 'none';
+                            }
                             updateRulerUI();
                             showHud('📏 Regla GIS activa (Clic para medir, doble clic fin tramo, Backspace deshacer)');
                         } else {
@@ -7358,6 +6235,9 @@ export class MapView {
                                 btn.style.borderColor = 'rgba(255, 255, 255, 0.1)';
                             }
                             if (mapEl) mapEl.classList.remove('crosshair-mode');
+                            if (lm) {
+                                lm.style.display = lm.getAttribute('data-prev-display') || '';
+                            }
                             rulerClear(true);
                         }
                     };

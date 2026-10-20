@@ -221,14 +221,20 @@
         "category": "GEE IDE"
       },
       {
+        "command": "gee-pro.openProject",
+        "title": "Open Project... (Abrir Proyecto GEE)",
+        "category": "GEE IDE",
+        "icon": "$(folder-opened)"
+      },
+      {
         "command": "gee-pro.newProject",
-        "title": "New Project... (Nuevo Proyecto)",
+        "title": "New Project... (Nuevo Proyecto GEE)",
         "category": "GEE IDE",
         "icon": "$(project)"
       },
       {
         "command": "gee-pro.openProjectSettings",
-        "title": "Open Project Settings (.geeproj)",
+        "title": "Project Menu & Settings (Menú del Proyecto)",
         "category": "GEE IDE",
         "icon": "$(settings-gear)"
       },
