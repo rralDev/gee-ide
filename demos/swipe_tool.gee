@@ -28,12 +28,15 @@ var img2019 = s2.filterDate('2019-01-01', '2019-12-31').map(addNDVI).median().cl
 // 2. NDVI del "Después" (Año 2024)
 var img2024 = s2.filterDate('2023-01-01', '2024-01-01').map(addNDVI).median().clip(roi);
 
-// Parámetros de visualización para NDVI
+// Parámetros de visualización para NDVI (Azul = Agua, Amarillo/Ocre = Deforestación, Verde = Bosque)
 var ndviVis = {
   bands: ['NDVI'],
-  min: 0,
-  max: 0.9,
-  palette: ['#d73027', '#fc8d59', '#fee08b', '#d9ef8b', '#91cf60', '#1a9850'] // Rojo a Verde
+  min: -0.2,
+  max: 0.85,
+  palette: [
+    '#0c0c78', '#80b1d3', '#ffffff', '#ce7e45', '#df923d', 
+    '#fcd163', '#99b718', '#66a000', '#3e8601', '#056201', '#004c00'
+  ]
 };
 
 // 3. Agregar capas al mapa (Agrega la antigua primero, la nueva encima)

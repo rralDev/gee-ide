@@ -291,11 +291,14 @@ export function activate(context: vscode.ExtensionContext) {
         if (quadrant === 1) {
             vscode.commands.executeCommand('workbench.action.focusFirstEditorGroup');
         } else if (quadrant === 2) {
-            consoleView.focus();
+            vscode.commands.executeCommand('workbench.action.focusSecondEditorGroup');
+            if (consoleView.isCreated) consoleView.focus();
         } else if (quadrant === 3) {
-            mapView.focus();
+            vscode.commands.executeCommand('workbench.action.focusThirdEditorGroup');
+            if (mapView.isCreated) mapView.focus();
         } else if (quadrant === 4) {
-            aiView.focus();
+            vscode.commands.executeCommand('workbench.action.focusFourthEditorGroup');
+            if (aiView.isCreated) aiView.focus();
         }
     }
 
@@ -652,6 +655,10 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.registerWebviewPanelSerializer('geeConsole', {
             async deserializeWebviewPanel(webviewPanel: vscode.WebviewPanel, state: any) {
                 logStep('Deserializing geeConsole webview panel');
+                if (consoleView.isCreated) {
+                    webviewPanel.dispose();
+                    return;
+                }
                 webviewPanel.webview.options = { enableScripts: true };
                 consoleView.attachPanel(webviewPanel);
             }
@@ -659,6 +666,10 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.registerWebviewPanelSerializer('geeMap', {
             async deserializeWebviewPanel(webviewPanel: vscode.WebviewPanel, state: any) {
                 logStep('Deserializing geeMap webview panel');
+                if (mapView.isCreated) {
+                    webviewPanel.dispose();
+                    return;
+                }
                 webviewPanel.webview.options = { enableScripts: true };
                 mapView.attachPanel(webviewPanel);
             }
@@ -666,6 +677,10 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.registerWebviewPanelSerializer('geeAI', {
             async deserializeWebviewPanel(webviewPanel: vscode.WebviewPanel, state: any) {
                 logStep('Deserializing geeAI webview panel');
+                if (aiView.isCreated) {
+                    webviewPanel.dispose();
+                    return;
+                }
                 webviewPanel.webview.options = { enableScripts: true };
                 aiView.attachPanel(webviewPanel);
             }
@@ -1567,20 +1582,46 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    let focusEditorCommand = vscode.commands.registerCommand('gee-pro.focusEditor', () => {
-        vscode.commands.executeCommand('workbench.action.focusFirstEditorGroup');
+    let focusEditorCommand = vscode.commands.registerCommand('gee-pro.focusEditor', async () => {
+        await vscode.commands.executeCommand('workbench.action.focusFirstEditorGroup');
+        const activeEd = vscode.window.activeTextEditor;
+        if (!activeEd || activeEd.viewColumn !== vscode.ViewColumn.One) {
+            let targetDoc = lastActiveEditor && !lastActiveEditor.document.isClosed ? lastActiveEditor.document : undefined;
+            if (!targetDoc) {
+                targetDoc = vscode.workspace.textDocuments.find(d => !d.isClosed && (d.fileName.endsWith('.gee') || d.fileName.endsWith('.js') || d.fileName.endsWith('.py') || d.fileName.endsWith('.r')));
+            }
+            if (targetDoc) {
+                await vscode.window.showTextDocument(targetDoc, { viewColumn: vscode.ViewColumn.One, preserveFocus: false });
+            } else {
+                const demoPath = vscode.Uri.file(context.asAbsolutePath('demos/welcome_to_gee_ide.gee'));
+                try {
+                    const doc = await vscode.workspace.openTextDocument(demoPath);
+                    await detectAndSetGeeLanguage(doc);
+                    await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.One, preserveFocus: false });
+                } catch (e) {}
+            }
+        }
     });
 
-    let focusConsoleCommand = vscode.commands.registerCommand('gee-pro.focusConsole', () => {
-        consoleView.focus();
+    let focusConsoleCommand = vscode.commands.registerCommand('gee-pro.focusConsole', async () => {
+        await vscode.commands.executeCommand('workbench.action.focusSecondEditorGroup');
+        if (consoleView.isCreated) {
+            consoleView.focus();
+        }
     });
 
-    let focusMapCommand = vscode.commands.registerCommand('gee-pro.focusMap', () => {
-        mapView.focus();
+    let focusMapCommand = vscode.commands.registerCommand('gee-pro.focusMap', async () => {
+        await vscode.commands.executeCommand('workbench.action.focusThirdEditorGroup');
+        if (mapView.isCreated) {
+            mapView.focus();
+        }
     });
 
-    let focusAICommand = vscode.commands.registerCommand('gee-pro.focusAI', () => {
-        aiView.focus();
+    let focusAICommand = vscode.commands.registerCommand('gee-pro.focusAI', async () => {
+        await vscode.commands.executeCommand('workbench.action.focusFourthEditorGroup');
+        if (aiView.isCreated) {
+            aiView.focus();
+        }
     });
 
     let clearConsoleCommand = vscode.commands.registerCommand('gee-pro.clearConsole', () => {

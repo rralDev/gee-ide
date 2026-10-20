@@ -103,7 +103,7 @@ export const SPECTRAL_INDICES: SpectralIndexDefinition[] = [
             'MODIS': ['sur_refl_b02', 'sur_refl_b01'],
             'Generic': ['NIR', 'RED']
         },
-        defaultVisParams: { min: 0.0, max: 0.9, paletteName: 'ndvi' }
+        defaultVisParams: { min: -0.2, max: 0.85, paletteName: 'ndvi' }
     },
     {
         id: 'EVI',
@@ -197,7 +197,7 @@ export const SPECTRAL_INDICES: SpectralIndexDefinition[] = [
             'MODIS': ['sur_refl_b02', 'sur_refl_b04'],
             'Generic': ['NIR', 'GREEN']
         },
-        defaultVisParams: { min: 0.0, max: 0.8, paletteName: 'ndvi' }
+        defaultVisParams: { min: -0.2, max: 0.85, paletteName: 'ndvi' }
     },
     {
         id: 'ARVI',

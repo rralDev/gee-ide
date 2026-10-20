@@ -9,7 +9,7 @@
 Map.clear();
 
 // 1. Zona de estudio: La Pampa, Madre de Dios (-12.85°S, -69.85°W) con radio de 6 km
-var roi = ee.Geometry.Point([-69.85, -12.85]).buffer(6000);
+var roi = ee.Geometry.Point([-77.456818, -8.817998 ]).buffer(6000);
 
 // 2. Centrar el mapa en la zona de estudio (zoom 13)
 Map.centerObject(roi, 13);
@@ -40,11 +40,18 @@ var swirVis = {
   max: 3500
 };
 
-// Gradiente NDVI de salud vegetal
+// Gradiente NDVI con cuerpos de agua:
+// Azul (< 0): Cuerpos de agua (Río Inambari, lagunas, pozas mineras)
+// Blanco / Ocre (0 a 0.2): Suelo desnudo, arena, frentes de minería y deforestación
+// Amarillo / Verde claro (0.2 a 0.45): Vegetación pionera y pastizales
+// Verde oscuro (0.45 a 0.85+): Dosel de selva amazónica primaria densa
 var ndviVis = {
-  min: -0.1,
+  min: -0.2,
   max: 0.85,
-  palette: ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#d9ef8b', '#a6d96a', '#1a9850', '#006837']
+  palette: [
+    '#0c0c78', '#80b1d3', '#ffffff', '#ce7e45', '#df923d',
+    '#fcd163', '#99b718', '#66a000', '#3e8601', '#056201', '#004c00'
+  ]
 };
 
 // 6. Proyectar capas al visor interactivo de GEE IDE
@@ -54,3 +61,4 @@ Map.addLayer(image, rgbVis, '1. Sentinel-2 Color Natural (La Pampa)');
 
 print("✅ Análisis amazónico completado exitosamente en JavaScript.");
 print("📍 Ubicación: La Pampa, Madre de Dios, Perú (-12.85°S, -69.85°W)");
+print("💡 Capa NDVI: Azul = Agua, Ocre/Blanco = Suelo/Minería, Verde = Selva densa");

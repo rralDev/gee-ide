@@ -625,7 +625,7 @@ export class GEERuntime {
                         return {
                             bands: [bandNames[vegIndex]],
                             min: -0.2,
-                            max: 0.8,
+                            max: 0.85,
                             palette: GE_PALETTES.ndvi
                         };
                     }
@@ -717,7 +717,7 @@ export class GEERuntime {
             return { min: 0, max: 3000, palette: GE_PALETTES.dem };
         }
         if (lname.includes('ndvi') || lname.includes('evi') || lname.includes('savi')) {
-            return { min: -0.2, max: 0.8, palette: GE_PALETTES.ndvi };
+            return { min: -0.2, max: 0.85, palette: GE_PALETTES.ndvi };
         }
         if (lname.includes('ndwi') || lname.includes('water')) {
             return { min: -0.5, max: 0.5, palette: GE_PALETTES.water };

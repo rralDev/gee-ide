@@ -1,6 +1,11 @@
 export const GE_PALETTES = {
-    // 🌲 Vegetación (NDVI, EVI, SAVI)
-    ndvi: ['#FFFFFF', '#CE7E45', '#DF923D', '#F1B555', '#FCD163', '#99B718', '#74A901', '#66A000', '#529400', '#3E8601', '#207401', '#056201', '#004C00', '#023B01', '#012E01', '#011D01', '#011301'],
+    // 🌲 Vegetación (NDVI, EVI, SAVI) - Con agua en azul (<0), suelo en beige/ocre (0 a 0.2) y vegetación en verde (>0.2)
+    ndvi: [
+        '#0c0c78', '#80b1d3', // 💧 Cuerpos de agua (< 0)
+        '#ffffff', '#ce7e45', '#df923d', '#fcd163', // 🟤 Suelo desnudo / arena / roca / minería (0 a 0.2)
+        '#99b718', '#74a901', '#66a000', '#529400', // 🌿 Vegetación escasa a moderada (0.2 a 0.5)
+        '#3e8601', '#207401', '#056201', '#004c00'  // 🌲 Bosque denso / dosel primario (> 0.5)
+    ],
     
     // 💧 Agua (NDWI, MNDWI, Inundaciones)
     water: ['#ffffff', '#ff0000', '#ffff00', '#00ffff', '#0000ff'],

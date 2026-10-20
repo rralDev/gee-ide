@@ -97,13 +97,6 @@ export class MapView {
         if (this.panel) {
             this.panel.reveal();
             this.panel.webview.postMessage({ command: 'focus' });
-        } else {
-            this.show(vscode.ViewColumn.Three);
-            setTimeout(() => {
-                if (this.panel) {
-                    this.panel.webview.postMessage({ command: 'focus' });
-                }
-            }, 250);
         }
     }
 
@@ -120,6 +113,10 @@ export class MapView {
         }
         this.panel = panel;
         this.isReady = false;
+        vscode.commands.executeCommand('setContext', 'geeMapFocused', true);
+        this.panel.onDidChangeViewState(e => {
+            vscode.commands.executeCommand('setContext', 'geeMapFocused', e.webviewPanel.active);
+        }, null, this.context.subscriptions);
         this.panel.webview.options = {
             enableScripts: true
         };
@@ -150,6 +147,7 @@ export class MapView {
         }, undefined, this.context.subscriptions);
 
         this.panel.onDidDispose(() => {
+            vscode.commands.executeCommand('setContext', 'geeMapFocused', false);
             this.panel = undefined;
             this.isReady = false;
         }, null, this.context.subscriptions);
@@ -394,6 +392,17 @@ export class MapView {
                     .leaflet-top.leaflet-left {
                         top: 48px !important;
                         left: 10px !important;
+                    }
+
+                    /* Hide floating tooltip following cursor during drawing */
+                    .leaflet-draw-tooltip,
+                    .leaflet-error-draw-tooltip,
+                    .leaflet-draw-tooltip-single,
+                    .leaflet-draw-tooltip-subtext {
+                        display: none !important;
+                        visibility: hidden !important;
+                        opacity: 0 !important;
+                        pointer-events: none !important;
                     }
 
                     /* Google Earth Engine Geometry Toolbar & Imports System */
@@ -1588,6 +1597,50 @@ export class MapView {
                         pointer-events: none;
                         box-shadow: 0 2px 6px rgba(0,0,0,0.6);
                     }
+                    .gee-ruler-vertex-badge {
+                        background: #00e5ff;
+                        color: #0b1120;
+                        font-family: 'JetBrains Mono', monospace;
+                        font-size: 10px;
+                        font-weight: 800;
+                        width: 17px;
+                        height: 17px;
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        border: 1.5px solid #ffffff;
+                        box-shadow: 0 2px 6px rgba(0,0,0,0.7);
+                        user-select: none;
+                        pointer-events: none;
+                    }
+                    .gee-ruler-vertex-badge.start {
+                        background: #00ff88;
+                    }
+                    .gee-ruler-area-icon-container {
+                        background: transparent !important;
+                        border: none !important;
+                    }
+                    .gee-ruler-area-badge {
+                        background: rgba(15, 23, 42, 0.94);
+                        border: 1.5px solid #ffeb3b;
+                        color: #ffffff;
+                        font-family: 'JetBrains Mono', monospace;
+                        font-size: 10.5px;
+                        font-weight: 700;
+                        padding: 3px 8px;
+                        border-radius: 5px;
+                        text-align: center;
+                        white-space: nowrap;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 4px;
+                        width: max-content;
+                        pointer-events: none;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.75);
+                        transform: translate(-50%, -50%);
+                    }
                     /* High-Visibility Camera Button in Layers Header */
                     #snapHeaderBtn {
                         background: linear-gradient(135deg, #007acc, #14b8a6) !important;
@@ -1909,7 +1962,7 @@ export class MapView {
                     </div>
                 </div>
                 <div class="toolbar-container" style="left: 20px; bottom: 20px; display: flex; flex-direction: column; gap: 8px;">
-                    <button class="toolbar-toggle" id="btn-ruler" onclick="toggleRulerMode()" title="Regla de Medición GIS Pro (Distancia, Área, Perfil DEM, GeoJSON) [Option+M]" style="font-size: 15px;">📏</button>
+                    <button class="toolbar-toggle" id="btn-ruler" onclick="toggleRulerMode()" title="Regla de Medición GIS (Distancia, Área, GeoJSON) [Option+M]" style="font-size: 15px;">📏</button>
                     <button class="toolbar-toggle" id="btn-swipe" onclick="toggleSwipeMode()" title="Swipe Tool (Before/After Comparison) - Hold Shift for Horizontal Mode" style="font-size: 15px;">🔀</button>
                     <button class="toolbar-toggle" onclick="showHelp()" title="Help & Shortcuts">❓</button>
                 </div>
@@ -2395,7 +2448,16 @@ export class MapView {
                         }
                     }
 
-                    function setGeomDrawMode(mode) {
+                    function setGeomDrawMode(mode, options) {
+                        const isRestart = !!(options && options.isRestart);
+
+                        // Toggle logic: if user triggers active mode again via shortcut/button, toggle it OFF back to pan
+                        if (!isRestart && mode !== 'pan' && activeDrawMode === mode) {
+                            setGeomDrawMode('pan');
+                            showHud('🖐️ Modo Navegación (Manito)');
+                            return;
+                        }
+
                         if (activeDrawer) {
                             try { activeDrawer.disable(); } catch (e) {}
                             activeDrawer = null;
@@ -2414,6 +2476,7 @@ export class MapView {
                         const toggleBtn = document.getElementById('btnToggleGeomDock');
 
                         if (mode === 'pan') {
+                            if (map && map.doubleClickZoom) map.doubleClickZoom.enable();
                             const btn = document.getElementById('btnGeomPan');
                             if (btn) btn.classList.add('active');
                             if (banner) banner.style.display = 'none';
@@ -2421,6 +2484,8 @@ export class MapView {
                             if (toggleBtn) toggleBtn.classList.remove('active');
                             return;
                         }
+
+                        if (map && map.doubleClickZoom) map.doubleClickZoom.disable();
 
                         // Activate dock when a drawing tool is selected
                         if (dock) dock.style.display = 'flex';
@@ -2451,21 +2516,25 @@ export class MapView {
                             if (btn) btn.classList.add('active');
                             if (label) label.textContent = 'Point placement.';
                             activeDrawer = new L.Draw.Marker(map, { icon: createPinIcon(col) });
+                            if (!isRestart) showHud('📍 Marcador / Punto activado (Option+1 / Ctrl+1)');
                         } else if (mode === 'polyline') {
                             const btn = document.getElementById('btnGeomLine');
                             if (btn) btn.classList.add('active');
                             if (label) label.textContent = 'Line drawing.';
                             activeDrawer = new L.Draw.Polyline(map, { shapeOptions: { color: col, weight: 3 } });
+                            if (!isRestart) showHud('📈 Línea activada (Option+2 / Ctrl+2)');
                         } else if (mode === 'polygon') {
                             const btn = document.getElementById('btnGeomPolygon');
                             if (btn) btn.classList.add('active');
                             if (label) label.textContent = 'Polygon drawing.';
                             activeDrawer = new L.Draw.Polygon(map, commonOpts);
+                            if (!isRestart) showHud('⬡ Polígono activado (Option+3 / Ctrl+3)');
                         } else if (mode === 'rectangle') {
                             const btn = document.getElementById('btnGeomRect');
                             if (btn) btn.classList.add('active');
                             if (label) label.textContent = 'Rectangle drawing.';
                             activeDrawer = new L.Draw.Rectangle(map, commonOpts);
+                            if (!isRestart) showHud('▢ Rectángulo activado (Option+4 / Ctrl+4)');
                         }
 
                         if (activeDrawer) {
@@ -2550,11 +2619,12 @@ export class MapView {
                         showHud('Added to ' + activeLayer.name);
 
                         if (activeDrawMode !== 'pan') {
+                            const keepMode = activeDrawMode;
                             setTimeout(() => {
-                                if (activeDrawMode !== 'pan') {
-                                    setGeomDrawMode(activeDrawMode);
+                                if (activeDrawMode === keepMode) {
+                                    setGeomDrawMode(keepMode, { isRestart: true });
                                 }
-                            }, 100);
+                            }, 50);
                         }
                     });
 
@@ -3010,23 +3080,22 @@ export class MapView {
                         const layer = geometryLayers.find(l => l.id === modalEditingLayerId);
                         if (!layer) return;
 
-                        if (confirm('Delete layer "' + layer.name + '" and all its geometries?')) {
-                            if (map.hasLayer(layer.featureGroup)) {
-                                map.removeLayer(layer.featureGroup);
-                            }
-                            geometryLayers = geometryLayers.filter(l => l.id !== layer.id);
-
-                            if (geometryLayers.length === 0) {
-                                createNewGeomLayer('geometry');
-                            } else {
-                                setActiveGeomLayer(geometryLayers[0].id);
-                            }
-
-                            closeGeomConfigModal();
-                            renderGeometryImportsUI();
-                            syncGeometriesToExtension();
-                            showHud('🗑️ Layer deleted');
+                        const layerName = layer.name;
+                        if (map.hasLayer(layer.featureGroup)) {
+                            map.removeLayer(layer.featureGroup);
                         }
+                        geometryLayers = geometryLayers.filter(l => l.id !== layer.id);
+
+                        if (geometryLayers.length === 0) {
+                            createNewGeomLayer('geometry');
+                        } else {
+                            setActiveGeomLayer(geometryLayers[0].id);
+                        }
+
+                        closeGeomConfigModal();
+                        renderGeometryImportsUI();
+                        syncGeometriesToExtension();
+                        showHud('🗑️ Capa "' + layerName + '" eliminada');
                     }
 
                     function shapeToJsConstructor(shape) {
@@ -3389,9 +3458,9 @@ export class MapView {
                             if (mapEl) mapEl.classList.add('crosshair-mode');
                         }
 
-                        // 2. Geometry Drawing Shortcuts: EXCLUSIVELY with Control key (Ctrl + 1, 2, 3, 4)
+                        // 2. Geometry Drawing Shortcuts: Control or Option/Alt key (Ctrl + 1..4 / Alt + 1..4)
                         // Rejects Command (metaKey) to prevent quadrant/system collision
-                        if (e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                        if ((e.ctrlKey || e.altKey) && !e.metaKey && !e.shiftKey) {
                             const is1 = e.key === '1' || e.code === 'Digit1' || e.code === 'Numpad1';
                             const is2 = e.key === '2' || e.code === 'Digit2' || e.code === 'Numpad2';
                             const is3 = e.key === '3' || e.code === 'Digit3' || e.code === 'Numpad3';
@@ -3401,28 +3470,38 @@ export class MapView {
                             if (is1) {
                                 e.preventDefault();
                                 e.stopPropagation();
+                                e.stopImmediatePropagation();
                                 setGeomDrawMode('marker');
-                                showHud('📍 Marcador / Punto activado (Ctrl+1)');
+                                showHud('📍 Marcador / Punto activado (Ctrl+1 / Option+1)');
+                                return;
                             } else if (is2) {
                                 e.preventDefault();
                                 e.stopPropagation();
+                                e.stopImmediatePropagation();
                                 setGeomDrawMode('polyline');
-                                showHud('📈 Línea activada (Ctrl+2)');
+                                showHud('📈 Línea activada (Ctrl+2 / Option+2)');
+                                return;
                             } else if (is3) {
                                 e.preventDefault();
                                 e.stopPropagation();
+                                e.stopImmediatePropagation();
                                 setGeomDrawMode('polygon');
-                                showHud('⬡ Polígono activado (Ctrl+3)');
+                                showHud('⬡ Polígono activado (Ctrl+3 / Option+3)');
+                                return;
                             } else if (is4) {
                                 e.preventDefault();
                                 e.stopPropagation();
+                                e.stopImmediatePropagation();
                                 setGeomDrawMode('rectangle');
-                                showHud('▢ Rectángulo activado (Ctrl+4)');
+                                showHud('▢ Rectángulo activado (Ctrl+4 / Option+4)');
+                                return;
                             } else if (is0) {
                                 e.preventDefault();
                                 e.stopPropagation();
+                                e.stopImmediatePropagation();
                                 setGeomDrawMode('pan');
                                 showHud('🖐️ Modo Navegación / Manito (Esc)');
+                                return;
                             }
                         }
                     }
@@ -4761,10 +4840,10 @@ export class MapView {
                             }
                         }
 
+                        // Layer toggles: strictly DIRECT numbers 1..9, 0 (no Ctrl, no Alt/Option, no Cmd, no Shift)
                         const isDirectNum = !isCmdOrCtrl && !isAlt && !e.shiftKey && pressedDigit !== -1;
-                        const isAltNum = isAlt && !isCmdOrCtrl && pressedDigit !== -1;
 
-                        if (isDirectNum || isAltNum) {
+                        if (isDirectNum) {
                             e.preventDefault();
                             e.stopPropagation();
                             if (pressedDigit === 0) {
@@ -4772,6 +4851,7 @@ export class MapView {
                             } else {
                                 toggleLayerByIndex(pressedDigit - 1);
                             }
+                            return;
                         }
                     }, true);
 
@@ -6065,7 +6145,11 @@ export class MapView {
                     let lastMouseY = window.innerHeight / 2;
 
                     window.setSwipeSubMode = function(mode) {
-                        if (!['split', 'quad'].includes(mode)) return;
+                        if (mode === 'quad') {
+                            showHud('🔒 Quad-Swipe 2x2 disponible en GEE IDE Pro');
+                            return;
+                        }
+                        if (!['split'].includes(mode)) return;
                         swipeSubMode = mode;
 
                         // Clean all layer clip and mask styles before switching
@@ -6082,9 +6166,7 @@ export class MapView {
                         updateSwipeClip();
                         updateLayerManagerUI();
                         if (mode === 'split') {
-                            showHud('🔀 Cortina 1v1: Control = Horizontal • Shift = Lupa Rayos-X');
-                        } else if (mode === 'quad') {
-                            showHud('✛ Quad-Swipe 2x2: 4 Cuadrantes sincronizados (Tab para alternar)');
+                            showHud('🔀 Cortina 1v1: Mantén Control para Swipe horizontal');
                         }
                     };
 
@@ -6403,7 +6485,7 @@ export class MapView {
                             }
                             updateSwipeClip();
                             updateLayerManagerUI();
-                            showHud('🔀 Cortina: Control = Horizontal • Shift = Lupa • Shift+Ctrl = Quad');
+                            showHud('🔀 Cortina: Control = Horizontal • Arrastra para comparar');
                         } else {
                             if (map.doubleClickZoom) {
                                 map.doubleClickZoom.enable();
@@ -6590,25 +6672,9 @@ export class MapView {
                             const isCtrl = e.key === 'Control' || (e.ctrlKey && !e.metaKey);
                             const isShift = e.key === 'Shift' || e.shiftKey;
 
-                            // Shift + Control ONLY -> Quad-Swipe 2x2 with dynamic cursor gliding
+                            // Shift + Control -> Quad-Swipe 2x2 (Función Pro)
                             if (isShift && isCtrl) {
-                                if (!isQuadTempActive) {
-                                    isQuadTempActive = true;
-                                    if (isShiftSpyActive) {
-                                        isShiftSpyActive = false;
-                                        isSpyMouseDown = false;
-                                        if (map.dragging && !map.dragging.enabled()) map.dragging.enable();
-                                        document.body.style.cursor = '';
-                                        const mapEl = document.getElementById('map');
-                                        if (mapEl) mapEl.style.cursor = '';
-                                    }
-                                    setSwipeSubMode('quad');
-                                    quadX = lastMouseX;
-                                    quadY = lastMouseY;
-                                    quadLatLng = map.containerPointToLatLng([quadX, quadY]);
-                                    updateSwipeClip();
-                                    showHud('✛ Quad-Swipe 2x2 (Shift+Control): Cruceta sigue al cursor');
-                                }
+                                showHud('🔒 Quad-Swipe 2x2 disponible en GEE IDE Pro');
                                 return;
                             }
 
@@ -6622,15 +6688,9 @@ export class MapView {
                                         showHud('⇅ Swipe Horizontal (Control presionado)');
                                     }
                                 } else if (isShift && !isCtrl) {
-                                    if (!isShiftSpyActive) {
-                                        isShiftSpyActive = true;
-                                        isSpyMouseDown = false;
-                                        spyX = lastMouseX;
-                                        spyY = lastMouseY;
-                                        spyLatLng = map.containerPointToLatLng([spyX, spyY]);
-                                        updateSwipeClip();
-                                        showHud('🔍 Lupa: Capa superior visible • Mantén Clic para Rayos-X');
-                                    }
+                                    // Lupa Rayos-X es función Pro en GEE IDE Free
+                                    showHud('🔒 Lupa Rayos-X disponible en GEE IDE Pro');
+                                    return;
                                 }
                             }
                         }
@@ -6653,14 +6713,7 @@ export class MapView {
                             if (isQuadTempActive && (controlReleased || shiftReleased)) {
                                 isQuadTempActive = false;
                                 if (e.shiftKey && e.key !== 'Shift') {
-                                    setSwipeSubMode('split');
-                                    isShiftSpyActive = true;
-                                    isSpyMouseDown = false;
-                                    spyX = lastMouseX;
-                                    spyY = lastMouseY;
-                                    spyLatLng = map.containerPointToLatLng([spyX, spyY]);
-                                    updateSwipeClip();
-                                    showHud('🔍 Lupa: Capa superior visible • Mantén Clic para Rayos-X');
+                                    showHud('🔒 Lupa Rayos-X disponible en GEE IDE Pro');
                                     return;
                                 } else if (e.ctrlKey && e.key !== 'Control') {
                                     setSwipeSubMode('split');
@@ -6739,7 +6792,13 @@ export class MapView {
 
                     let rulerMode = false;
                     let rulerType = 'line'; // 'line' | 'area'
-                    let rulerPoints = []; // Array of L.LatLng
+                    let rulerLines = [[]]; // Array of polylines: Array<Array<L.LatLng>>
+                    let isRulerLineFinished = false; // true when current line segment was ended by double-click
+                    let rulerPolygons = [[]]; // Array of polygons: Array<Array<L.LatLng>>
+                    let isRulerAreaFinished = false; // true when current polygon was closed
+                    let lastRulerClickTime = 0;
+                    let lastRulerClickLatLng = null;
+                    let rulerPoints = []; // Flattened points for compatibility
                     const rulerLayerGroup = L.layerGroup().addTo(map);
                     let rulerMainShape = null;
                     let rulerRubberLine = null;
@@ -6772,26 +6831,26 @@ export class MapView {
                     function formatRulerDist(meters, unitOverride) {
                         const sel = document.getElementById('rulerUnitSelect');
                         const u = unitOverride || (sel ? sel.value : 'auto');
-                        if (u === 'm') return meters.toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' m';
-                        if (u === 'km') return (meters / 1000).toLocaleString('en-US', { maximumFractionDigits: 3 }) + ' km';
-                        if (u === 'mi') return (meters / 1609.344).toLocaleString('en-US', { maximumFractionDigits: 3 }) + ' mi';
-                        if (u === 'ft') return (meters * 3.28084).toLocaleString('en-US', { maximumFractionDigits: 1 }) + ' ft';
-                        if (u === 'nmi') return (meters / 1852).toLocaleString('en-US', { maximumFractionDigits: 3 }) + ' nmi';
+                        if (u === 'm') return meters.toFixed(2) + ' m';
+                        if (u === 'km') return (meters / 1000).toFixed(2) + ' km';
+                        if (u === 'mi') return (meters / 1609.344).toFixed(2) + ' mi';
+                        if (u === 'ft') return (meters * 3.28084).toFixed(2) + ' ft';
+                        if (u === 'nmi') return (meters / 1852).toFixed(2) + ' nmi';
                         return meters >= 1000
-                            ? (meters / 1000).toLocaleString('en-US', { maximumFractionDigits: 3 }) + ' km'
-                            : meters.toLocaleString('en-US', { maximumFractionDigits: 1 }) + ' m';
+                            ? (meters / 1000).toFixed(2) + ' km'
+                            : meters.toFixed(2) + ' m';
                     }
 
                     function formatRulerArea(sqMeters) {
                         const sel = document.getElementById('rulerUnitSelect');
                         const u = sel ? sel.value : 'auto';
-                        if (u === 'm2') return sqMeters.toLocaleString('en-US', { maximumFractionDigits: 1 }) + ' m²';
-                        if (u === 'ha') return (sqMeters / 10000).toLocaleString('en-US', { maximumFractionDigits: 3 }) + ' ha';
-                        if (u === 'km2') return (sqMeters / 1e6).toLocaleString('en-US', { maximumFractionDigits: 4 }) + ' km²';
-                        if (u === 'ac') return (sqMeters / 4046.8564).toLocaleString('en-US', { maximumFractionDigits: 3 }) + ' ac';
-                        if (sqMeters >= 1e6) return (sqMeters / 1e6).toLocaleString('en-US', { maximumFractionDigits: 3 }) + ' km²';
-                        if (sqMeters >= 10000) return (sqMeters / 10000).toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' ha';
-                        return sqMeters.toLocaleString('en-US', { maximumFractionDigits: 1 }) + ' m²';
+                        if (u === 'm2') return sqMeters.toFixed(2) + ' m²';
+                        if (u === 'ha') return (sqMeters / 10000).toFixed(2) + ' ha';
+                        if (u === 'km2') return (sqMeters / 1e6).toFixed(2) + ' km²';
+                        if (u === 'ac') return (sqMeters / 4046.8564).toFixed(2) + ' ac';
+                        if (sqMeters >= 1e6) return (sqMeters / 1e6).toFixed(2) + ' km²';
+                        if (sqMeters >= 10000) return (sqMeters / 10000).toFixed(2) + ' ha';
+                        return sqMeters.toFixed(2) + ' m²';
                     }
 
                     function computeBearing(p1, p2) {
@@ -6806,6 +6865,16 @@ export class MapView {
                     function compassDir(deg) {
                         const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
                         return dirs[Math.round(deg / 45) % 8];
+                    }
+
+                    function getRulerVertexLetter(globalIdx) {
+                        let letter = '';
+                        let n = globalIdx;
+                        while (n >= 0) {
+                            letter = String.fromCharCode(65 + (n % 26)) + letter;
+                            n = Math.floor(n / 26) - 1;
+                        }
+                        return letter;
                     }
 
                     // Spherical excess / WGS84 geodesic polygon area (m²)
@@ -6823,7 +6892,60 @@ export class MapView {
                         return Math.abs(area * R * R / 2.0);
                     }
 
-                    function computeRulerMetrics(pts) {
+                    function computeRulerAllLinesData(previewLatLng) {
+                        let globalVertexIdx = 0;
+                        let totalAllDist = 0;
+                        const linesData = [];
+
+                        rulerLines.forEach((linePts, lineIdx) => {
+                            let pts = linePts.slice();
+                            const isCurrentActiveLine = lineIdx === rulerLines.length - 1 && !isRulerLineFinished;
+                            if (isCurrentActiveLine && previewLatLng && rulerMode) {
+                                pts = pts.concat([previewLatLng]);
+                            }
+                            if (pts.length === 0) return;
+
+                            const startLabel = getRulerVertexLetter(globalVertexIdx);
+                            const segments = [];
+                            let lineDist = 0;
+
+                            for (let i = 1; i < pts.length; i++) {
+                                const d = map.distance(pts[i - 1], pts[i]);
+                                const brg = computeBearing(pts[i - 1], pts[i]);
+                                lineDist += d;
+                                const fromLabel = getRulerVertexLetter(globalVertexIdx + i - 1);
+                                const toLabel = getRulerVertexLetter(globalVertexIdx + i);
+                                segments.push({
+                                    idx: i,
+                                    from: fromLabel,
+                                    to: toLabel,
+                                    dist: d,
+                                    bearing: brg,
+                                    p1: pts[i - 1],
+                                    p2: pts[i]
+                                });
+                            }
+
+                            const endLabel = getRulerVertexLetter(globalVertexIdx + pts.length - 1);
+                            totalAllDist += lineDist;
+
+                            linesData.push({
+                                lineIdx,
+                                pts,
+                                startLabel,
+                                endLabel,
+                                totalDist: lineDist,
+                                segments,
+                                baseVertexIdx: globalVertexIdx
+                            });
+
+                            globalVertexIdx += linePts.length;
+                        });
+
+                        return { linesData, totalAllDist, totalVertices: globalVertexIdx };
+                    }
+
+                    function computeRulerAreaMetrics(pts) {
                         let totalDist = 0;
                         const segments = [];
                         for (let i = 1; i < pts.length; i++) {
@@ -6840,104 +6962,372 @@ export class MapView {
                         return { totalDist, perimeter, area, segments };
                     }
 
-                    window.updateRulerUI = function(hoverLatLng) {
-                        rulerLayerGroup.clearLayers();
-                        const pts = rulerPoints.slice();
-                        const previewPts = hoverLatLng && rulerMode ? pts.concat([hoverLatLng]) : pts;
+                    function computeRulerAllAreasData(previewLatLng) {
+                        let globalVertexIdx = 0;
+                        let totalAllArea = 0;
+                        const polygonsData = [];
 
-                        if (pts.length > 0) {
-                            if (rulerType === 'line') {
-                                rulerMainShape = L.polyline(pts, { color: '#00e5ff', weight: 3, opacity: 0.95 }).addTo(rulerLayerGroup);
-                            } else {
-                                rulerMainShape = L.polygon(previewPts.length >= 3 ? previewPts : pts, {
-                                    color: '#ffeb3b',
-                                    weight: 2.5,
-                                    fillColor: '#ffeb3b',
-                                    fillOpacity: 0.22
-                                }).addTo(rulerLayerGroup);
+                        rulerPolygons.forEach((polyPts, polyIdx) => {
+                            let pts = polyPts.slice();
+                            const isCurrentActivePoly = polyIdx === rulerPolygons.length - 1 && !isRulerAreaFinished;
+                            if (isCurrentActivePoly && previewLatLng && rulerMode) {
+                                pts = pts.concat([previewLatLng]);
                             }
+                            if (pts.length === 0) return;
 
-                            if (hoverLatLng && pts.length >= 1) {
-                                rulerRubberLine = L.polyline([pts[pts.length - 1], hoverLatLng], {
-                                    color: '#ffeb3b',
-                                    weight: 2,
-                                    dashArray: '5, 5',
-                                    opacity: 0.9
-                                }).addTo(rulerLayerGroup);
-                            }
+                            const startLabel = getRulerVertexLetter(globalVertexIdx);
+                            const segments = [];
+                            let perimeter = 0;
 
-                            pts.forEach((pt, idx) => {
-                                L.circleMarker(pt, {
-                                    radius: idx === 0 ? 5.5 : 4.5,
-                                    color: '#111',
-                                    weight: 1.5,
-                                    fillColor: idx === 0 ? '#00ff88' : '#00e5ff',
-                                    fillOpacity: 1
-                                }).addTo(rulerLayerGroup);
-                            });
-
-                            // Segment midpoint labels on map
                             for (let i = 1; i < pts.length; i++) {
                                 const d = map.distance(pts[i - 1], pts[i]);
-                                const midLat = (pts[i - 1].lat + pts[i].lat) / 2;
-                                const midLng = (pts[i - 1].lng + pts[i].lng) / 2;
-                                L.marker([midLat, midLng], {
-                                    interactive: false,
-                                    icon: L.divIcon({
-                                        className: '',
-                                        html: '<span class="gee-ruler-seg-label">' + formatRulerDist(d) + '</span>'
-                                    })
-                                }).addTo(rulerLayerGroup);
+                                const brg = computeBearing(pts[i - 1], pts[i]);
+                                perimeter += d;
+                                const fromLabel = getRulerVertexLetter(globalVertexIdx + i - 1);
+                                const toLabel = getRulerVertexLetter(globalVertexIdx + i);
+                                segments.push({
+                                    idx: i,
+                                    from: fromLabel,
+                                    to: toLabel,
+                                    dist: d,
+                                    bearing: brg,
+                                    p1: pts[i - 1],
+                                    p2: pts[i]
+                                });
                             }
-                        }
+                            if (pts.length >= 3) {
+                                const closeDist = map.distance(pts[pts.length - 1], pts[0]);
+                                const closeBrg = computeBearing(pts[pts.length - 1], pts[0]);
+                                perimeter += closeDist;
+                                segments.push({
+                                    idx: pts.length,
+                                    from: getRulerVertexLetter(globalVertexIdx + pts.length - 1),
+                                    to: startLabel,
+                                    dist: closeDist,
+                                    bearing: closeBrg,
+                                    p1: pts[pts.length - 1],
+                                    p2: pts[0]
+                                });
+                            }
 
-                        const m = computeRulerMetrics(previewPts);
-                        const fixedM = computeRulerMetrics(pts);
-                        const primEl = document.getElementById('rulerPrimaryValue');
-                        const secEl = document.getElementById('rulerSecondaryValue');
-                        const segBox = document.getElementById('rulerSegmentsBox');
+                            const area = pts.length >= 3 ? computeGeodesicArea(pts) : 0;
+                            const endLabel = getRulerVertexLetter(globalVertexIdx + pts.length - 1);
+                            totalAllArea += area;
+
+                            let sumLat = 0, sumLng = 0;
+                            pts.forEach(p => { sumLat += p.lat; sumLng += p.lng; });
+                            const centerLatLng = [sumLat / pts.length, sumLng / pts.length];
+
+                            polygonsData.push({
+                                polyIdx,
+                                pts,
+                                startLabel,
+                                endLabel,
+                                area,
+                                perimeter,
+                                segments,
+                                centerLatLng,
+                                baseVertexIdx: globalVertexIdx
+                            });
+
+                            globalVertexIdx += polyPts.length;
+                        });
+
+                        return { polygonsData, totalAllArea, totalVertices: globalVertexIdx };
+                    }
+
+                    window.finishRulerSegment = function() {
+                        if (rulerType !== 'line') return;
+                        if (rulerLines.length === 0) return;
+                        const currentLine = rulerLines[rulerLines.length - 1];
+                        if (currentLine && currentLine.length >= 2) {
+                            // Clean duplicate vertex if double-click registered extra point
+                            const pLast = currentLine[currentLine.length - 1];
+                            const pPrev = currentLine[currentLine.length - 2];
+                            if (map.distance(pLast, pPrev) < 15) {
+                                currentLine.pop();
+                                rulerPoints = rulerLines.flat();
+                            }
+                            isRulerLineFinished = true;
+                            updateRulerUI();
+                            const { linesData } = computeRulerAllLinesData();
+                            const lastLd = linesData[linesData.length - 1];
+                            showHud('✅ Tramo ' + (lastLd ? lastLd.startLabel + '-' + lastLd.endLabel : '') + ' cerrado. Clic en mapa para iniciar otro.');
+                        }
+                    };
+
+                    window.finishRulerArea = function() {
+                        if (rulerType !== 'area') return;
+                        if (rulerPolygons.length === 0) return;
+                        const currPoly = rulerPolygons[rulerPolygons.length - 1];
+                        if (currPoly && currPoly.length >= 3) {
+                            const pLast = currPoly[currPoly.length - 1];
+                            const pPrev = currPoly[currPoly.length - 2];
+                            if (map.distance(pLast, pPrev) < 15) {
+                                currPoly.pop();
+                                rulerPoints = rulerPolygons.flat();
+                            }
+                            isRulerAreaFinished = true;
+                            updateRulerUI();
+                            const { polygonsData } = computeRulerAllAreasData();
+                            const lastPd = polygonsData[polygonsData.length - 1];
+                            showHud('✅ Polígono #' + (lastPd ? (lastPd.polyIdx + 1) : '') + ' cerrado (' + formatRulerArea(lastPd ? lastPd.area : 0) + '). Clic para iniciar otra área.');
+                        } else {
+                            showHud('⚠️ Un polígono requiere al menos 3 vértices para cerrarse');
+                        }
+                    };
+
+                    window.updateRulerUI = function(hoverLatLng) {
+                        rulerLayerGroup.clearLayers();
 
                         if (rulerType === 'line') {
-                            if (primEl) primEl.textContent = formatRulerDist(m.totalDist);
+                            const { linesData, totalAllDist } = computeRulerAllLinesData(hoverLatLng);
+                            let globalMarkerIdx = 0;
+
+                            linesData.forEach(ld => {
+                                const pts = ld.pts;
+                                if (pts.length >= 2) {
+                                    L.polyline(pts, { color: '#00e5ff', weight: 3, opacity: 0.95 }).addTo(rulerLayerGroup);
+                                }
+
+                                // Segment midpoint distance labels on map (only distance value, no A-B prefix)
+                                for (let i = 1; i < pts.length; i++) {
+                                    const d = map.distance(pts[i - 1], pts[i]);
+                                    const midLat = (pts[i - 1].lat + pts[i].lat) / 2;
+                                    const midLng = (pts[i - 1].lng + pts[i].lng) / 2;
+                                    L.marker([midLat, midLng], {
+                                        interactive: false,
+                                        icon: L.divIcon({
+                                            className: '',
+                                            html: '<span class="gee-ruler-seg-label">' + formatRulerDist(d) + '</span>'
+                                        })
+                                    }).addTo(rulerLayerGroup);
+                                }
+                            });
+
+                            // Render letter badges on vertices (only for committed points)
+                            rulerLines.forEach((linePts, lineIdx) => {
+                                linePts.forEach((pt, pIdx) => {
+                                    const letter = getRulerVertexLetter(globalMarkerIdx);
+                                    const isStart = pIdx === 0;
+                                    L.marker(pt, {
+                                        interactive: false,
+                                        icon: L.divIcon({
+                                            className: '',
+                                            iconSize: [17, 17],
+                                            iconAnchor: [8.5, 8.5],
+                                            html: '<div class="gee-ruler-vertex-badge' + (isStart ? ' start' : '') + '">' + letter + '</div>'
+                                        })
+                                    }).addTo(rulerLayerGroup);
+                                    globalMarkerIdx++;
+                                });
+                            });
+
+                            // Rubber line preview for active segment
+                            if (hoverLatLng && rulerLines.length > 0 && !isRulerLineFinished) {
+                                const currLine = rulerLines[rulerLines.length - 1];
+                                if (currLine && currLine.length >= 1) {
+                                    rulerRubberLine = L.polyline([currLine[currLine.length - 1], hoverLatLng], {
+                                        color: '#ffeb3b',
+                                        weight: 2,
+                                        dashArray: '5, 5',
+                                        opacity: 0.9
+                                    }).addTo(rulerLayerGroup);
+                                }
+                            }
+
+                            // Update Panel UI Values
+                            const primEl = document.getElementById('rulerPrimaryValue');
+                            const secEl = document.getElementById('rulerSecondaryValue');
+                            const segBox = document.getElementById('rulerSegmentsBox');
+
+                            if (primEl) primEl.textContent = formatRulerDist(totalAllDist);
                             if (secEl) {
-                                if (m.segments.length > 0) {
-                                    const last = m.segments[m.segments.length - 1];
-                                    secEl.textContent = 'Tramo #' + last.idx + ': ' + formatRulerDist(last.dist) + '  |  🧭 ' + last.bearing.toFixed(1) + '° (' + compassDir(last.bearing) + ')';
+                                const activeLine = rulerLines.length > 0 ? rulerLines[rulerLines.length - 1] : [];
+                                if (isRulerLineFinished) {
+                                    secEl.textContent = '✅ Tramo finalizado. Clic en mapa para iniciar nueva línea.';
+                                } else if (activeLine.length >= 1) {
+                                    secEl.textContent = 'Mueve y haz clic (o doble clic para cerrar este segmento)...';
                                 } else {
-                                    secEl.textContent = pts.length === 1 ? 'Mueve el cursor y haz clic en el siguiente punto...' : 'Haz clic en el mapa para iniciar medición...';
+                                    secEl.textContent = 'Haz clic en el mapa para iniciar medición...';
+                                }
+                            }
+
+                            if (segBox) {
+                                const committedData = computeRulerAllLinesData(null);
+                                const validLines = committedData.linesData.filter(ld => ld.segments.length > 0);
+                                if (validLines.length > 0) {
+                                    segBox.style.display = 'block';
+                                    let html = '';
+                                    validLines.forEach((ld, idx) => {
+                                        html += '<div style="margin-bottom: 4px; padding-bottom: 3px; border-bottom: 1px solid rgba(255,255,255,0.08);">';
+                                        html += '<div style="display:flex; justify-content:space-between; color:#4ec9b0; font-weight:700; font-size:10px;">';
+                                        html += '<span>Línea #' + (idx + 1) + ' (' + ld.startLabel + ' ➔ ' + ld.endLabel + ')</span>';
+                                        html += '<span>' + formatRulerDist(ld.totalDist) + '</span>';
+                                        html += '</div>';
+                                        ld.segments.forEach(s => {
+                                            html += '<div style="display:flex; justify-content:space-between; padding:1px 0 1px 6px; color:#bbb; font-size:9.5px;">';
+                                            html += '<span>' + s.from + ' ➔ ' + s.to + ' (' + s.bearing.toFixed(0) + '° ' + compassDir(s.bearing) + ')</span>';
+                                            html += '<span style="color:#eee;">' + formatRulerDist(s.dist) + '</span>';
+                                            html += '</div>';
+                                        });
+                                        html += '</div>';
+                                    });
+                                    segBox.innerHTML = html;
+                                    segBox.scrollTop = segBox.scrollHeight;
+                                } else {
+                                    segBox.style.display = 'none';
                                 }
                             }
                         } else {
-                            if (primEl) primEl.textContent = formatRulerArea(m.area);
-                            if (secEl) {
-                                secEl.textContent = previewPts.length >= 3
-                                    ? 'Perímetro: ' + formatRulerDist(m.perimeter, 'auto') + ' (' + pts.length + ' vértices)'
-                                    : 'Agrega al menos 3 vértices para calcular el área...';
-                            }
-                        }
+                            // AREA MODE - MULTIPLE INDEPENDENT POLYGONS
+                            const { polygonsData, totalAllArea } = computeRulerAllAreasData(hoverLatLng);
+                            let globalMarkerIdx = 0;
 
-                        if (segBox) {
-                            if (fixedM.segments.length > 0) {
-                                segBox.style.display = 'block';
-                                segBox.innerHTML = fixedM.segments.map(s =>
-                                    '<div style="display:flex; justify-content:space-between; padding:1px 0; border-bottom:1px solid rgba(255,255,255,0.05);">' +
-                                        '<span style="color:#888;">#' + s.idx + ' (' + s.bearing.toFixed(0) + '° ' + compassDir(s.bearing) + ')</span>' +
-                                        '<span style="color:#e0e0e0;">' + formatRulerDist(s.dist) + '</span>' +
-                                    '</div>'
-                                ).join('');
-                                segBox.scrollTop = segBox.scrollHeight;
-                            } else {
-                                segBox.style.display = 'none';
+                            polygonsData.forEach(pd => {
+                                const pts = pd.pts;
+                                if (pts.length >= 3) {
+                                    L.polygon(pts, {
+                                        color: '#ffeb3b',
+                                        weight: 2.5,
+                                        fillColor: '#ffeb3b',
+                                        fillOpacity: 0.22
+                                    }).addTo(rulerLayerGroup);
+
+                                    // Centroid badge on map for closed/valid polygons
+                                    const polyCode = 'A' + String(pd.polyIdx + 1).padStart(2, '0');
+                                    L.marker(pd.centerLatLng, {
+                                        interactive: false,
+                                        icon: L.divIcon({
+                                            className: 'gee-ruler-area-icon-container',
+                                            iconSize: [0, 0],
+                                            iconAnchor: [0, 0],
+                                            html: '<div class="gee-ruler-area-badge"><span style="color:#4ec9b0; font-weight:700;">' + polyCode + ':</span> <span style="color:#ffeb3b; font-weight:700;">' + formatRulerArea(pd.area) + '</span></div>'
+                                        })
+                                    }).addTo(rulerLayerGroup);
+                                } else if (pts.length === 2) {
+                                    L.polyline(pts, { color: '#ffeb3b', weight: 2.5, opacity: 0.85 }).addTo(rulerLayerGroup);
+                                }
+
+                                // Segment midpoint distance labels on polygon edges
+                                for (let i = 1; i < pts.length; i++) {
+                                    const d = map.distance(pts[i - 1], pts[i]);
+                                    const midLat = (pts[i - 1].lat + pts[i].lat) / 2;
+                                    const midLng = (pts[i - 1].lng + pts[i].lng) / 2;
+                                    L.marker([midLat, midLng], {
+                                        interactive: false,
+                                        icon: L.divIcon({
+                                            className: '',
+                                            html: '<span class="gee-ruler-seg-label">' + formatRulerDist(d) + '</span>'
+                                        })
+                                    }).addTo(rulerLayerGroup);
+                                }
+                                if (pts.length >= 3) {
+                                    const closeD = map.distance(pts[pts.length - 1], pts[0]);
+                                    const cMidLat = (pts[pts.length - 1].lat + pts[0].lat) / 2;
+                                    const cMidLng = (pts[pts.length - 1].lng + pts[0].lng) / 2;
+                                    L.marker([cMidLat, cMidLng], {
+                                        interactive: false,
+                                        icon: L.divIcon({
+                                            className: '',
+                                            html: '<span class="gee-ruler-seg-label">' + formatRulerDist(closeD) + '</span>'
+                                        })
+                                    }).addTo(rulerLayerGroup);
+                                }
+                            });
+
+                            // Render letter badges on vertices (only committed points)
+                            rulerPolygons.forEach((polyPts, polyIdx) => {
+                                polyPts.forEach((pt, pIdx) => {
+                                    const letter = getRulerVertexLetter(globalMarkerIdx);
+                                    const isStart = pIdx === 0;
+                                    L.marker(pt, {
+                                        interactive: false,
+                                        icon: L.divIcon({
+                                            className: '',
+                                            iconSize: [17, 17],
+                                            iconAnchor: [8.5, 8.5],
+                                            html: '<div class="gee-ruler-vertex-badge' + (isStart ? ' start' : '') + '">' + letter + '</div>'
+                                        })
+                                    }).addTo(rulerLayerGroup);
+                                    globalMarkerIdx++;
+                                });
+                            });
+
+                            // Rubber line preview for active polygon
+                            if (hoverLatLng && rulerPolygons.length > 0 && !isRulerAreaFinished) {
+                                const currPoly = rulerPolygons[rulerPolygons.length - 1];
+                                if (currPoly && currPoly.length >= 1) {
+                                    const rubberPts = [currPoly[currPoly.length - 1], hoverLatLng];
+                                    if (currPoly.length >= 2) {
+                                        rubberPts.push(currPoly[0]); // rubber polygon preview back to origin
+                                    }
+                                    rulerRubberLine = L.polyline(rubberPts, {
+                                        color: '#ffeb3b',
+                                        weight: 2,
+                                        dashArray: '5, 5',
+                                        opacity: 0.9
+                                    }).addTo(rulerLayerGroup);
+                                }
+                            }
+
+                            // Update Panel UI Values
+                            const primEl = document.getElementById('rulerPrimaryValue');
+                            const secEl = document.getElementById('rulerSecondaryValue');
+                            const segBox = document.getElementById('rulerSegmentsBox');
+
+                            if (primEl) primEl.textContent = formatRulerArea(totalAllArea);
+                            if (secEl) {
+                                const activePoly = rulerPolygons.length > 0 ? rulerPolygons[rulerPolygons.length - 1] : [];
+                                if (isRulerAreaFinished) {
+                                    secEl.textContent = '';
+                                } else if (activePoly.length >= 3) {
+                                    secEl.textContent = 'Mueve y haz clic (o clic en vértice inicial A / doble clic para cerrar)...';
+                                } else if (activePoly.length >= 1) {
+                                    secEl.textContent = 'Agrega más vértices para formar el polígono...';
+                                } else {
+                                    secEl.textContent = 'Haz clic en el mapa para iniciar área...';
+                                }
+                            }
+
+                            if (segBox) {
+                                const committedData = computeRulerAllAreasData(null);
+                                const validPolys = committedData.polygonsData.filter(pd => pd.pts.length >= 3);
+                                if (validPolys.length > 0) {
+                                    segBox.style.display = 'block';
+                                    let html = '';
+                                    validPolys.forEach((pd, idx) => {
+                                        html += '<div style="margin-bottom: 4px; padding-bottom: 3px; border-bottom: 1px solid rgba(255,255,255,0.08);">';
+                                        html += '<div style="display:flex; justify-content:space-between; color:#ffeb3b; font-weight:700; font-size:10px;">';
+                                        html += '<span>Polígono #' + (idx + 1) + ' (' + pd.startLabel + ' ➔ ' + pd.endLabel + ')</span>';
+                                        html += '<span>' + formatRulerArea(pd.area) + '</span>';
+                                        html += '</div>';
+                                        html += '<div style="display:flex; justify-content:space-between; color:#888; font-size:9px; padding:1px 0 2px 4px;">';
+                                        html += '<span>Perímetro: ' + formatRulerDist(pd.perimeter) + '</span>';
+                                        html += '<span>' + (pd.area / 10000).toFixed(4) + ' ha</span>';
+                                        html += '</div>';
+                                        html += '</div>';
+                                    });
+                                    segBox.innerHTML = html;
+                                    segBox.scrollTop = segBox.scrollHeight;
+                                } else {
+                                    segBox.style.display = 'none';
+                                }
                             }
                         }
                     };
 
                     window.setRulerType = function(type) {
                         rulerType = type;
+                        rulerLines = [[]];
+                        isRulerLineFinished = false;
+                        rulerPolygons = [[]];
+                        isRulerAreaFinished = false;
+                        rulerPoints = [];
                         document.getElementById('rulerTabLine')?.classList.toggle('active', type === 'line');
                         document.getElementById('rulerTabArea')?.classList.toggle('active', type === 'area');
                         const lbl = document.getElementById('rulerMainLabel');
-                        if (lbl) lbl.textContent = type === 'line' ? 'Distancia Total' : 'Área Geodésica';
+                        if (lbl) lbl.textContent = type === 'line' ? 'Distancia Total' : 'Área Geodésica Total';
                         const profBtn = document.getElementById('btnRulerProfile');
                         if (profBtn) profBtn.style.display = type === 'line' ? 'flex' : 'none';
                         populateRulerUnits();
@@ -6951,6 +7341,7 @@ export class MapView {
                         const mapEl = document.getElementById('map');
 
                         if (rulerMode) {
+                            if (map && map.doubleClickZoom) map.doubleClickZoom.disable();
                             if (panel) panel.style.display = 'block';
                             if (btn) {
                                 btn.style.background = 'rgba(78, 201, 176, 0.4)';
@@ -6958,8 +7349,9 @@ export class MapView {
                             }
                             if (mapEl) mapEl.classList.add('crosshair-mode');
                             updateRulerUI();
-                            showHud('📏 Regla GIS Pro activa (Clic para medir, Backspace deshacer)');
+                            showHud('📏 Regla GIS activa (Clic para medir, doble clic fin tramo, Backspace deshacer)');
                         } else {
+                            if (map && map.doubleClickZoom) map.doubleClickZoom.enable();
                             if (panel) panel.style.display = 'none';
                             if (btn) {
                                 btn.style.background = '';
@@ -6971,15 +7363,39 @@ export class MapView {
                     };
 
                     window.rulerUndo = function() {
-                        if (rulerPoints.length > 0) {
-                            rulerPoints.pop();
-                            const elevBox = document.getElementById('rulerElevBox');
-                            if (elevBox) elevBox.style.display = 'none';
-                            updateRulerUI();
+                        if (rulerType === 'line') {
+                            if (rulerLines.length === 0) return;
+                            const lastLine = rulerLines[rulerLines.length - 1];
+                            if (lastLine.length > 0) {
+                                lastLine.pop();
+                                isRulerLineFinished = false;
+                            } else if (rulerLines.length > 1) {
+                                rulerLines.pop();
+                                isRulerLineFinished = true;
+                            }
+                            rulerPoints = rulerLines.flat();
+                        } else {
+                            if (rulerPolygons.length === 0) return;
+                            const lastPoly = rulerPolygons[rulerPolygons.length - 1];
+                            if (lastPoly.length > 0) {
+                                lastPoly.pop();
+                                isRulerAreaFinished = false;
+                            } else if (rulerPolygons.length > 1) {
+                                rulerPolygons.pop();
+                                isRulerAreaFinished = true;
+                            }
+                            rulerPoints = rulerPolygons.flat();
                         }
+                        const elevBox = document.getElementById('rulerElevBox');
+                        if (elevBox) elevBox.style.display = 'none';
+                        updateRulerUI();
                     };
 
                     window.rulerClear = function(silent) {
+                        rulerLines = [[]];
+                        isRulerLineFinished = false;
+                        rulerPolygons = [[]];
+                        isRulerAreaFinished = false;
                         rulerPoints = [];
                         rulerLayerGroup.clearLayers();
                         const elevBox = document.getElementById('rulerElevBox');
@@ -6989,60 +7405,133 @@ export class MapView {
                     };
 
                     window.rulerCopy = function() {
-                        const m = computeRulerMetrics(rulerPoints);
-                        const txt = rulerType === 'line'
-                            ? 'Distancia Total: ' + formatRulerDist(m.totalDist) + ' (' + m.totalDist.toFixed(2) + ' m)'
-                            : 'Área: ' + formatRulerArea(m.area) + ' (' + (m.area / 10000).toFixed(4) + ' ha) | Perímetro: ' + formatRulerDist(m.perimeter);
-                        vscode.postMessage({ command: 'copyToClipboard', text: txt });
+                        if (rulerType === 'line') {
+                            const { linesData, totalAllDist } = computeRulerAllLinesData();
+                            const validLines = linesData.filter(ld => ld.segments.length > 0);
+                            if (validLines.length === 0) return;
+                            const nl = String.fromCharCode(10);
+                            let txt = '=== Medición Regla GIS ===' + nl;
+                            validLines.forEach((ld, idx) => {
+                                txt += 'Línea #' + (idx + 1) + ' (' + ld.startLabel + ' ➔ ' + ld.endLabel + '): ' + formatRulerDist(ld.totalDist) + nl;
+                                ld.segments.forEach(s => {
+                                    txt += '  • ' + s.from + ' ➔ ' + s.to + ' (' + s.bearing.toFixed(1) + '° ' + compassDir(s.bearing) + '): ' + formatRulerDist(s.dist) + nl;
+                                });
+                            });
+                            txt += 'Distancia Total: ' + formatRulerDist(totalAllDist) + (validLines.length > 1 ? ' (' + validLines.length + ' líneas)' : '');
+                            vscode.postMessage({ command: 'copyToClipboard', text: txt });
+                            showHud('📋 Mediciones copiadas al portapapeles');
+                        } else {
+                            const { polygonsData, totalAllArea } = computeRulerAllAreasData();
+                            const validPolys = polygonsData.filter(pd => pd.pts.length >= 3);
+                            if (validPolys.length === 0) return;
+                            const nl = String.fromCharCode(10);
+                            let txt = '=== Medición Áreas GIS ===' + nl;
+                            validPolys.forEach((pd, idx) => {
+                                txt += 'Polígono #' + (idx + 1) + ' (' + pd.startLabel + ' ➔ ' + pd.endLabel + '): Área ' + formatRulerArea(pd.area) + ' (' + (pd.area / 10000).toFixed(4) + ' ha) | Perímetro: ' + formatRulerDist(pd.perimeter) + nl;
+                            });
+                            txt += 'Área Total: ' + formatRulerArea(totalAllArea) + (validPolys.length > 1 ? ' (' + validPolys.length + ' polígonos)' : '');
+                            vscode.postMessage({ command: 'copyToClipboard', text: txt });
+                            showHud('📋 Áreas copiadas al portapapeles');
+                        }
                     };
 
                     window.exportRulerGeoJSON = function() {
-                        if (rulerPoints.length < (rulerType === 'area' ? 3 : 2)) {
-                            showHud('⚠️ Traza primero una medición en el mapa');
-                            return;
-                        }
-                        const m = computeRulerMetrics(rulerPoints);
-                        const coords = rulerPoints.map(p => [Number(p.lng.toFixed(6)), Number(p.lat.toFixed(6))]);
-                        const feature = rulerType === 'line'
-                            ? {
-                                type: 'Feature',
-                                properties: {
-                                    tool: 'GEE IDE Pro Ruler',
-                                    distance_m: Number(m.totalDist.toFixed(2)),
-                                    distance_km: Number((m.totalDist / 1000).toFixed(4)),
-                                    segments: m.segments.length
-                                },
-                                geometry: { type: 'LineString', coordinates: coords }
+                        if (rulerType === 'line') {
+                            const { linesData, totalAllDist } = computeRulerAllLinesData();
+                            const validLines = linesData.filter(ld => ld.pts.length >= 2);
+                            if (validLines.length === 0) {
+                                showHud('⚠️ Traza primero una medición en el mapa');
+                                return;
                             }
-                            : {
+                            const features = validLines.map((ld, idx) => ({
                                 type: 'Feature',
                                 properties: {
-                                    tool: 'GEE IDE Pro Ruler',
-                                    area_m2: Number(m.area.toFixed(2)),
-                                    area_ha: Number((m.area / 10000).toFixed(4)),
-                                    perimeter_m: Number(m.perimeter.toFixed(2))
+                                    line_index: idx + 1,
+                                    name: 'Línea #' + (idx + 1),
+                                    start_vertex: ld.startLabel,
+                                    end_vertex: ld.endLabel,
+                                    distance_m: Number(ld.totalDist.toFixed(2)),
+                                    distance_km: Number((ld.totalDist / 1000).toFixed(4)),
+                                    segments_count: ld.segments.length,
+                                    segments: ld.segments.map(s => ({
+                                        from: s.from,
+                                        to: s.to,
+                                        distance_m: Number(s.dist.toFixed(2)),
+                                        bearing_deg: Number(s.bearing.toFixed(1))
+                                    }))
                                 },
-                                geometry: { type: 'Polygon', coordinates: [coords.concat([coords[0]])] }
+                                geometry: {
+                                    type: 'LineString',
+                                    coordinates: ld.pts.map(p => [Number(p.lng.toFixed(6)), Number(p.lat.toFixed(6))])
+                                }
+                            }));
+                            const fc = {
+                                type: 'FeatureCollection',
+                                properties: {
+                                    tool: 'GEE IDE Ruler',
+                                    total_distance_m: Number(totalAllDist.toFixed(2)),
+                                    total_lines: features.length
+                                },
+                                features: features
                             };
-                        const fc = { type: 'FeatureCollection', features: [feature] };
-                        vscode.postMessage({
-                            command: 'saveMeasureGeoJSON',
-                            geojson: JSON.stringify(fc, null, 2),
-                            filename: 'medicion_' + rulerType + '_' + Date.now() + '.geojson'
-                        });
+                            vscode.postMessage({
+                                command: 'saveMeasureGeoJSON',
+                                geojson: JSON.stringify(fc, null, 2),
+                                filename: 'medicion_lineas_' + Date.now() + '.geojson'
+                            });
+                        } else {
+                            const { polygonsData, totalAllArea } = computeRulerAllAreasData();
+                            const validPolys = polygonsData.filter(pd => pd.pts.length >= 3);
+                            if (validPolys.length === 0) {
+                                showHud('⚠️ Traza al menos un polígono con 3 o más vértices');
+                                return;
+                            }
+                            const features = validPolys.map((pd, idx) => {
+                                const coords = pd.pts.map(p => [Number(p.lng.toFixed(6)), Number(p.lat.toFixed(6))]);
+                                return {
+                                    type: 'Feature',
+                                    properties: {
+                                        polygon_index: idx + 1,
+                                        name: 'Polígono #' + (idx + 1),
+                                        start_vertex: pd.startLabel,
+                                        end_vertex: pd.endLabel,
+                                        area_m2: Number(pd.area.toFixed(2)),
+                                        area_ha: Number((pd.area / 10000).toFixed(4)),
+                                        perimeter_m: Number(pd.perimeter.toFixed(2)),
+                                        vertices_count: pd.pts.length
+                                    },
+                                    geometry: { type: 'Polygon', coordinates: [coords.concat([coords[0]])] }
+                                };
+                            });
+                            const fc = {
+                                type: 'FeatureCollection',
+                                properties: {
+                                    tool: 'GEE IDE Ruler',
+                                    total_area_m2: Number(totalAllArea.toFixed(2)),
+                                    total_area_ha: Number((totalAllArea / 10000).toFixed(4)),
+                                    total_polygons: features.length
+                                },
+                                features: features
+                            };
+                            vscode.postMessage({
+                                command: 'saveMeasureGeoJSON',
+                                geojson: JSON.stringify(fc, null, 2),
+                                filename: 'medicion_areas_' + Date.now() + '.geojson'
+                            });
+                        }
                     };
 
                     let rulerHoverElevMarker = null;
                     let lastRulerElevSamples = [];
 
                     window.requestRulerElevationProfile = function() {
-                        if (rulerPoints.length < 2) {
+                        const pts = rulerLines.length > 0 ? (isRulerLineFinished ? rulerLines[rulerLines.length - 1] : rulerLines.flat()) : [];
+                        if (pts.length < 2) {
                             showHud('⚠️ Traza al menos 2 puntos en modo Línea para ver el perfil DEM');
                             return;
                         }
-                        const m = computeRulerMetrics(rulerPoints);
+                        const m = computeRulerAreaMetrics(pts);
                         const total = m.totalDist;
-                        // Adaptive sampling: 1 sample per ~30m (FABDEM/SRTM pixel), clamped between 40 and 100 intervals
                         const numSamples = Math.max(40, Math.min(100, Math.round(total / 30)));
 
                         const elevBox = document.getElementById('rulerElevBox');
@@ -7055,13 +7544,13 @@ export class MapView {
                         for (let i = 0; i <= numSamples; i++) {
                             const targetDist = (total * i) / numSamples;
                             let acc = 0;
-                            let chosen = rulerPoints[rulerPoints.length - 1];
-                            for (let s = 1; s < rulerPoints.length; s++) {
-                                const segD = map.distance(rulerPoints[s - 1], rulerPoints[s]);
-                                if (acc + segD >= targetDist || s === rulerPoints.length - 1) {
+                            let chosen = pts[pts.length - 1];
+                            for (let s = 1; s < pts.length; s++) {
+                                const segD = map.distance(pts[s - 1], pts[s]);
+                                if (acc + segD >= targetDist || s === pts.length - 1) {
                                     const t = segD > 0 ? Math.max(0, Math.min(1, (targetDist - acc) / segD)) : 0;
-                                    const lat = rulerPoints[s - 1].lat + (rulerPoints[s].lat - rulerPoints[s - 1].lat) * t;
-                                    const lng = rulerPoints[s - 1].lng + (rulerPoints[s].lng - rulerPoints[s - 1].lng) * t;
+                                    const lat = pts[s - 1].lat + (pts[s].lat - pts[s - 1].lat) * t;
+                                    const lng = pts[s - 1].lng + (pts[s].lng - pts[s - 1].lng) * t;
                                     chosen = { lat, lng };
                                     break;
                                 }
@@ -7154,12 +7643,69 @@ export class MapView {
 
                     map.on('click', (e) => {
                         if (!rulerMode) return;
-                        rulerPoints.push(e.latlng);
-                        updateRulerUI();
+
+                        const now = Date.now();
+                        // Double-click detector on click: if 2nd click within 320ms on similar spot
+                        if (now - lastRulerClickTime < 320 && lastRulerClickLatLng && map.distance(lastRulerClickLatLng, e.latlng) < 15) {
+                            lastRulerClickTime = 0;
+                            lastRulerClickLatLng = null;
+                            if (rulerType === 'line') {
+                                window.finishRulerSegment();
+                            } else {
+                                window.finishRulerArea();
+                            }
+                            return;
+                        }
+                        lastRulerClickTime = now;
+                        lastRulerClickLatLng = e.latlng;
+
+                        if (rulerType === 'line') {
+                            if (isRulerLineFinished) {
+                                rulerLines.push([]);
+                                isRulerLineFinished = false;
+                            }
+                            const currLine = rulerLines[rulerLines.length - 1];
+                            currLine.push(e.latlng);
+                            rulerPoints = rulerLines.flat();
+                            updateRulerUI();
+                        } else {
+                            if (isRulerAreaFinished) {
+                                rulerPolygons.push([]);
+                                isRulerAreaFinished = false;
+                            }
+                            if (rulerPolygons.length === 0) rulerPolygons = [[]];
+                            const currPoly = rulerPolygons[rulerPolygons.length - 1];
+
+                            // Click on start vertex (first point) closes polygon if >= 3 points
+                            if (currPoly.length >= 3) {
+                                const distToStart = map.distance(currPoly[0], e.latlng);
+                                if (distToStart < 25) {
+                                    window.finishRulerArea();
+                                    return;
+                                }
+                            }
+
+                            currPoly.push(e.latlng);
+                            rulerPoints = rulerPolygons.flat();
+                            updateRulerUI();
+                        }
+                    });
+
+                    map.on('dblclick', (e) => {
+                        if (!rulerMode) return;
+                        if (e.originalEvent) {
+                            e.originalEvent.preventDefault();
+                            e.originalEvent.stopPropagation();
+                        }
+                        if (rulerType === 'line') {
+                            window.finishRulerSegment();
+                        } else {
+                            window.finishRulerArea();
+                        }
                     });
 
                     map.on('mousemove', (e) => {
-                        if (!rulerMode || rulerPoints.length === 0) return;
+                        if (!rulerMode || rulerPoints.length === 0 || (rulerType === 'line' ? isRulerLineFinished : isRulerAreaFinished)) return;
                         updateRulerUI(e.latlng);
                     });
                     // --- END QGIS SCALE BAR & RULER PRO TOOL ---
@@ -7171,6 +7717,25 @@ export class MapView {
                             vscode.postMessage({ command: 'ready' });
                         }
                     }, 100);
+
+                    // Robust auto-resize observer to guarantee Leaflet map expands when tab/quadrant renders
+                    try {
+                        const mapContainer = document.getElementById('map');
+                        if (mapContainer && typeof ResizeObserver !== 'undefined') {
+                            const ro = new ResizeObserver(() => {
+                                map.invalidateSize();
+                            });
+                            ro.observe(mapContainer);
+                        }
+                    } catch (e) {}
+
+                    window.addEventListener('resize', () => {
+                        map.invalidateSize();
+                    });
+
+                    // Multi-phase safety triggers for slower layout passes
+                    setTimeout(() => { map.invalidateSize(); }, 300);
+                    setTimeout(() => { map.invalidateSize(); }, 800);
                 </script>
             </body>
             </html>

@@ -11,31 +11,47 @@ export class AIView {
         this.messageCallback = callback;
     }
 
+    public findExistingTab(): { tab: vscode.Tab; group: vscode.TabGroup } | undefined {
+        for (const group of vscode.window.tabGroups.all) {
+            for (const tab of group.tabs) {
+                if (tab.input instanceof vscode.TabInputWebview) {
+                    const vt = tab.input.viewType || '';
+                    const label = tab.label || '';
+                    if (vt.includes('geeAI') || label.includes('GEE Tools') || label.includes('geeAI')) {
+                        return { tab, group };
+                    }
+                }
+            }
+        }
+        return undefined;
+    }
+
     public async show(column: vscode.ViewColumn = vscode.ViewColumn.Four, preserveFocus: boolean = true) {
         if (this.panel) {
-            this.panel.reveal(column, preserveFocus);
-        } else {
-            await this.closeExistingTabs();
-
-            this.panel = vscode.window.createWebviewPanel(
-                'geeAI',
-                'GEE Tools',
-                { viewColumn: column, preserveFocus },
-                {
-                    enableScripts: true,
-                    retainContextWhenHidden: true
-                }
-            );
-
-            this.panel.webview.html = this.getHtml();
-            this.panel.webview.onDidReceiveMessage(message => {
-                if (this.messageCallback) this.messageCallback(message);
-            }, undefined, this.context.subscriptions);
-
-            this.panel.onDidDispose(() => {
-                this.panel = undefined;
-            }, null, this.context.subscriptions);
+            this.panel.reveal(column !== undefined ? column : this.panel.viewColumn, preserveFocus);
+            return;
         }
+
+        await this.closeExistingTabs();
+
+        this.panel = vscode.window.createWebviewPanel(
+            'geeAI',
+            'GEE Tools',
+            { viewColumn: column, preserveFocus },
+            {
+                enableScripts: true,
+                retainContextWhenHidden: true
+            }
+        );
+
+        this.panel.webview.html = this.getHtml();
+        this.panel.webview.onDidReceiveMessage(message => {
+            if (this.messageCallback) this.messageCallback(message);
+        }, undefined, this.context.subscriptions);
+
+        this.panel.onDidDispose(() => {
+            this.panel = undefined;
+        }, null, this.context.subscriptions);
     }
 
     public dispose() {
@@ -45,13 +61,20 @@ export class AIView {
         }
     }
 
-    private async closeExistingTabs() {
+    public async closeExistingTabs(keepPanel?: vscode.WebviewPanel) {
         try {
             const tabsToClose: vscode.Tab[] = [];
             for (const group of vscode.window.tabGroups.all) {
                 for (const tab of group.tabs) {
-                    if (tab.input instanceof vscode.TabInputWebview && tab.input.viewType === 'geeAI') {
-                        tabsToClose.push(tab);
+                    if (tab.input instanceof vscode.TabInputWebview) {
+                        const vt = tab.input.viewType || '';
+                        const label = tab.label || '';
+                        if (vt.includes('geeAI') || label.includes('GEE Tools') || label.includes('geeAI')) {
+                            if (keepPanel && this.panel === keepPanel && tab.isActive) {
+                                continue;
+                            }
+                            tabsToClose.push(tab);
+                        }
                     }
                 }
             }
@@ -69,15 +92,8 @@ export class AIView {
 
     public focus() {
         if (this.panel) {
-            this.panel.reveal();
+            this.panel.reveal(this.panel.viewColumn, false);
             this.panel.webview.postMessage({ command: 'focus' });
-        } else {
-            this.show();
-            setTimeout(() => {
-                if (this.panel) {
-                    this.panel.webview.postMessage({ command: 'focus' });
-                }
-            }, 250);
         }
     }
 

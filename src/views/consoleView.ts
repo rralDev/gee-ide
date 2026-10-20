@@ -134,43 +134,59 @@ export class ConsoleView {
         this.messageCallback = callback;
     }
 
+    public findExistingTab(): { tab: vscode.Tab; group: vscode.TabGroup } | undefined {
+        for (const group of vscode.window.tabGroups.all) {
+            for (const tab of group.tabs) {
+                if (tab.input instanceof vscode.TabInputWebview) {
+                    const vt = tab.input.viewType || '';
+                    const label = tab.label || '';
+                    if (vt.includes('geeConsole') || label.includes('GEE Console') || label.includes('geeConsole')) {
+                        return { tab, group };
+                    }
+                }
+            }
+        }
+        return undefined;
+    }
+
     public async show(column?: vscode.ViewColumn, preserveFocus: boolean = true) {
         const targetColumn = column || vscode.ViewColumn.Two;
         if (this.panel) {
             this.panel.reveal(column !== undefined ? column : this.panel.viewColumn, preserveFocus);
-        } else {
-            await this.closeExistingTabs();
-
-            this.panel = vscode.window.createWebviewPanel(
-                'geeConsole',
-                'GEE Console',
-                { viewColumn: targetColumn, preserveFocus },
-                {
-                    enableScripts: true,
-                    retainContextWhenHidden: true
-                }
-            );
-
-            this.panel.webview.options = { enableScripts: true };
-            this.panel.webview.onDidReceiveMessage(message => {
-                if (message.command === 'consoleReady') {
-                    if (this.panel) {
-                        this.panel.webview.postMessage({ command: 'syncLogs', logs: this.logs });
-                        this.panel.webview.postMessage({ command: 'setCompletions', items: Array.from(this.knownCompletions) });
-                        this.panel.webview.postMessage({ command: 'setHistory', history: this.loadHistory() });
-                    }
-                } else if (message.command === 'clearLogs') {
-                    this.logs = [];
-                }
-                if (this.messageCallback) this.messageCallback(message);
-            }, undefined, this.context.subscriptions);
-
-            this.panel.onDidDispose(() => {
-                this.panel = undefined;
-            }, null, this.context.subscriptions);
-
-            this.panel.webview.html = this.getHtml();
+            return;
         }
+
+        await this.closeExistingTabs();
+
+        this.panel = vscode.window.createWebviewPanel(
+            'geeConsole',
+            'GEE Console',
+            { viewColumn: targetColumn, preserveFocus },
+            {
+                enableScripts: true,
+                retainContextWhenHidden: true
+            }
+        );
+
+        this.panel.webview.options = { enableScripts: true };
+        this.panel.webview.onDidReceiveMessage(message => {
+            if (message.command === 'consoleReady') {
+                if (this.panel) {
+                    this.panel.webview.postMessage({ command: 'syncLogs', logs: this.logs });
+                    this.panel.webview.postMessage({ command: 'setCompletions', items: Array.from(this.knownCompletions) });
+                    this.panel.webview.postMessage({ command: 'setHistory', history: this.loadHistory() });
+                }
+            } else if (message.command === 'clearLogs') {
+                this.logs = [];
+            }
+            if (this.messageCallback) this.messageCallback(message);
+        }, undefined, this.context.subscriptions);
+
+        this.panel.onDidDispose(() => {
+            this.panel = undefined;
+        }, null, this.context.subscriptions);
+
+        this.panel.webview.html = this.getHtml();
     }
 
     public dispose() {
@@ -180,13 +196,20 @@ export class ConsoleView {
         }
     }
 
-    private async closeExistingTabs() {
+    public async closeExistingTabs(keepPanel?: vscode.WebviewPanel) {
         try {
             const tabsToClose: vscode.Tab[] = [];
             for (const group of vscode.window.tabGroups.all) {
                 for (const tab of group.tabs) {
-                    if (tab.input instanceof vscode.TabInputWebview && tab.input.viewType === 'geeConsole') {
-                        tabsToClose.push(tab);
+                    if (tab.input instanceof vscode.TabInputWebview) {
+                        const vt = tab.input.viewType || '';
+                        const label = tab.label || '';
+                        if (vt.includes('geeConsole') || label.includes('GEE Console') || label.includes('geeConsole')) {
+                            if (keepPanel && this.panel === keepPanel && tab.isActive) {
+                                continue;
+                            }
+                            tabsToClose.push(tab);
+                        }
                     }
                 }
             }
@@ -198,15 +221,8 @@ export class ConsoleView {
 
     public focus() {
         if (this.panel) {
-            this.panel.reveal();
+            this.panel.reveal(this.panel.viewColumn, false);
             this.panel.webview.postMessage({ command: 'focus' });
-        } else {
-            this.show(vscode.ViewColumn.Two);
-            setTimeout(() => {
-                if (this.panel) {
-                    this.panel.webview.postMessage({ command: 'focus' });
-                }
-            }, 250);
         }
     }
 

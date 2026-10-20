@@ -26,9 +26,12 @@ rgbVis <- list(
 )
 
 ndviVis <- list(
-  min = -0.1,
+  min = -0.2,
   max = 0.85,
-  palette = c('#d73027', '#f46d43', '#fdae61', '#fee08b', '#d9ef8b', '#a6d96a', '#1a9850', '#006837')
+  palette = c(
+    '#0c0c78', '#80b1d3', '#ffffff', '#ce7e45', '#df923d', 
+    '#fcd163', '#99b718', '#66a000', '#3e8601', '#056201', '#004c00'
+  )
 )
 
 # 5. Centrar el mapa y añadir las capas

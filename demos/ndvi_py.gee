@@ -46,13 +46,17 @@ swirVis = {
 }
 
 # Gradiente NDVI:
-# Rojo/Naranja: Suelo desnudo, pozos mineros y deforestación
-# Amarillo: Vegetación secundaria / arbustiva
-# Verde oscuro: Dosel de selva amazónica primaria densa
+# Azul (< 0): Cuerpos de agua (ríos, lagunas, pozas mineras)
+# Blanco / Ocre (0 a 0.2): Suelo desnudo, arena, frentes de minería y deforestación
+# Amarillo / Verde claro (0.2 a 0.45): Vegetación pionera y pastizales
+# Verde oscuro (0.45 a 0.85+): Dosel de selva amazónica primaria densa
 ndviVis = {
-  'min': -0.1,
+  'min': -0.2,
   'max': 0.85,
-  'palette': ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#d9ef8b', '#a6d96a', '#1a9850', '#006837']
+  'palette': [
+    '#0c0c78', '#80b1d3', '#ffffff', '#ce7e45', '#df923d',
+    '#fcd163', '#99b718', '#66a000', '#3e8601', '#056201', '#004c00'
+  ]
 }
 
 # 6. Proyectar capas al visor interactivo de GEE IDE
@@ -73,5 +77,5 @@ print("📍 Ubicación: La Pampa, Madre de Dios, Perú (-12.85°S, -69.85°W)")
 print("🛰️ Capas disponibles en el control de capas (arriba a la derecha del mapa):")
 print("   • Sentinel-2 Color Natural (La Pampa)")
 print("   • SWIR Minería y Agua Turbia (Falso Color)")
-print("   • NDVI Salud Vegetal vs Minería (Rojo = Deforestación, Verde = Selva)")
+print("   • NDVI Salud Vegetal vs Minería (Azul = Agua, Ocre = Minería/Suelo, Verde = Selva)")
 print("   • Límite ROI La Pampa (Contorno Rojo)")

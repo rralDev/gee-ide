@@ -44,7 +44,7 @@ export class SnippetsManager {
                     "body": [
                         "// Cálculo rápido de NDVI y visualización en mapa",
                         "var ${1:ndvi} = ${2:image}.normalizedDifference(['${3:B8}', '${4:B4}']).rename('ndvi');",
-                        "Map.addLayer(${1:ndvi}, {min: ${5:0.1}, max: ${6:0.85}, palette: ['blue', 'white', 'green']}, '${7:NDVI Layer}');",
+                        "Map.addLayer(${1:ndvi}, {min: ${5:-0.2}, max: ${6:0.85}, palette: ['#0c0c78', '#80b1d3', '#ffffff', '#df923d', '#fcd163', '#99b718', '#66a000', '#3e8601', '#056201', '#004c00']}, '${7:NDVI Layer}');",
                         "$0"
                     ],
                     "description": "Calcula NDVI y añade la capa con rampa de color al mapa"

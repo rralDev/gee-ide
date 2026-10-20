@@ -206,7 +206,7 @@ export class CatalogManager {
 
         if (idLower.includes('ndvi')) {
             const isScaled = idLower.includes('modis') || idLower.includes('mcd') || idLower.includes('mod13');
-            params = { min: isScaled ? 0 : 0.0, max: isScaled ? 10000 : 1.0, palette: GE_PALETTES.ndvi };
+            params = { min: isScaled ? -2000 : -0.2, max: isScaled ? 10000 : 0.85, palette: GE_PALETTES.ndvi };
         } else if (idLower.includes('elevation') || idLower.includes('srtm') || idLower.includes('dem')) {
             params = { min: 0, max: 3000, palette: GE_PALETTES.dem };
         } else if (idLower.includes('sentinel-2') || idLower.includes('copernicus/s2')) {
