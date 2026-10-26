@@ -1,0 +1,43 @@
+# R
+# Análisis de Vegetación (NDVI) — La Pampa, Madre de Dios (Perú)
+# GEE IDE — R Runtime (rgee)
+
+library(rgee)
+
+# 1. Zona de estudio: La Pampa, Madre de Dios (-12.85°S, -69.85°W)
+roi <- ee$Geometry$Point(c(-69.85, -12.85))$buffer(6000)
+
+# 2. Cargar colección Sentinel-2 Harmonized
+image <- ee$ImageCollection('COPERNICUS/S2_SR_HARMONIZED')$
+  filterBounds(roi)$
+  filterDate('2023-05-01', '2023-11-30')$
+  sort('CLOUDY_PIXEL_PERCENTAGE')$
+  first()$
+  clip(roi)
+
+# 3. Calcular NDVI: (NIR - RED) / (NIR + RED)
+ndvi <- image$normalizedDifference(c('B8', 'B4'))$rename('NDVI')
+
+# 4. Parámetros de visualización
+rgbVis <- list(
+  bands = c('B4', 'B3', 'B2'),
+  min = 0,
+  max = 2800
+)
+
+ndviVis <- list(
+  min = -0.2,
+  max = 0.85,
+  palette = c(
+    '#0c0c78', '#80b1d3', '#ffffff', '#ce7e45', '#df923d', 
+    '#fcd163', '#99b718', '#66a000', '#3e8601', '#056201', '#004c00'
+  )
+)
+
+# 5. Centrar el mapa y añadir las capas
+Map$centerObject(roi, 13)
+Map$addLayer(image, rgbVis, '1. Sentinel-2 Color Natural (R)')
+Map$addLayer(ndvi, ndviVis, '2. NDVI Salud Vegetal (R)')
+
+print("✅ Análisis amazónico completado exitosamente en R.")
+print("📍 Ubicación: La Pampa, Madre de Dios, Perú (-12.85°S, -69.85°W)")

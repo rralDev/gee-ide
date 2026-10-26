@@ -1,0 +1,36 @@
+{
+  "Earth Engine ImageCollection": {
+    "prefix": "eecol",
+    "body": [
+      "var ${1:collection} = ee.ImageCollection('${2:COPERNICUS/S2_SR_HARMONIZED}')",
+      "  .filterDate('${3:2024-01-01}', '${4:2024-12-31}')",
+      "  .filterBounds(${5:geometry});",
+      "$0"
+    ],
+    "description": "Cargar una colección de imágenes con filtros de fecha y geometría"
+  },
+  "Earth Engine Single Image": {
+    "prefix": "eeimg",
+    "body": [
+      "var ${1:image} = ee.Image('${2:COPERNICUS/S2_SR_HARMONIZED}');",
+      "$0"
+    ],
+    "description": "Cargar una imagen de Earth Engine"
+  },
+  "Calculate NDVI": {
+    "prefix": "ndvi",
+    "body": [
+      "var ${1:ndvi} = ${2:image}.normalizedDifference(['${3:B8}', '${4:B4}']).rename('ndvi');",
+      "$0"
+    ],
+    "description": "Calcular Índice de Vegetación de Diferencia Normalizada (NDVI)"
+  },
+  "Map AddLayer": {
+    "prefix": ["maplayer", "addlayer"],
+    "body": [
+      "Map.addLayer(${1:image}, {min: ${2:0}, max: ${3:3000}, bands: ['${4:B4}', '${5:B3}', '${6:B2}']}, '${7:Layer Name}');",
+      "$0"
+    ],
+    "description": "Añadir capa al mapa visor integrado"
+  }
+}

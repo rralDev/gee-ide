@@ -1,0 +1,472 @@
+{
+  "name": "gee-pro-ide",
+  "displayName": "GEE IDE",
+  "description": "Ultimate Google Earth Engine IDE for VS Code with integrated Map, Console, and Tasks/Asset Manager.",
+  "version": "0.1.41",
+  "publisher": "LuisRobles",
+  "author": "Luis Robles",
+  "license": "Apache-2.0",
+  "icon": "media/logo.png",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Data Science",
+    "Visualization",
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "google earth engine",
+    "gee",
+    "earth engine",
+    "gis",
+    "remote sensing",
+    "geospatial",
+    "satellite imagery",
+    "earth observation",
+    "landsat",
+    "sentinel",
+    "copernicus",
+    "modis",
+    "ndvi",
+    "mapping",
+    "spatial analysis",
+    "rgee",
+    "geemap",
+    "leaflet",
+    "map viewer",
+    "javascript api",
+    "python api",
+    "cloud engine"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onLanguage:gee",
+    "onLanguage:javascript",
+    "onLanguage:python",
+    "onLanguage:r",
+    "onCommand:gee-pro.start",
+    "onCommand:gee-pro.login",
+    "onCommand:gee-pro.authenticate",
+    "onCommand:gee-pro.reset",
+    "onCommand:gee-pro.run",
+    "onCommand:gee-pro.runSelection",
+    "onCommand:gee-pro.getLink",
+    "onCommand:gee-pro.setProject",
+    "onCommand:gee-pro.searchCatalog",
+    "onCommand:gee-pro.insertSpectralIndex",
+    "onCommand:gee-pro.openDemos",
+    "onCommand:gee-pro.openProject",
+    "onCommand:gee-pro.newProject",
+    "onCommand:gee-pro.openProjectSettings",
+    "onCommand:gee-pro.setProjectMapCenter",
+    "onCommand:gee-pro.drawPan",
+    "onCommand:gee-pro.drawPoint",
+    "onCommand:gee-pro.drawLine",
+    "onCommand:gee-pro.drawPolygon",
+    "onCommand:gee-pro.drawRectangle",
+    "onCommand:gee-pro.focusTasks",
+    "onWebviewPanel:geeMap",
+    "onWebviewPanel:geeConsole",
+    "onWebviewPanel:geeTasks",
+    "onWebviewPanel:geeAI"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "GEE IDE",
+      "properties": {
+        "gee-pro.projectId": {
+          "type": "string",
+          "default": "",
+          "description": "Google Cloud Project ID associated with Google Earth Engine (e.g. PeruREDD)"
+        }
+      }
+    },
+    "languages": [
+      {
+        "id": "gee",
+        "extensions": [
+          ".gee"
+        ],
+        "aliases": [
+          "Google Earth Engine",
+          "gee"
+        ],
+        "icon": {
+          "light": "./media/logo.png",
+          "dark": "./media/logo.png"
+        }
+      }
+    ],
+    "snippets": [
+      {
+        "language": "gee",
+        "path": "./snippets/gee.json"
+      },
+      {
+        "language": "javascript",
+        "path": "./snippets/gee-js.json"
+      },
+      {
+        "language": "python",
+        "path": "./snippets/gee-py.json"
+      },
+      {
+        "language": "r",
+        "path": "./snippets/gee-r.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "gee-pro.start",
+        "title": "Start Environment",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.login",
+        "title": "Login with Google (Easy)",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.logout",
+        "title": "Logout",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.setProject",
+        "title": "Set Active Cloud Project",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.reset",
+        "title": "Reset Environment",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.run",
+        "title": "Run Entire Script",
+        "category": "GEE IDE",
+        "icon": "$(run-all)"
+      },
+      {
+        "command": "gee-pro.runSelection",
+        "title": "Run Selection/Line",
+        "category": "GEE IDE",
+        "icon": "$(play)"
+      },
+      {
+        "command": "gee-pro.getLink",
+        "title": "Get Shareable Link",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.focusEditor",
+        "title": "Show / Focus Code Editor (Quadrant 1)",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.focusConsole",
+        "title": "Show / Focus Console (Quadrant 2)",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.focusMap",
+        "title": "Show / Focus Map Viewer (Quadrant 3)",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.focusTasks",
+        "title": "Show / Focus Tasks & Assets (Quadrant 4)",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.focusAI",
+        "title": "Show / Focus Tasks & Assets (Quadrant 4)",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.clearConsole",
+        "title": "Clear Console",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.openLogFile",
+        "title": "Open Console Log File (gee_console.log)",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.saveLayout",
+        "title": "Save Current Layout as Default",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.resetLayout",
+        "title": "Reset to 2x2 Grid Layout",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.editSnippets",
+        "title": "Edit User Snippets",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.listSnippets",
+        "title": "List & Insert Snippet",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.searchCatalog",
+        "title": "Search Data Catalog",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.insertSpectralIndex",
+        "title": "Insert Spectral Index (NDVI, NDWI, EVI, NBR...)",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.openDemos",
+        "title": "Open Demo Scripts",
+        "category": "GEE IDE"
+      },
+      {
+        "command": "gee-pro.openProject",
+        "title": "Open Project... (Abrir Proyecto GEE)",
+        "category": "GEE IDE",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "gee-pro.newProject",
+        "title": "New Project... (Nuevo Proyecto GEE)",
+        "category": "GEE IDE",
+        "icon": "$(project)"
+      },
+      {
+        "command": "gee-pro.setupPython",
+        "title": "Setup Scientific Python 3.11 (Configurar Python Hermético)",
+        "category": "GEE IDE",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "gee-pro.openProjectSettings",
+        "title": "Project Menu & Settings (Menú del Proyecto)",
+        "category": "GEE IDE",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "gee-pro.setProjectMapCenter",
+        "title": "Set Map View as Project Default",
+        "category": "GEE IDE",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "gee-pro.drawPan",
+        "title": "Draw: Hand / Pan (Manito)",
+        "category": "GEE IDE",
+        "icon": "$(hand)"
+      },
+      {
+        "command": "gee-pro.drawPoint",
+        "title": "Draw: Point / Marker (Puntos)",
+        "category": "GEE IDE",
+        "icon": "$(location)"
+      },
+      {
+        "command": "gee-pro.drawLine",
+        "title": "Draw: Line / Polyline (Líneas)",
+        "category": "GEE IDE",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "gee-pro.drawPolygon",
+        "title": "Draw: Polygon (Polígono)",
+        "category": "GEE IDE",
+        "icon": "$(symbol-polygon)"
+      },
+      {
+        "command": "gee-pro.drawRectangle",
+        "title": "Draw: Rectangle (Rectángulo)",
+        "category": "GEE IDE",
+        "icon": "$(chrome-maximize)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "gee-pro.drawPoint",
+        "key": "ctrl+1",
+        "mac": "ctrl+1",
+        "when": "geeMapFocused || activeWebviewPanelId == 'geeMap' || activeWebviewType == 'geeMap'"
+      },
+      {
+        "command": "gee-pro.drawPoint",
+        "key": "alt+1",
+        "mac": "alt+1",
+        "when": "geeMapFocused || activeWebviewPanelId == 'geeMap' || activeWebviewType == 'geeMap'"
+      },
+      {
+        "command": "gee-pro.drawLine",
+        "key": "ctrl+2",
+        "mac": "ctrl+2",
+        "when": "geeMapFocused || activeWebviewPanelId == 'geeMap' || activeWebviewType == 'geeMap'"
+      },
+      {
+        "command": "gee-pro.drawLine",
+        "key": "alt+2",
+        "mac": "alt+2",
+        "when": "geeMapFocused || activeWebviewPanelId == 'geeMap' || activeWebviewType == 'geeMap'"
+      },
+      {
+        "command": "gee-pro.drawPolygon",
+        "key": "ctrl+3",
+        "mac": "ctrl+3",
+        "when": "geeMapFocused || activeWebviewPanelId == 'geeMap' || activeWebviewType == 'geeMap'"
+      },
+      {
+        "command": "gee-pro.drawPolygon",
+        "key": "alt+3",
+        "mac": "alt+3",
+        "when": "geeMapFocused || activeWebviewPanelId == 'geeMap' || activeWebviewType == 'geeMap'"
+      },
+      {
+        "command": "gee-pro.drawRectangle",
+        "key": "ctrl+4",
+        "mac": "ctrl+4",
+        "when": "geeMapFocused || activeWebviewPanelId == 'geeMap' || activeWebviewType == 'geeMap'"
+      },
+      {
+        "command": "gee-pro.drawRectangle",
+        "key": "alt+4",
+        "mac": "alt+4",
+        "when": "geeMapFocused || activeWebviewPanelId == 'geeMap' || activeWebviewType == 'geeMap'"
+      },
+      {
+        "command": "gee-pro.drawPan",
+        "key": "ctrl+0",
+        "mac": "ctrl+0",
+        "when": "geeMapFocused || activeWebviewPanelId == 'geeMap' || activeWebviewType == 'geeMap'"
+      },
+      {
+        "command": "gee-pro.drawPan",
+        "key": "alt+0",
+        "mac": "alt+0",
+        "when": "geeMapFocused || activeWebviewPanelId == 'geeMap' || activeWebviewType == 'geeMap'"
+      },
+      {
+        "command": "gee-pro.drawPan",
+        "key": "escape",
+        "mac": "escape",
+        "when": "geeMapFocused || activeWebviewPanelId == 'geeMap' || activeWebviewType == 'geeMap'"
+      },
+      {
+        "command": "gee-pro.clearConsole",
+        "key": "ctrl+l",
+        "mac": "cmd+l",
+        "when": "editorTextFocus || focusedView == 'geeConsole' || activeWebviewPanelId == 'geeConsole'"
+      },
+      {
+        "command": "gee-pro.runSelection",
+        "key": "cmd+enter",
+        "mac": "cmd+enter",
+        "when": "editorTextFocus && resourceExtname == .gee"
+      },
+      {
+        "command": "gee-pro.run",
+        "key": "cmd+shift+enter",
+        "mac": "cmd+shift+enter",
+        "when": "editorTextFocus && resourceExtname == .gee"
+      },
+      {
+        "command": "gee-pro.runSelection",
+        "key": "cmd+enter",
+        "mac": "cmd+enter",
+        "when": "editorTextFocus && (editorLangId == javascript || editorLangId == python || editorLangId == r || editorLangId == gee || resourceExtname == .gee)"
+      },
+      {
+        "command": "gee-pro.run",
+        "key": "cmd+shift+enter",
+        "mac": "cmd+shift+enter",
+        "when": "editorTextFocus && (editorLangId == javascript || editorLangId == python || editorLangId == r || editorLangId == gee || resourceExtname == .gee)"
+      },
+      {
+        "command": "gee-pro.focusEditor",
+        "key": "ctrl+1",
+        "mac": "cmd+1"
+      },
+      {
+        "command": "gee-pro.focusConsole",
+        "key": "ctrl+2",
+        "mac": "cmd+2"
+      },
+      {
+        "command": "gee-pro.focusMap",
+        "key": "ctrl+3",
+        "mac": "cmd+3"
+      },
+      {
+        "command": "gee-pro.focusTasks",
+        "key": "ctrl+4",
+        "mac": "cmd+4"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "gee-pro.run",
+          "when": "resourceExtname == .js || resourceExtname == .gee || resourceExtname == .py || resourceExtname == .r",
+          "group": "navigation"
+        },
+        {
+          "command": "gee-pro.runSelection",
+          "when": "resourceExtname == .js || resourceExtname == .gee || resourceExtname == .py || resourceExtname == .r",
+          "group": "navigation"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "gee-pro-sidebar",
+          "title": "GEE IDE",
+          "icon": "$(globe)"
+        }
+      ]
+    },
+    "views": {
+      "gee-pro-sidebar": [
+        {
+          "id": "gee-pro-assets",
+          "name": "Assets",
+          "type": "tree"
+        },
+        {
+          "id": "gee-pro-tasks",
+          "name": "Tasks",
+          "type": "tree"
+        }
+      ]
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rralDev/gee-ide.git"
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "build": "rm -rf out && esbuild ./src/extension.ts --bundle --minify --outfile=out/extension.js --external:vscode --alias:googleapis=./src/shims/googleapis_stub.js --format=cjs --platform=node --main-fields=main,module && mkdir -p out/shims && cp src/shims/gee_pro_shim.py src/shims/gee_pro_shim.R src/shims/gee_pro_repl.py out/shims/",
+    "mpupdate": "npm run build && npx @vscode/vsce publish patch",
+    "mppackage": "npm run build && npx @vscode/vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^16.18.126",
+    "@types/vscode": "^1.75.0",
+    "esbuild": "^0.17.11",
+    "typescript": "^4.9.3"
+  },
+  "dependencies": {
+    "@google/earthengine": "^0.1.350",
+    "xmlhttprequest": "^1.8.0"
+  }
+}

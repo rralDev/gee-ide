@@ -1,0 +1,64 @@
+// js
+/**
+ * Análisis de Vegetación (NDVI) y Monitoreo Satelital — Amazonía Peruana
+ * Zona de Estudio: La Pampa, Madre de Dios (Perú)
+ * GEE IDE — JavaScript Runtime
+ */
+
+// 0. Limpiar capas previas
+Map.clear();
+
+// 1. Zona de estudio: La Pampa, Madre de Dios (-12.85°S, -69.85°W) con radio de 6 km
+var roi = ee.Geometry.Point([-77.456818, -8.817998 ]).buffer(6000);
+
+// 2. Centrar el mapa en la zona de estudio (zoom 13)
+Map.centerObject(roi, 13);
+
+// 3. Cargar colección Sentinel-2 Harmonized (época seca para mínima nubosidad)
+var image = ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+  .filterBounds(roi)
+  .filterDate('2023-05-01', '2023-11-30')
+  .sort('CLOUDY_PIXEL_PERCENTAGE')
+  .first()
+  .clip(roi);
+
+// 4. Calcular NDVI: (NIR - RED) / (NIR + RED) -> Bandas 8 y 4 en Sentinel-2
+var ndvi = image.normalizedDifference(['B8', 'B4']).rename('NDVI');
+
+// 5. Parámetros de visualización
+// Color Natural: B4 (Rojo), B3 (Verde), B2 (Azul)
+var rgbVis = {
+  bands: ['B4', 'B3', 'B2'],
+  min: 0,
+  max: 2800
+};
+
+// Falso Color / SWIR: B12 (SWIR-2), B8 (NIR), B4 (Rojo)
+var swirVis = {
+  bands: ['B12', 'B8', 'B4'],
+  min: 0,
+  max: 3500
+};
+
+// Gradiente NDVI con cuerpos de agua:
+// Azul (< 0): Cuerpos de agua (Río Inambari, lagunas, pozas mineras)
+// Blanco / Ocre (0 a 0.2): Suelo desnudo, arena, frentes de minería y deforestación
+// Amarillo / Verde claro (0.2 a 0.45): Vegetación pionera y pastizales
+// Verde oscuro (0.45 a 0.85+): Dosel de selva amazónica primaria densa
+var ndviVis = {
+  min: -0.2,
+  max: 0.85,
+  palette: [
+    '#0c0c78', '#80b1d3', '#ffffff', '#ce7e45', '#df923d',
+    '#fcd163', '#99b718', '#66a000', '#3e8601', '#056201', '#004c00'
+  ]
+};
+
+// 6. Proyectar capas al visor interactivo de GEE IDE
+Map.addLayer(ndvi, ndviVis, '3. NDVI Salud Vegetal vs Minería');
+Map.addLayer(image, swirVis, '2. SWIR Minería y Agua Turbia (Falso Color)');
+Map.addLayer(image, rgbVis, '1. Sentinel-2 Color Natural (La Pampa)');
+
+print("✅ Análisis amazónico completado exitosamente en JavaScript.");
+print("📍 Ubicación: La Pampa, Madre de Dios, Perú (-12.85°S, -69.85°W)");
+print("💡 Capa NDVI: Azul = Agua, Ocre/Blanco = Suelo/Minería, Verde = Selva densa");

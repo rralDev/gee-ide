@@ -1,0 +1,32 @@
+node_modules/
+out/
+.vscode-test/
+*.vsix
+.gemini/
+*.json
+!package.json
+!tsconfig.json
+!media/*.json
+!snippets/*.json
+!data/*.json
+.DS_Store
+src/config.ts
+.tmp/
+media/concept_logos/
+learning/
+.gee_history
+scratch/
+
+# Documentos internos de control / Roadmap / Guiones
+ROADMAP.md
+roadmap.md
+README_es.md
+readme_es.md
+[Gg]uion.md
+guion.md
+Guion.md
+.obsidian/
+
+# Scripts y capturas internas
+scripts/
+demos/Screenshots/

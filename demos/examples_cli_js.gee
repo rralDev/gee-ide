@@ -1,0 +1,65 @@
+// js
+/**
+ * DEMO: Automatización de Assets y Comandos CLI en GEE IDE
+ * 
+ * 💡 TIPS DE USO:
+ * 1. En SCRIPTS (.gee con // js, # py o # r): Usamos llamadas a funciones
+ *    como ls(), cd('robles'), mkdir('dir'), touch('col'), find('patron'), rm('patron', true) o cli('comando').
+ *    Esto garantiza sintaxis 100% válida sin ninguna línea roja en el editor.
+ * 2. En la TERMINAL interactiva (gee:users/robles>): Puedes escribir directamente los comandos
+ *    sin comillas ni paréntesis (ej: ls, cd robles, find test_*, rm -r test_*).
+ */
+
+// js
+// 1. Navegación e información
+pwd();
+ls();
+cd('robles');
+
+// 2. Bucle para crear 5 carpetas
+for (var i = 1; i <= 5; i++) {
+    mkdir('test_temporada_' + i);
+}
+
+// 3. Crear colección vacía
+touch('test_coleccion_2024_test01');
+
+// 4. Listar y buscar con comodines
+ls('test_*');
+find('test_*');
+
+// 5. Eliminar por patrón recursivo (true = -r)
+rm('test_*', true);
+// O también: cli('rm -r test_*');
+
+
+// recursivo
+
+// 1. Ver ruta actual y listar contenido
+pwd();
+ls();
+du();
+
+// 2. Navegar a tu carpeta de usuario (reemplaza 'robles' por tu usuario)
+cd('robles');
+
+// 3. Bucle para CREAR 5 directorios recurrentes en tu cuenta de GEE
+print('⏳ Creando directorios recurrentes...');
+for (var i = 1; i <= 5; i++) {
+    mkdir('test_temporada_' + i);
+}
+
+// 4. Crear una colección de imágenes vacía con touch
+touch('test_coleccion_2024_test01');
+
+// 5. Listar únicamente los assets que coinciden con el patrón
+ls('test_*');
+
+// 6. Buscar assets con find
+find('test_*');
+
+// 7. Eliminar todos los directorios y colecciones temporales (true = recursivo -r)
+// (También puedes usar: cli('rm -r test_*');)
+rm('test_*', true);
+
+print('✅ Automatización completada con éxito.');
